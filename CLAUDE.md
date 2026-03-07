@@ -1,7 +1,7 @@
 # mBowl — Claude Code Instructions
 
 **Full spec:** `mBowl-SPEC.md` in this project folder. Read it before writing any code.  
-**Session state:** `mBowl-SessionBrief-REV04.md` — check this for current phase and notes.
+**Session state:** `mBowl-SessionBrief-REV05.md` — check this for current phase and notes.
 
 ---
 
@@ -129,7 +129,7 @@ mBowl/
 ├── components/          — shared components
 ├── CLAUDE.md            — this file
 ├── mBowl-SPEC.md        — permanent spec
-└── mBowl-SessionBrief-REV04.md  — session state
+└── mBowl-SessionBrief-REV05.md  — session state
 ```
 
 ---
