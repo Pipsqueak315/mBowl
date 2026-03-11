@@ -1,4 +1,7 @@
-import { useState, useLayoutEffect, useCallback } from 'react';
+const fs = require('fs');
+const path = require('path');
+
+const content = `import { useState, useLayoutEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,12 +11,10 @@ import {
   SafeAreaView,
   ScrollView,
   ActivityIndicator,
-  useWindowDimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LineChart } from 'react-native-chart-kit';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 // --- Types ---
@@ -59,43 +60,13 @@ interface Metrics {
   sessionCount: number;
 }
 
-interface ChartPoint {
-  labels: string[];
-  data: number[];
-}
-
 type ToggleMode = 'season' | 'alltime';
-
-// --- Chart Config (defined outside component — stable reference) ---
-const CHART_CONFIG = {
-  backgroundColor: '#1C1C1E',
-  backgroundGradientFrom: '#1C1C1E',
-  backgroundGradientTo: '#1C1C1E',
-  decimalPlaces: 0,
-  color: (opacity = 1) => 'rgba(0, 206, 201, ' + String(opacity) + ')',
-  labelColor: (opacity = 1) => 'rgba(142, 142, 147, ' + String(opacity) + ')',
-  propsForDots: {
-    r: '4',
-    strokeWidth: '2',
-    stroke: '#00CEC9',
-    fill: '#1C1C1E',
-  },
-  propsForBackgroundLines: {
-    stroke: '#38383A',
-    strokeDasharray: '',
-  },
-};
 
 // --- Helpers ---
 function avgColor(avg: number): string {
   if (avg >= 180) return '#30D158';
   if (avg >= 166) return '#FF9F0A';
   return '#FF453A';
-}
-
-function formatDateLabel(date: string): string {
-  const p = date.split('-');
-  return parseInt(p[1]) + '/' + parseInt(p[2]);
 }
 
 function filterSessions(
@@ -106,15 +77,15 @@ function filterSessions(
   if (mode === 'alltime' || !settings?.seasonStart || !settings?.seasonEnd) {
     return sessions;
   }
-  return sessions.filter(
-    s => s.date >= settings.seasonStart! && s.date <= settings.seasonEnd!,
-  );
+  return sessions.filter(s => s.date >= settings.seasonStart! && s.date <= settings.seasonEnd!);
 }
 
 function calcMetrics(sessions: Session[]): Metrics | null {
   if (sessions.length === 0) return null;
 
-  const allGames = sessions.flatMap(s => s.games.filter(g => g.score != null));
+  const allGames = sessions.flatMap(s =>
+    s.games.filter(g => g.score != null),
+  );
   if (allGames.length === 0) return null;
 
   const scores = allGames.map(g => g.score as number);
@@ -129,14 +100,21 @@ function calcMetrics(sessions: Session[]): Metrics | null {
     if (total > highSeries) highSeries = total;
   }
 
+  // Frame stats — only from games that actually have frame data
   const gamesWithFrames = allGames.filter(
     g => Array.isArray(g.frames) && (g.frames as FrameEntry[]).length > 0,
   );
 
   let frameStats: FrameStats | null = null;
   if (gamesWithFrames.length > 0) {
-    let totalFrames = 0, strikes = 0, spareOpps = 0, spares = 0, opens = 0;
+    let totalFrames = 0;
+    let strikes = 0;
+    let spareOpps = 0;
+    let spares = 0;
+    let opens = 0;
+
     for (const g of gamesWithFrames) {
+      // Frames 1-9 only for strike/spare/open calculation
       const scoringFrames = (g.frames as FrameEntry[]).slice(0, 9);
       for (const f of scoringFrames) {
         totalFrames++;
@@ -144,11 +122,15 @@ function calcMetrics(sessions: Session[]): Metrics | null {
           strikes++;
         } else {
           spareOpps++;
-          if (f.throws[1] === '/') spares++;
-          else opens++;
+          if (f.throws[1] === '/') {
+            spares++;
+          } else {
+            opens++;
+          }
         }
       }
     }
+
     frameStats = {
       strikeRate: totalFrames > 0 ? (strikes / totalFrames) * 100 : 0,
       spareRate: spareOpps > 0 ? (spares / spareOpps) * 100 : 0,
@@ -157,55 +139,6 @@ function calcMetrics(sessions: Session[]): Metrics | null {
   }
 
   return { avg, highGame, highSeries, frameStats, gameCount: allGames.length, sessionCount: sessions.length };
-}
-
-// Build series-per-session data (one point per session, chronological)
-function buildSeriesData(sessions: Session[]): ChartPoint | null {
-  const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
-  const labels: string[] = [];
-  const data: number[] = [];
-
-  sorted.forEach((s, i) => {
-    const total = s.games
-      .filter(g => g.score != null)
-      .reduce((sum, g) => sum + (g.score as number), 0);
-    if (total > 0) {
-      // Show date label every 3rd session so labels don't crowd
-      labels.push(i % 3 === 0 ? formatDateLabel(s.date) : '');
-      data.push(total);
-    }
-  });
-
-  if (data.length < 2) return null;
-  return { labels, data };
-}
-
-// Build game-by-game data (every individual game in chronological order)
-function buildGameData(sessions: Session[]): ChartPoint | null {
-  const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
-  const data: number[] = [];
-  const labels: string[] = [];
-
-  for (const s of sorted) {
-    const scored = s.games.filter(g => g.score != null);
-    scored.forEach(() => {
-      data.push(0); // placeholder — replaced below
-      labels.push('');
-    });
-  }
-
-  // Reset and rebuild properly
-  data.length = 0;
-  labels.length = 0;
-  for (const s of sorted) {
-    s.games.filter(g => g.score != null).forEach(g => {
-      data.push(g.score as number);
-      labels.push('');
-    });
-  }
-
-  if (data.length < 2) return null;
-  return { labels, data };
 }
 
 const NA_LABELS = ['Strike %', 'Spare %', 'Opens/Game'] as const;
@@ -218,9 +151,6 @@ export default function StatsScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation();
-  const { width } = useWindowDimensions();
-  // Chart fills the card edge-to-edge; card sits inside 16px scroll padding each side
-  const chartWidth = width - 32;
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -260,8 +190,6 @@ export default function StatsScreen() {
   const hasSeasonDates = !!(settings?.seasonStart && settings?.seasonEnd);
   const filtered = filterSessions(sessions, toggle, settings);
   const metrics = calcMetrics(filtered);
-  const seriesChartPoint = metrics ? buildSeriesData(filtered) : null;
-  const gameChartPoint = metrics ? buildGameData(filtered) : null;
 
   return (
     <>
@@ -365,56 +293,6 @@ export default function StatsScreen() {
                 ))}
               </View>
             )}
-
-            {/* Series Trend Chart */}
-            <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Series Trend</Text>
-              {seriesChartPoint ? (
-                <LineChart
-                  data={{
-                    labels: seriesChartPoint.labels,
-                    datasets: [{ data: seriesChartPoint.data, strokeWidth: 2 }],
-                  }}
-                  width={chartWidth}
-                  height={180}
-                  chartConfig={CHART_CONFIG}
-                  bezier
-                  withInnerLines
-                  withOuterLines={false}
-                  style={styles.chart}
-                />
-              ) : (
-                <View style={styles.chartEmpty}>
-                  <Text style={styles.chartEmptyText}>Need at least 2 sessions to show trend</Text>
-                </View>
-              )}
-            </View>
-
-            {/* Game-by-Game Trend Chart */}
-            <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Game-by-Game Trend</Text>
-              {gameChartPoint ? (
-                <LineChart
-                  data={{
-                    labels: gameChartPoint.labels,
-                    datasets: [{ data: gameChartPoint.data, strokeWidth: 2 }],
-                  }}
-                  width={chartWidth}
-                  height={180}
-                  chartConfig={CHART_CONFIG}
-                  bezier
-                  withDots={false}
-                  withInnerLines
-                  withOuterLines={false}
-                  withVerticalLabels={false}
-                  style={styles.chart}
-                />
-              ) : (
-                <View style={styles.chartEmpty}>
-                  <Text style={styles.chartEmptyText}>Need at least 2 games to show trend</Text>
-                </View>
-              )}
-            </View>
           </>
         )}
       </ScrollView>
@@ -524,7 +402,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 6,
   },
-  // Metric cards
+  // Cards
   row2: {
     flexDirection: 'row',
     gap: 12,
@@ -570,38 +448,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 15,
   },
-  // Charts
-  chartCard: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 13,
-    marginBottom: 12,
-    overflow: 'hidden',
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  chartTitle: {
-    color: '#8E8E93',
-    fontSize: 13,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  chart: {
-    borderRadius: 0,
-  },
-  chartEmpty: {
-    height: 100,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  chartEmptyText: {
-    color: '#48484A',
-    fontSize: 14,
-    textAlign: 'center',
-  },
   // Gear / modal
   gearButton: {
     marginRight: 16,
@@ -623,3 +469,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+`;
+
+const outPath = path.join('C:', 'Users', 'marcus', 'Desktop', 'mBowl', 'app', '(tabs)', 'stats.tsx');
+fs.writeFileSync(outPath, content, 'utf8');
+console.log('Written: ' + outPath);

@@ -1,4 +1,7 @@
-import { useState, useLayoutEffect, useCallback } from 'react';
+const fs = require('fs');
+const path = require('path');
+
+const content = `import { useState, useLayoutEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -623,3 +626,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+`;
+
+const outPath = path.join('C:', 'Users', 'marcus', 'Desktop', 'mBowl', 'app', '(tabs)', 'stats.tsx');
+fs.writeFileSync(outPath, content, 'utf8');
+console.log('Written: ' + outPath);
