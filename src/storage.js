@@ -9,12 +9,22 @@ const KEYS = {
 };
 
 async function read(key) {
-  const raw = await AsyncStorage.getItem(key);
-  return raw ? JSON.parse(raw) : null;
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    console.error('[storage] read failed for key:', key, e);
+    return null;
+  }
 }
 
 async function write(key, value) {
-  await AsyncStorage.setItem(key, JSON.stringify(value));
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.error('[storage] write failed for key:', key, e);
+    throw e;
+  }
 }
 
 export async function readSessions()       { return read(KEYS.SESSIONS); }
@@ -30,4 +40,10 @@ export async function readSettings()       { return read(KEYS.SETTINGS); }
 export async function writeSettings(data)  { return write(KEYS.SETTINGS, data); }
 
 export async function readDraft()          { return read(KEYS.DRAFT); }
-export async function writeDraft(data)     { return write(KEYS.DRAFT, data); }
+export async function writeDraft(data) {
+  if (data === null) {
+    await AsyncStorage.removeItem(KEYS.DRAFT);
+  } else {
+    return write(KEYS.DRAFT, data);
+  }
+}

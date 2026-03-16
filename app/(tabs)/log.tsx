@@ -29,16 +29,18 @@ import {
   readBalls,
   readDraft,
   writeDraft,
+  readSettings,
 } from '@/src/storage';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const SEASON_START = new Date('2025-09-06');
+const DEFAULT_SEASON_START = '2025-09-06';
 
-function calcWeek(d: Date): number {
-  const diff = d.getTime() - SEASON_START.getTime();
+function calcWeek(d: Date, seasonStartISO?: string | null): number {
+  const start = new Date((seasonStartISO ?? DEFAULT_SEASON_START) + 'T00:00:00');
+  const diff = d.getTime() - start.getTime();
   if (diff < 0) return 1;
   return Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1;
 }
@@ -53,7 +55,10 @@ function formatDate(d: Date): string {
 }
 
 function formatDateISO(d: Date): string {
-  return d.toISOString().split('T')[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function makeGame(): Game {
@@ -66,7 +71,7 @@ function makeGame(): Game {
 
 type SessionType = 'league' | 'makeup' | 'tournament' | 'practice';
 type MadeCut = 'Yes' | 'No' | 'N/A';
-type FrameEntry = { throws: string[]; note: string; throwNotes: string[] };
+type FrameEntry = { throws: string[]; note: string; throwNotes: string[]; pinsStanding?: Array<boolean[] | null> };
 type Game = { id: string; score: string; ball: string; notes: string; frames?: FrameEntry[] };
 type Ball = { id: string; name: string; short: string; strength: number; active: boolean };
 
@@ -180,12 +185,16 @@ const MADE_CUT_OPTIONS: MadeCut[] = ['Yes', 'No', 'N/A'];
 export default function LogScreen() {
   const navigation = useNavigation();
   const initialized = useRef(false);
+  // Tracks the loaded season start ISO string for week calculation without a settings state
+  const seasonStartRef = useRef<string | null>(null);
+  // Debounce handle for draft auto-save
+  const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Core form
   const [sessionType, setSessionType] = useState<SessionType>('league');
   const [date, setDate] = useState(() => new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [week, setWeek] = useState(() => String(calcWeek(new Date())));
+  const [week, setWeek] = useState(() => String(calcWeek(new Date(), null)));
   // League / Makeup
   const [opponent, setOpponent] = useState('');
   // Tournament
@@ -207,17 +216,24 @@ export default function LogScreen() {
   const [pendingDraft, setPendingDraft] = useState<DraftData | null>(null);
   // Settings modal
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Used by Manage Balls → Settings transition to avoid setTimeout timing hack
+  const pendingOpenSettings = useRef(false);
 
   // ---- Mount: load balls + check for draft --------------------------------
   useEffect(() => {
     async function init() {
-      const [balls, draft] = await Promise.all([readBalls(), readDraft()]);
+      const [balls, draft, settingsData] = await Promise.all([readBalls(), readDraft(), readSettings()]);
       if (balls) {
-        setAvailableBalls((balls as Ball[]).filter((b) => b.active));
+        setAvailableBalls((balls as Ball[]).filter((b) => b.active).sort((a, b) => a.strength - b.strength));
       }
       if (draft) {
         setPendingDraft(draft as DraftData);
         setDraftResumeVisible(true);
+      }
+      // Recalculate week using actual season start now that settings are loaded
+      if (settingsData?.seasonStart) {
+        seasonStartRef.current = settingsData.seasonStart;
+        setWeek(String(calcWeek(new Date(), settingsData.seasonStart)));
       }
       initialized.current = true;
     }
@@ -229,7 +245,7 @@ export default function LogScreen() {
   useEffect(() => {
     if (wasSettingsOpen.current && !settingsOpen) {
       readBalls().then(b => {
-        if (b) setAvailableBalls((b as Ball[]).filter(ball => ball.active));
+        if (b) setAvailableBalls((b as Ball[]).filter(ball => ball.active).sort((a, b) => a.strength - b.strength));
       });
     }
     wasSettingsOpen.current = settingsOpen;
@@ -257,7 +273,7 @@ export default function LogScreen() {
     }, [])
   );
 
-  // ---- Auto-save draft on every form change --------------------------------
+  // ---- Auto-save draft on every form change (debounced 400ms) -------------
   useEffect(() => {
     if (!initialized.current) return;
     const draft: DraftData = {
@@ -273,7 +289,13 @@ export default function LogScreen() {
       games,
       sessionNotes,
     };
-    writeDraft(draft);
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => {
+      writeDraft(draft);
+    }, 400);
+    return () => {
+      if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    };
   }, [
     sessionType, date, week, opponent,
     tournamentName, tournamentFormat, tournamentPattern, madeCut, placement,
@@ -300,7 +322,7 @@ export default function LogScreen() {
   const handleDateChange = (_event: unknown, selectedDate?: Date) => {
     if (selectedDate) {
       setDate(selectedDate);
-      setWeek(String(calcWeek(selectedDate)));
+      setWeek(String(calcWeek(selectedDate, seasonStartRef.current)));
     }
   };
 
@@ -411,6 +433,7 @@ export default function LogScreen() {
               throws: f.throws,
               note: f.note || null,
               throwNotes: { '0': f.throwNotes[0] || null, '1': f.throwNotes[1] || null, '2': f.throwNotes[2] || null },
+              pinsStanding: f.pinsStanding ?? null,
             }))
           : null,
         notes: g.notes.trim() || null,
@@ -676,6 +699,12 @@ export default function LogScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() => setBallPickerOpen(false)}
+        onDismiss={() => {
+          if (pendingOpenSettings.current) {
+            pendingOpenSettings.current = false;
+            setSettingsOpen(true);
+          }
+        }}
       >
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -685,28 +714,36 @@ export default function LogScreen() {
             </TouchableOpacity>
           </View>
           <ScrollView>
-            {availableBalls.map((ball) => {
-              const selected = ball.name === currentBallForPicker;
-              return (
-                <TouchableOpacity
-                  key={ball.id}
-                  style={styles.ballPickerRow}
-                  onPress={() => selectBall(ball.name)}
-                >
-                  <StrengthDots strength={ball.strength} />
-                  <Text style={styles.ballPickerName}>{ball.name}</Text>
-                  {selected && (
-                    <IconSymbol name="checkmark" size={16} color="#00CEC9" />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+            {availableBalls.length === 0 ? (
+              <View style={styles.ballPickerEmpty}>
+                <Text style={styles.ballPickerEmptyText}>
+                  No balls configured.{'\n'}Tap Manage Balls below to add your arsenal.
+                </Text>
+              </View>
+            ) : (
+              availableBalls.map((ball) => {
+                const selected = ball.name === currentBallForPicker;
+                return (
+                  <TouchableOpacity
+                    key={ball.id}
+                    style={styles.ballPickerRow}
+                    onPress={() => selectBall(ball.name)}
+                  >
+                    <StrengthDots strength={ball.strength} />
+                    <Text style={styles.ballPickerName}>{ball.name}</Text>
+                    {selected && (
+                      <IconSymbol name="checkmark" size={16} color="#00CEC9" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </ScrollView>
           <View style={styles.manageBallsRow}>
             <TouchableOpacity
               onPress={() => {
+                pendingOpenSettings.current = true;
                 setBallPickerOpen(false);
-                setTimeout(() => setSettingsOpen(true), 350);
               }}
             >
               <Text style={styles.manageBallsText}>Manage Balls</Text>
@@ -955,6 +992,21 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
   doneText: { color: '#00CEC9', fontSize: 17, fontWeight: '600' },
+
+  // Ball picker empty state
+  ballPickerEmpty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+  },
+  ballPickerEmptyText: {
+    color: '#8E8E93',
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
 
   // Ball picker rows
   ballPickerRow: {

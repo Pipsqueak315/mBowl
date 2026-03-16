@@ -1,4 +1,4 @@
-import { Pressable } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -25,19 +25,21 @@ export default function ScalePressable({
   }));
 
   return (
-    <Pressable
-      onPressIn={e => {
-        scale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
-        onPressIn?.(e);
-      }}
-      onPressOut={e => {
-        scale.value = withSpring(1, { damping: 15, stiffness: 400 });
-        onPressOut?.(e);
-      }}
-      onPress={onPress}
-      {...rest}
-    >
-      <Animated.View style={[style, animStyle]}>{children}</Animated.View>
-    </Pressable>
+    <Animated.View style={[style, animStyle]}>
+      <Pressable
+        onPressIn={e => {
+          scale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
+          onPressIn?.(e);
+        }}
+        onPressOut={e => {
+          scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+          onPressOut?.(e);
+        }}
+        onPress={onPress}
+        style={StyleSheet.absoluteFill}
+        {...rest}
+      />
+      {children}
+    </Animated.View>
   );
 }

@@ -537,20 +537,6 @@ export default function ReferenceScreen() {
   }
 
   // -------------------------------------------------------------------------
-  // Placeholder tab
-  // -------------------------------------------------------------------------
-
-  function renderPlaceholder(name: string) {
-    return (
-      <View style={styles.placeholderContainer}>
-        <IconSymbol name="book.fill" size={48} color="#48484A" />
-        <Text style={styles.placeholderTitle}>{name}</Text>
-        <Text style={styles.placeholderText}>Coming soon</Text>
-      </View>
-    );
-  }
-
-  // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
 
@@ -878,24 +864,6 @@ const styles = StyleSheet.create({
     padding: 0,
     minHeight: 60,
     lineHeight: 20,
-  },
-
-  // ---- Placeholder ----
-  placeholderContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingBottom: 60,
-  },
-  placeholderTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#48484A',
-  },
-  placeholderText: {
-    fontSize: 15,
-    color: '#48484A',
   },
 
   // ---- Gear button ----

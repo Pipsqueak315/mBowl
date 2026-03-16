@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useEffect, useRef, useCallback } from 'react';
+import { useState, useLayoutEffect, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
+import PinDeck from '@/components/PinDeck';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,8 +28,10 @@ type FrameData = {
   throws: ThrowVal[];
   note: string;
   throwNotes: string[]; // indexed by throw position
+  pinsStanding?: Array<boolean[] | null>; // per-throw pin state (10 booleans each), optional
 };
 type Mode = 'post' | 'live';
+type InputMode = 'pins' | 'quick';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -37,6 +40,7 @@ type Mode = 'post' | 'live';
 const CHIPS: string[] = ['X', '/', '—', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const FRAME_ITEM_W = 52;
 const FRAME_RESULT_KEY = 'mbowl_frame_result';
+const ALL_UP: boolean[] = Array(10).fill(true);
 
 // ---------------------------------------------------------------------------
 // Score calculation
@@ -149,6 +153,73 @@ function getAvailableChips(frames: FrameData[], fi: number): Set<string> {
 }
 
 // ---------------------------------------------------------------------------
+// Pin deck helpers
+// ---------------------------------------------------------------------------
+
+// Synthesise a pinsStanding array from a chip-bar notation string.
+// Used when throw N was entered via chip bar so we can still drive PinDeck
+// correctly for throw N+1 (correct "/" detection, correct available-pin count).
+function synthFromNotation(notation: string): boolean[] {
+  if (notation === 'X') return Array(10).fill(false);       // all knocked
+  if (notation === '—' || notation === '0') return ALL_UP;  // gutter
+  const n = parseInt(notation, 10);
+  if (isNaN(n)) return ALL_UP;
+  // First n indices knocked (false), remaining standing (true)
+  return Array.from({ length: 10 }, (_, i) => i >= n);
+}
+
+// Return the pinsStanding state after a specific throw, real or synthesised.
+function getPinsAfterThrow(frame: FrameData, throwIdx: number): boolean[] {
+  const actual = frame.pinsStanding?.[throwIdx];
+  if (actual) return actual;
+  return synthFromNotation(frame.throws[throwIdx]);
+}
+
+// Derive the PinDeck props for the CURRENT pending throw in a frame.
+function getPinDeckProps(
+  frames: FrameData[],
+  fi: number,
+): { availablePins: boolean[]; isFirstThrow: boolean; prevPinsStanding: boolean[] | null } {
+  const frame = frames[fi];
+  const ti = frame.throws.length; // index of the throw about to be entered
+  const is10th = fi === 9;
+
+  if (!is10th) {
+    if (ti === 0) return { availablePins: ALL_UP, isFirstThrow: true, prevPinsStanding: null };
+    const prev = getPinsAfterThrow(frame, 0);
+    return { availablePins: prev, isFirstThrow: false, prevPinsStanding: prev };
+  }
+
+  // ---- 10th frame ----
+  if (ti === 0) return { availablePins: ALL_UP, isFirstThrow: true, prevPinsStanding: null };
+
+  if (ti === 1) {
+    if (frame.throws[0] === 'X') {
+      // Strike on first ball → reset all 10 for second ball
+      return { availablePins: ALL_UP, isFirstThrow: true, prevPinsStanding: null };
+    }
+    const prev = getPinsAfterThrow(frame, 0);
+    return { availablePins: prev, isFirstThrow: false, prevPinsStanding: prev };
+  }
+
+  // ti === 2 (third ball in 10th)
+  const t1 = frame.throws[0];
+  const t2 = frame.throws[1];
+
+  if (t1 === 'X' && t2 === 'X') {
+    // Two strikes → reset all 10
+    return { availablePins: ALL_UP, isFirstThrow: true, prevPinsStanding: null };
+  }
+  if (t1 === 'X') {
+    // First was strike, second was not → third at remaining pins from second ball
+    const prev = getPinsAfterThrow(frame, 1);
+    return { availablePins: prev, isFirstThrow: false, prevPinsStanding: prev };
+  }
+  // First two formed a spare → reset all 10
+  return { availablePins: ALL_UP, isFirstThrow: true, prevPinsStanding: null };
+}
+
+// ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
@@ -158,6 +229,7 @@ function FrameStripItem({
   frame: FrameData; index: number; score: number | null; isCurrent: boolean;
 }) {
   const slotCount = index === 9 ? 3 : 2;
+  const hasPinData = !!(frame.pinsStanding && frame.pinsStanding.length > 0);
   return (
     <View style={[styles.stripItem, isCurrent && styles.stripItemCurrent]}>
       <Text style={[styles.stripNum, isCurrent && styles.stripNumCurrent]}>{index + 1}</Text>
@@ -177,9 +249,12 @@ function FrameStripItem({
           );
         })}
       </View>
-      <Text style={[styles.stripScore, isCurrent && styles.stripScoreActive]}>
-        {score !== null ? String(score) : ''}
-      </Text>
+      <View style={styles.stripBottomRow}>
+        <Text style={[styles.stripScore, isCurrent && styles.stripScoreActive]}>
+          {score !== null ? String(score) : ''}
+        </Text>
+        {hasPinData && <View style={styles.stripPinDot} />}
+      </View>
     </View>
   );
 }
@@ -332,6 +407,8 @@ export default function LogFramesScreen() {
   const stripRef = useRef<FlatList<FrameData>>(null);
 
   const [mode, setMode] = useState<Mode>('post');
+  // inputMode defaults to the natural mode for each entry style: live → pins, post → quick.
+  const [inputMode, setInputMode] = useState<InputMode>('quick');
   const [frames, setFrames] = useState<FrameData[]>(emptyFrames);
   const [currentFrame, setCurrentFrame] = useState(0);
 
@@ -343,6 +420,11 @@ export default function LogFramesScreen() {
       viewPosition: 0.5,
     });
   }, [currentFrame]);
+
+  // When mode changes, reset inputMode to the appropriate default for that style
+  useEffect(() => {
+    setInputMode(mode === 'live' ? 'pins' : 'quick');
+  }, [mode]);
 
   // Derived
   const scores = calculateScores(frames);
@@ -367,19 +449,48 @@ export default function LogFramesScreen() {
     }
   }
 
+  // Called by PinDeck.onConfirm — records both the notation and the raw pin state.
+  function addThrowWithPins(notation: string, throwPinsStanding: boolean[]) {
+    if (allComplete) return;
+    if (notation === 'X') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    const throwIdx = frames[currentFrame].throws.length;
+    const newFrames = frames.map((f, i) => {
+      if (i !== currentFrame) return f;
+      const pinsStanding = [...(f.pinsStanding ?? [])];
+      pinsStanding[throwIdx] = throwPinsStanding;
+      return { ...f, throws: [...f.throws, notation], pinsStanding };
+    });
+    setFrames(newFrames);
+    if (isFrameComplete(newFrames, currentFrame) && currentFrame < 9) {
+      setCurrentFrame((p) => p + 1);
+    }
+  }
+
   function deleteLastThrow() {
     if (frames[currentFrame].throws.length > 0) {
       setFrames((prev) =>
-        prev.map((f, i) =>
-          i === currentFrame ? { ...f, throws: f.throws.slice(0, -1) } : f
-        )
+        prev.map((f, i) => {
+          if (i !== currentFrame) return f;
+          return {
+            ...f,
+            throws: f.throws.slice(0, -1),
+            pinsStanding: f.pinsStanding?.slice(0, -1),
+          };
+        })
       );
     } else if (currentFrame > 0) {
       const prevFi = currentFrame - 1;
       setFrames((prev) =>
-        prev.map((f, i) =>
-          i === prevFi ? { ...f, throws: f.throws.slice(0, -1) } : f
-        )
+        prev.map((f, i) => {
+          if (i !== prevFi) return f;
+          return {
+            ...f,
+            throws: f.throws.slice(0, -1),
+            pinsStanding: f.pinsStanding?.slice(0, -1),
+          };
+        })
       );
       setCurrentFrame(prevFi);
     }
@@ -415,7 +526,7 @@ export default function LogFramesScreen() {
   // Use a ref so the Cancel button always calls the latest handleCancel
   // without needing to re-register the header on every frame change
   const handleCancelRef = useRef<() => void>(() => {});
-  handleCancelRef.current = useCallback(() => {
+  handleCancelRef.current = () => {
     const hasData = frames.some((f) => f.throws.length > 0);
     if (!hasData) { navigation.goBack(); return; }
     Alert.alert(
@@ -426,7 +537,7 @@ export default function LogFramesScreen() {
         { text: 'Discard', style: 'destructive', onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); navigation.goBack(); } },
       ]
     );
-  }, [frames, navigation]);
+  };
 
   // Header
   useLayoutEffect(() => {
@@ -448,11 +559,16 @@ export default function LogFramesScreen() {
   // ---- Render -------------------------------------------------------------
 
   const showThrowNoteBar =
-    mode === 'live' && !allComplete && frames[currentFrame].throws.length > 0;
+    mode === 'live' && inputMode === 'quick' && !allComplete && frames[currentFrame].throws.length > 0;
+
+  // Compute PinDeck props once — used in render to avoid duplication.
+  const pinDeckProps = (!allComplete && inputMode === 'pins')
+    ? getPinDeckProps(frames, currentFrame)
+    : null;
 
   return (
     <View style={styles.container}>
-      {/* Mode toggle */}
+      {/* Mode toggle (Post-Game / Live) */}
       <View style={styles.toggleBar}>
         {(['post', 'live'] as Mode[]).map((m) => (
           <ScalePressable
@@ -462,6 +578,21 @@ export default function LogFramesScreen() {
           >
             <Text style={[styles.toggleText, mode === m && styles.toggleTextActive]}>
               {m === 'post' ? 'Post-Game' : 'Live'}
+            </Text>
+          </ScalePressable>
+        ))}
+      </View>
+
+      {/* Input mode toggle (Pins / Quick) */}
+      <View style={styles.inputModeBar}>
+        {(['pins', 'quick'] as InputMode[]).map((m) => (
+          <ScalePressable
+            key={m}
+            style={[styles.inputModePill, inputMode === m && styles.inputModePillActive]}
+            onPress={() => setInputMode(m)}
+          >
+            <Text style={[styles.inputModeText, inputMode === m && styles.inputModeTextActive]}>
+              {m === 'pins' ? 'Pins' : 'Quick'}
             </Text>
           </ScalePressable>
         ))}
@@ -526,7 +657,7 @@ export default function LogFramesScreen() {
         />
       )}
 
-      {/* Delete last throw */}
+      {/* Delete last throw — always visible so layout is stable */}
       <TouchableOpacity
         style={[styles.deleteRow, !canDelete && styles.deleteRowDisabled]}
         onPress={deleteLastThrow}
@@ -538,8 +669,20 @@ export default function LogFramesScreen() {
         </Text>
       </TouchableOpacity>
 
-      {/* Chip bar */}
-      <ChipBar available={available} onPress={addThrow} bottomInset={insets.bottom} />
+      {/* Input area: chip bar (Quick mode or complete) — pin deck (Pins mode, not complete) */}
+      {(inputMode === 'quick' || allComplete) ? (
+        <ChipBar available={available} onPress={addThrow} bottomInset={insets.bottom} />
+      ) : pinDeckProps && (
+        <View style={[styles.pinDeckContainer, { paddingBottom: insets.bottom + 8 }]}>
+          <PinDeck
+            key={`pd-${currentFrame}-${frames[currentFrame].throws.length}`}
+            availablePins={pinDeckProps.availablePins}
+            isFirstThrow={pinDeckProps.isFirstThrow}
+            prevPinsStanding={pinDeckProps.prevPinsStanding}
+            onConfirm={(ps, notation) => addThrowWithPins(notation, ps)}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -717,4 +860,44 @@ const styles = StyleSheet.create({
   chipDisabled: { backgroundColor: '#1C1C1E' },
   chipText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
   chipTextDisabled: { color: '#38383A' },
+
+  // Input mode toggle (Pins / Quick)
+  inputModeBar: {
+    flexDirection: 'row',
+    backgroundColor: '#000000',
+    borderRadius: 8,
+    padding: 2,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    gap: 2,
+  },
+  inputModePill: {
+    flex: 1,
+    paddingVertical: 5,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  inputModePillActive: { backgroundColor: '#2C2C2E' },
+  inputModeText: { fontSize: 12, color: '#48484A', fontWeight: '500' },
+  inputModeTextActive: { color: '#FFFFFF', fontWeight: '600' },
+
+  // Pin deck container (replaces chip bar area)
+  pinDeckContainer: {
+    backgroundColor: '#1C1C1E',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#38383A',
+  },
+
+  // Frame strip bottom row (score + optional pin dot)
+  stripBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  stripPinDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#00CEC9',
+  },
 });

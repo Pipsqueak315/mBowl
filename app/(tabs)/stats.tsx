@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useCallback } from 'react';
+import { useState, useLayoutEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,12 +15,14 @@ import { LineChart } from 'react-native-chart-kit';
 import { readSessions, readSettings } from '@/src/storage';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
+import { computeLeaveStats } from '@/src/leaveUtils';
 
 // --- Types ---
 interface FrameEntry {
   throws: string[];
   note?: string | null;
   throwNotes?: Record<string, string | null>;
+  pinsStanding?: Array<boolean[] | null> | null;
 }
 
 interface GameEntry {
@@ -66,6 +68,14 @@ interface ChartPoint {
 
 type ToggleMode = 'season' | 'alltime';
 
+interface LeaveEntry {
+  pins: number[];
+  name: string;
+  count: number;
+  converted: number;
+  conversionPct: number;
+}
+
 // --- Chart Config (defined outside component — stable reference) ---
 const CHART_CONFIG = {
   backgroundColor: '#1C1C1E',
@@ -85,6 +95,33 @@ const CHART_CONFIG = {
     strokeDasharray: '',
   },
 };
+
+// --- Leave stats helpers ---
+const LEAVE_PIN_ROWS: number[][] = [[6, 7, 8, 9], [3, 4, 5], [1, 2], [0]];
+
+function conversionColor(pct: number): string {
+  if (pct >= 80) return '#30D158';
+  if (pct >= 60) return '#FF9F0A';
+  return '#FF453A';
+}
+
+function LeaveMiniPinDeck({ pins }: { pins: number[] }) {
+  const pinSet = new Set(pins);
+  return (
+    <View style={styles.leaveDeck}>
+      {LEAVE_PIN_ROWS.map((row, ri) => (
+        <View key={ri} style={styles.leaveRow}>
+          {row.map(idx => (
+            <View
+              key={idx}
+              style={[styles.leavePin, pinSet.has(idx + 1) ? styles.leavePinUp : styles.leavePinDown]}
+            />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
 
 // --- Helpers ---
 function avgColor(avg: number): string {
@@ -247,10 +284,23 @@ export default function StatsScreen() {
   );
 
   const hasSeasonDates = !!(settings?.seasonStart && settings?.seasonEnd);
-  const filtered = filterSessions(sessions, toggle, settings);
-  const metrics = calcMetrics(filtered);
-  const seriesChartPoint = metrics ? buildSeriesData(filtered) : null;
-  const gameChartPoint = metrics ? buildGameData(filtered) : null;
+  const filtered = useMemo(
+    () => filterSessions(sessions, toggle, settings),
+    [sessions, toggle, settings],
+  );
+  const metrics = useMemo(() => calcMetrics(filtered), [filtered]);
+  const seriesChartPoint = useMemo(
+    () => (metrics ? buildSeriesData(filtered) : null),
+    [metrics, filtered],
+  );
+  const gameChartPoint = useMemo(
+    () => (metrics ? buildGameData(filtered) : null),
+    [metrics, filtered],
+  );
+  const leaveStats = useMemo<{ leaves: LeaveEntry[]; hasPinData: boolean }>(
+    () => computeLeaveStats(filtered) as { leaves: LeaveEntry[]; hasPinData: boolean },
+    [filtered],
+  );
 
   return (
     <>
@@ -402,6 +452,39 @@ export default function StatsScreen() {
                 </View>
               )}
             </View>
+
+            {/* Common Leaves */}
+            {!leaveStats.hasPinData ? (
+              <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
+                <Text style={styles.cardLabel}>Common Leaves</Text>
+                <IconSymbol name="lock.fill" size={18} color="#48484A" />
+                <Text style={styles.naText}>Log frames with pin tracking to unlock.</Text>
+              </View>
+            ) : leaveStats.leaves.length === 0 ? (
+              <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
+                <Text style={styles.cardLabel}>Common Leaves</Text>
+                <Text style={styles.naText}>No leaves recorded — all strikes!</Text>
+              </View>
+            ) : (
+              <View style={styles.leavesCard}>
+                <Text style={styles.leavesTitle}>Common Leaves</Text>
+                {leaveStats.leaves.map((leave, i) => (
+                  <View
+                    key={leave.pins.join('-')}
+                    style={[styles.leaveListRow, i > 0 && styles.leaveListRowBorder]}
+                  >
+                    <LeaveMiniPinDeck pins={leave.pins} />
+                    <View style={styles.leaveInfo}>
+                      <Text style={styles.leaveName}>{leave.name}</Text>
+                      <Text style={styles.leaveCount}>× {leave.count}</Text>
+                    </View>
+                    <Text style={[styles.leaveConvPct, { color: conversionColor(leave.conversionPct) }]}>
+                      {Math.round(leave.conversionPct)}%
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </>
         )}
       </ScrollView>
@@ -586,5 +669,75 @@ const styles = StyleSheet.create({
   // Gear button
   gearButton: {
     marginRight: 16,
+  },
+
+  // --- Common Leaves section ---
+  leavesCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 13,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    marginBottom: 12,
+  },
+  leavesTitle: {
+    color: '#8E8E93',
+    fontSize: 13,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  leavesNaCard: {
+    marginBottom: 12,
+  },
+  leaveListRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  leaveListRowBorder: {
+    borderTopWidth: 0.5,
+    borderTopColor: '#38383A',
+  },
+
+  // Mini pin diagram inside leave rows
+  leaveDeck: {
+    alignItems: 'center',
+    gap: 2,
+    marginRight: 14,
+    width: 36,
+  },
+  leaveRow: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  leavePin: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  leavePinUp: { backgroundColor: '#00CEC9' },
+  leavePinDown: { backgroundColor: '#38383A' },
+
+  // Leave row text
+  leaveInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  leaveName: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  leaveCount: {
+    color: '#8E8E93',
+    fontSize: 12,
+  },
+  leaveConvPct: {
+    fontSize: 16,
+    fontWeight: '700',
+    minWidth: 46,
+    textAlign: 'right',
   },
 });

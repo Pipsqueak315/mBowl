@@ -23,11 +23,12 @@ type FrameEntry = {
   throws: string[];
   note: string | null;
   throwNotes: Record<string, string | null>;
+  pinsStanding?: Array<boolean[] | null> | null;
 };
 
 type GameEntry = {
   game: number;
-  score: number;
+  score: number | null;
   ball: string | null;
   frames: FrameEntry[] | null;
   notes: string | null;
@@ -72,12 +73,13 @@ function formatDate(dateStr: string): string {
 }
 
 function sessionAvg(games: GameEntry[]): number {
-  if (!games.length) return 0;
-  return games.reduce((sum, g) => sum + g.score, 0) / games.length;
+  const scored = games.filter(g => g.score != null);
+  if (!scored.length) return 0;
+  return scored.reduce((sum, g) => sum + (g.score as number), 0) / scored.length;
 }
 
 function seriesTotal(games: GameEntry[]): number {
-  return games.reduce((sum, g) => sum + g.score, 0);
+  return games.reduce((sum, g) => sum + (g.score ?? 0), 0);
 }
 
 function scoreColor(score: number, avg: number): string {
@@ -155,12 +157,36 @@ function calcFrameStats(
   return { strikes: totalStrikes, sparesPct, opens: totalOpens };
 }
 
+// Compact 5-dot × 4-row pin diagram used inside each frame box.
+// Only rendered when pinsStanding data exists AND at least one pin is standing.
+const MINI_PIN_ROWS: number[][] = [[6, 7, 8, 9], [3, 4, 5], [1, 2], [0]];
+
+function MiniPinDeck({ pinsStanding }: { pinsStanding: boolean[] }) {
+  if (!pinsStanding.some(s => s)) return null; // all down → nothing interesting to show
+  return (
+    <View style={styles.miniDeck}>
+      {MINI_PIN_ROWS.map((row, ri) => (
+        <View key={ri} style={styles.miniRow}>
+          {row.map(idx => (
+            <View
+              key={idx}
+              style={[styles.miniPin, pinsStanding[idx] ? styles.miniPinUp : styles.miniPinDown]}
+            />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function FrameGrid({ frames }: { frames: FrameEntry[] }) {
   return (
     <View style={styles.frameGrid}>
       {frames.slice(0, 10).map((frame, fi) => {
         const is10th = fi === 9;
         const throws = is10th ? frame.throws.slice(0, 3) : frame.throws.slice(0, 2);
+        // Show mini pin diagram for the state after the first ball (the leave)
+        const leaveData = frame.pinsStanding?.[0] ?? null;
         return (
           <View key={fi} style={[styles.frameBox, is10th && styles.frameBoxWide]}>
             <View style={styles.frameThrows}>
@@ -170,6 +196,7 @@ function FrameGrid({ frames }: { frames: FrameEntry[] }) {
                 </Text>
               ))}
             </View>
+            {leaveData && <MiniPinDeck pinsStanding={leaveData} />}
             <View style={styles.frameNumberRow}>
               <Text style={styles.frameNumberText}>{fi + 1}</Text>
             </View>
@@ -273,8 +300,8 @@ function SessionCard({
 
           <View style={styles.cardRight}>
             <View style={styles.scoresRow}>
-              {session.games.map((g, i) => (
-                <Text key={i} style={[styles.gameScore, { color: scoreColor(g.score, avg) }]}>
+              {session.games.filter(g => g.score != null).map((g, i) => (
+                <Text key={i} style={[styles.gameScore, { color: scoreColor(g.score as number, avg) }]}>
                   {g.score}
                 </Text>
               ))}
@@ -298,9 +325,9 @@ function SessionCard({
                 <View style={styles.gameRowHeader}>
                   <Text style={styles.gameLabel}>Game {g.game}</Text>
                   <Text
-                    style={[styles.gameExpandScore, { color: scoreColor(g.score, avg) }]}
+                    style={[styles.gameExpandScore, { color: scoreColor(g.score ?? 0, avg) }]}
                   >
-                    {g.score}
+                    {g.score ?? '—'}
                   </Text>
                   {g.ball ? (
                     <Text style={styles.gameBall}>{g.ball}</Text>
@@ -680,6 +707,24 @@ const styles = StyleSheet.create({
     color: '#48484A',
     fontSize: 8,
   },
+
+  // Mini pin diagram (inside FrameGrid frame boxes)
+  miniDeck: {
+    alignItems: 'center',
+    gap: 1.5,
+    marginVertical: 2,
+  },
+  miniRow: {
+    flexDirection: 'row',
+    gap: 1.5,
+  },
+  miniPin: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  miniPinUp: { backgroundColor: '#00CEC9' },
+  miniPinDown: { backgroundColor: '#38383A' },
 
   // Stats row
   statsRow: {
