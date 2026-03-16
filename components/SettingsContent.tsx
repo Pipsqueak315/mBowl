@@ -8,6 +8,8 @@ import {
   SafeAreaView,
   TextInput,
   Switch,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { readSettings, writeSettings, readBalls, writeBalls } from '@/src/storage';
@@ -151,6 +153,11 @@ export default function SettingsContent({ onClose }: Props) {
         </TouchableOpacity>
       </View>
 
+      <KeyboardAvoidingView
+        style={styles.kavFlex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -333,6 +340,7 @@ export default function SettingsContent({ onClose }: Props) {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -365,6 +373,9 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#00CEC9',
+  },
+  kavFlex: {
+    flex: 1,
   },
   scroll: {
     flex: 1,

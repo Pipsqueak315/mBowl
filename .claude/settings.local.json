@@ -5,7 +5,8 @@
       "Bash(npx tsc:*)",
       "Bash(cd \"C:/Users/marcus/Desktop/mBowl\" && npm info react-native-chart-kit peerDependencies 2>&1)",
       "Bash(cd \"C:/Users/marcus/Desktop/mBowl\" && npx expo install react-native-svg 2>&1)",
-      "Bash(cd \"C:/Users/marcus/Desktop/mBowl\" && npm install react-native-chart-kit 2>&1)"
+      "Bash(cd \"C:/Users/marcus/Desktop/mBowl\" && npm install react-native-chart-kit 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\marcus\\\\Desktop\\\\mBowl\" && npx expo install expo-blur 2>&1)"
     ]
   }
 }

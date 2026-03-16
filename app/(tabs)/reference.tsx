@@ -7,7 +7,11 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -238,6 +242,7 @@ export default function ReferenceScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<SubTab>('Position');
   const [data, setData] = useState<ReferenceData>(DEFAULT_DATA);
+  const [loaded, setLoaded] = useState(false);
   const latestData = useRef<ReferenceData>(DEFAULT_DATA);
   const navigation = useNavigation();
 
@@ -257,6 +262,7 @@ export default function ReferenceScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      setLoaded(false);
       (async () => {
         const stored = await readReference();
         if (stored) {
@@ -267,6 +273,7 @@ export default function ReferenceScreen() {
           setData(DEFAULT_DATA);
           latestData.current = DEFAULT_DATA;
         }
+        setLoaded(true);
       })();
     }, []),
   );
@@ -548,7 +555,11 @@ export default function ReferenceScreen() {
 
   return (
     <>
-      <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={88}
+      >
         {/* Sub-tab bar — sticky, does not scroll with content */}
         <ScrollView
           horizontal
@@ -561,7 +572,10 @@ export default function ReferenceScreen() {
             <TouchableOpacity
               key={tab}
               style={styles.subTabItem}
-              onPress={() => setActiveTab(tab)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setActiveTab(tab);
+              }}
               activeOpacity={0.7}
             >
               <Text style={[styles.subTabText, activeTab === tab && styles.subTabTextActive]}>
@@ -573,30 +587,38 @@ export default function ReferenceScreen() {
         </ScrollView>
 
         {/* Tab content */}
-        {activeTab === 'Position' && renderPositionTab()}
-        {activeTab === 'Signals' && (
-          <SignalsTab
-            data={data.signals}
-            onUpdate={updated => update(prev => ({ ...prev, signals: updated }))}
-            onSave={save}
-          />
+        {!loaded ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#8E8E93" />
+          </View>
+        ) : (
+          <>
+            {activeTab === 'Position' && renderPositionTab()}
+            {activeTab === 'Signals' && (
+              <SignalsTab
+                data={data.signals}
+                onUpdate={updated => update(prev => ({ ...prev, signals: updated }))}
+                onSave={save}
+              />
+            )}
+            {activeTab === 'Pocket Diagnostics' && (
+              <PocketDiagnosticsTab
+                data={data.pocketDiagnostics}
+                onUpdate={updated => update(prev => ({ ...prev, pocketDiagnostics: updated }))}
+                onSave={save}
+              />
+            )}
+            {activeTab === 'Mental' && renderMentalTab()}
+            {activeTab === 'Patterns' && (
+              <PatternsTab
+                data={data.patterns}
+                onUpdate={updated => update(prev => ({ ...prev, patterns: updated }))}
+                onSave={save}
+              />
+            )}
+          </>
         )}
-        {activeTab === 'Pocket Diagnostics' && (
-          <PocketDiagnosticsTab
-            data={data.pocketDiagnostics}
-            onUpdate={updated => update(prev => ({ ...prev, pocketDiagnostics: updated }))}
-            onSave={save}
-          />
-        )}
-        {activeTab === 'Mental' && renderMentalTab()}
-        {activeTab === 'Patterns' && (
-          <PatternsTab
-            data={data.patterns}
-            onUpdate={updated => update(prev => ({ ...prev, patterns: updated }))}
-            onSave={save}
-          />
-        )}
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Settings Modal */}
       <Modal
@@ -619,6 +641,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
+  },
+
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // ---- Sub-tab bar ----

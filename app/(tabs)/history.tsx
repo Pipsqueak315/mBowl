@@ -10,7 +10,9 @@ import {
   Modal,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -228,7 +230,7 @@ function SessionCard({
             text: 'Delete',
             style: 'destructive',
             onPress: () => {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               onDelete(session.id);
             },
           },
@@ -372,7 +374,9 @@ export default function HistoryScreen() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -390,14 +394,16 @@ export default function HistoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      setLoaded(false);
       AsyncStorage.getItem(SESSIONS_KEY).then((raw) => {
         if (!raw) {
           setSessions([]);
-          return;
+        } else {
+          const all = JSON.parse(raw) as Session[];
+          all.sort((a, b) => b.date.localeCompare(a.date));
+          setSessions(all);
         }
-        const all = JSON.parse(raw) as Session[];
-        all.sort((a, b) => b.date.localeCompare(a.date));
-        setSessions(all);
+        setLoaded(true);
       });
     }, [])
   );
@@ -426,7 +432,10 @@ export default function HistoryScreen() {
           {FILTERS.map((f) => (
             <TouchableOpacity
               key={f.key}
-              onPress={() => setFilter(f.key)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setFilter(f.key);
+              }}
               style={[
                 styles.filterPill,
                 filter === f.key && styles.filterPillActive,
@@ -445,7 +454,11 @@ export default function HistoryScreen() {
         </ScrollView>
 
         {/* Sessions list or empty state */}
-        {filtered.length === 0 ? (
+        {!loaded ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator size="large" color="#8E8E93" />
+          </View>
+        ) : filtered.length === 0 ? (
           <View style={styles.emptyState}>
             <IconSymbol name="list.bullet" size={48} color="#48484A" />
             <Text style={styles.emptyText}>{EMPTY_LABELS[filter]}</Text>
@@ -457,7 +470,7 @@ export default function HistoryScreen() {
             renderItem={({ item }) => (
               <SessionCard session={item} onDelete={handleDelete} />
             )}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 16 }]}
             showsVerticalScrollIndicator={false}
           />
         )}

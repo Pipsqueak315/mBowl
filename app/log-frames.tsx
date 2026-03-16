@@ -355,7 +355,7 @@ export default function LogFramesScreen() {
   function addThrow(chip: string) {
     if (allComplete) return;
     if (chip === 'X') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     const newFrames = frames.map((f, i) =>
       i === currentFrame ? { ...f, throws: [...f.throws, chip] } : f
@@ -422,7 +422,7 @@ export default function LogFramesScreen() {
       'Your frame data will not be saved.',
       [
         { text: 'Keep Editing', style: 'cancel' },
-        { text: 'Discard', style: 'destructive', onPress: () => navigation.goBack() },
+        { text: 'Discard', style: 'destructive', onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); navigation.goBack(); } },
       ]
     );
   }, [frames, navigation]);

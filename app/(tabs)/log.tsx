@@ -13,6 +13,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -325,6 +326,7 @@ export default function LogScreen() {
 
   const selectBall = (ballName: string) => {
     if (ballPickerForGameId) updateGame(ballPickerForGameId, 'ball', ballName);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setBallPickerOpen(false);
     setBallPickerForGameId(null);
   };
@@ -418,7 +420,7 @@ export default function LogScreen() {
     const existing = (await readSessions()) ?? [];
     await writeSessions([session, ...existing]);
     await writeDraft(null);
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
     resetForm();
     router.navigate('/(tabs)/stats');
@@ -721,7 +723,7 @@ export default function LogScreen() {
         animationType="slide"
         onRequestClose={() => {}}
       >
-        <View style={styles.resumeOverlay}>
+        <BlurView intensity={60} tint="dark" style={styles.resumeOverlay}>
           <View style={styles.resumeSheet}>
             <Text style={styles.resumeTitle}>Resume Session?</Text>
             <Text style={styles.resumeSubtitle}>
@@ -734,7 +736,7 @@ export default function LogScreen() {
               <Text style={styles.discardButtonText}>Discard</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </BlurView>
       </Modal>
 
       {/* ================================================================
@@ -982,7 +984,6 @@ const styles = StyleSheet.create({
   resumeOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   resumeSheet: {
     backgroundColor: '#1C1C1E',
