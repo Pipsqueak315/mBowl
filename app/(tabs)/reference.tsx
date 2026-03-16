@@ -12,6 +12,12 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import SettingsContent from '@/components/SettingsContent';
+import SignalsTab, { SignalsData, DEFAULT_SIGNALS } from '@/components/SignalsTab';
+import PocketDiagnosticsTab, {
+  DiagnosticsData,
+  DEFAULT_DIAGNOSTICS,
+} from '@/components/PocketDiagnosticsTab';
+import PatternsTab, { PatternsData, DEFAULT_PATTERNS } from '@/components/PatternsTab';
 import { readReference, writeReference } from '@/src/storage';
 
 // ---------------------------------------------------------------------------
@@ -51,6 +57,9 @@ interface ReferenceData {
   speedNotes: string;
   releaseNotes: string;
   pressureTendencies: string;
+  signals: SignalsData;
+  pocketDiagnostics: DiagnosticsData;
+  patterns: PatternsData;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +147,9 @@ const DEFAULT_DATA: ReferenceData = {
   speedNotes: '',
   releaseNotes: '',
   pressureTendencies: '',
+  signals: DEFAULT_SIGNALS,
+  pocketDiagnostics: DEFAULT_DIAGNOSTICS,
+  patterns: DEFAULT_PATTERNS,
 };
 
 const SHOT_CLOCK = [
@@ -203,6 +215,18 @@ function mergeWithDefaults(stored: Record<string, unknown>): ReferenceData {
     releaseNotes: typeof stored.releaseNotes === 'string' ? stored.releaseNotes : '',
     pressureTendencies:
       typeof stored.pressureTendencies === 'string' ? stored.pressureTendencies : '',
+    signals:
+      stored.signals && typeof stored.signals === 'object'
+        ? { ...DEFAULT_SIGNALS, ...(stored.signals as Partial<SignalsData>) }
+        : DEFAULT_SIGNALS,
+    pocketDiagnostics:
+      stored.pocketDiagnostics && typeof stored.pocketDiagnostics === 'object'
+        ? { ...DEFAULT_DIAGNOSTICS, ...(stored.pocketDiagnostics as Partial<DiagnosticsData>) }
+        : DEFAULT_DIAGNOSTICS,
+    patterns:
+      stored.patterns && typeof stored.patterns === 'object'
+        ? { ...DEFAULT_PATTERNS, ...(stored.patterns as Partial<PatternsData>) }
+        : DEFAULT_PATTERNS,
   };
 }
 
@@ -550,10 +574,28 @@ export default function ReferenceScreen() {
 
         {/* Tab content */}
         {activeTab === 'Position' && renderPositionTab()}
-        {activeTab === 'Signals' && renderPlaceholder('Signals')}
-        {activeTab === 'Pocket Diagnostics' && renderPlaceholder('Pocket Diagnostics')}
+        {activeTab === 'Signals' && (
+          <SignalsTab
+            data={data.signals}
+            onUpdate={updated => update(prev => ({ ...prev, signals: updated }))}
+            onSave={save}
+          />
+        )}
+        {activeTab === 'Pocket Diagnostics' && (
+          <PocketDiagnosticsTab
+            data={data.pocketDiagnostics}
+            onUpdate={updated => update(prev => ({ ...prev, pocketDiagnostics: updated }))}
+            onSave={save}
+          />
+        )}
         {activeTab === 'Mental' && renderMentalTab()}
-        {activeTab === 'Patterns' && renderPlaceholder('Patterns')}
+        {activeTab === 'Patterns' && (
+          <PatternsTab
+            data={data.patterns}
+            onUpdate={updated => update(prev => ({ ...prev, patterns: updated }))}
+            onSave={save}
+          />
+        )}
       </View>
 
       {/* Settings Modal */}
