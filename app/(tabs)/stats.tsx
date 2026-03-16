@@ -9,12 +9,12 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import SettingsContent from '@/components/SettingsContent';
-import { useFocusEffect } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LineChart } from 'react-native-chart-kit';
+import { readSessions, readSettings } from '@/src/storage';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import ScalePressable from '@/components/ScalePressable';
 
 // --- Types ---
 interface FrameEntry {
@@ -187,17 +187,6 @@ function buildGameData(sessions: Session[]): ChartPoint | null {
   const labels: string[] = [];
 
   for (const s of sorted) {
-    const scored = s.games.filter(g => g.score != null);
-    scored.forEach(() => {
-      data.push(0); // placeholder — replaced below
-      labels.push('');
-    });
-  }
-
-  // Reset and rebuild properly
-  data.length = 0;
-  labels.length = 0;
-  for (const s of sorted) {
     s.games.filter(g => g.score != null).forEach(g => {
       data.push(g.score as number);
       labels.push('');
@@ -241,13 +230,13 @@ export default function StatsScreen() {
       let active = true;
       (async () => {
         setLoading(true);
-        const [sRaw, stRaw] = await Promise.all([
-          AsyncStorage.getItem('mbowl_sessions_v1'),
-          AsyncStorage.getItem('mbowl_settings_v1'),
+        const [sessionsData, settingsData] = await Promise.all([
+          readSessions(),
+          readSettings(),
         ]);
         if (active) {
-          setSessions(sRaw ? JSON.parse(sRaw) : []);
-          setSettings(stRaw ? JSON.parse(stRaw) : null);
+          setSessions(sessionsData ?? []);
+          setSettings(settingsData ?? null);
           setLoading(false);
         }
       })();
@@ -273,24 +262,22 @@ export default function StatsScreen() {
         {/* Season Toggle */}
         <View style={styles.toggleSection}>
           <View style={styles.toggleContainer}>
-            <TouchableOpacity
+            <ScalePressable
               style={[styles.toggleBtn, toggle === 'season' && styles.toggleBtnActive]}
               onPress={() => setToggle('season')}
-              activeOpacity={0.8}
             >
               <Text style={[styles.toggleText, toggle === 'season' && styles.toggleTextActive]}>
                 Current Season
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </ScalePressable>
+            <ScalePressable
               style={[styles.toggleBtn, toggle === 'alltime' && styles.toggleBtnActive]}
               onPress={() => setToggle('alltime')}
-              activeOpacity={0.8}
             >
               <Text style={[styles.toggleText, toggle === 'alltime' && styles.toggleTextActive]}>
                 All-Time
               </Text>
-            </TouchableOpacity>
+            </ScalePressable>
           </View>
           {toggle === 'season' && !hasSeasonDates && (
             <Text style={styles.noSeasonHint}>No season dates set — showing all sessions</Text>

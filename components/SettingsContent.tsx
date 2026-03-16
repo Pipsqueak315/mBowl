@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { readSettings, writeSettings, readBalls, writeBalls } from '@/src/storage';
+import ScalePressable from '@/components/ScalePressable';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -267,7 +268,7 @@ export default function SettingsContent({ onClose }: Props) {
             <Text style={styles.strengthTitle}>Strength</Text>
             <View style={styles.strengthRow}>
               {[1, 2, 3, 4, 5].map(n => (
-                <TouchableOpacity
+                <ScalePressable
                   key={n}
                   style={[styles.strengthBtn, newBallStrength === n && styles.strengthBtnActive]}
                   onPress={() => setNewBallStrength(n)}
@@ -280,16 +281,16 @@ export default function SettingsContent({ onClose }: Props) {
                   >
                     {n}
                   </Text>
-                </TouchableOpacity>
+                </ScalePressable>
               ))}
             </View>
-            <TouchableOpacity
+            <ScalePressable
               style={[styles.saveBtn, !newBallName.trim() && styles.saveBtnDisabled]}
               onPress={addBall}
               disabled={!newBallName.trim()}
             >
               <Text style={styles.saveBtnText}>Save Ball</Text>
-            </TouchableOpacity>
+            </ScalePressable>
           </View>
         )}
 

@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import ScalePressable from '@/components/ScalePressable';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -454,7 +455,7 @@ export default function LogFramesScreen() {
       {/* Mode toggle */}
       <View style={styles.toggleBar}>
         {(['post', 'live'] as Mode[]).map((m) => (
-          <TouchableOpacity
+          <ScalePressable
             key={m}
             style={[styles.togglePill, mode === m && styles.togglePillActive]}
             onPress={() => setMode(m)}
@@ -462,7 +463,7 @@ export default function LogFramesScreen() {
             <Text style={[styles.toggleText, mode === m && styles.toggleTextActive]}>
               {m === 'post' ? 'Post-Game' : 'Live'}
             </Text>
-          </TouchableOpacity>
+          </ScalePressable>
         ))}
       </View>
 
@@ -502,9 +503,9 @@ export default function LogFramesScreen() {
             <Text style={styles.completeTitle}>All Frames Complete</Text>
             <Text style={styles.completeFinalScore}>{scores[9]}</Text>
             <Text style={styles.completeLabel}>Final Score</Text>
-            <TouchableOpacity style={styles.doneButton} onPress={handleDone}>
+            <ScalePressable style={styles.doneButton} onPress={handleDone}>
               <Text style={styles.doneButtonText}>Done</Text>
-            </TouchableOpacity>
+            </ScalePressable>
           </View>
         ) : (
           <ActiveFrameCard

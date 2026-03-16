@@ -6,21 +6,18 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Modal,
   Alert,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { readSessions, writeSessions } from '@/src/storage';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-
-const SESSIONS_KEY = 'mbowl_sessions_v1';
+import ScalePressable from '@/components/ScalePressable';
 
 type FrameEntry = {
   throws: string[];
@@ -395,11 +392,11 @@ export default function HistoryScreen() {
   useFocusEffect(
     useCallback(() => {
       setLoaded(false);
-      AsyncStorage.getItem(SESSIONS_KEY).then((raw) => {
+      readSessions().then((raw) => {
         if (!raw) {
           setSessions([]);
         } else {
-          const all = JSON.parse(raw) as Session[];
+          const all = raw as Session[];
           all.sort((a, b) => b.date.localeCompare(a.date));
           setSessions(all);
         }
@@ -411,7 +408,7 @@ export default function HistoryScreen() {
   const handleDelete = useCallback((id: number | string) => {
     setSessions((prev) => {
       const updated = prev.filter((s) => s.id !== id);
-      AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(updated));
+      writeSessions(updated);
       return updated;
     });
   }, []);
@@ -430,7 +427,7 @@ export default function HistoryScreen() {
           contentContainerStyle={styles.filterBarContent}
         >
           {FILTERS.map((f) => (
-            <TouchableOpacity
+            <ScalePressable
               key={f.key}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -449,7 +446,7 @@ export default function HistoryScreen() {
               >
                 {f.label}
               </Text>
-            </TouchableOpacity>
+            </ScalePressable>
           ))}
         </ScrollView>
 

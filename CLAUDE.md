@@ -13,7 +13,7 @@ A personal iPhone bowling tracker and reference app built in React Native via Ex
 
 ## Current Phase
 
-**Check mBowl-SessionBrief-REV06.md for current phase before starting any session.**
+**Check mBowl-SessionBrief-REV10.md for current phase before starting any session.**
 
 At the top of each session Marcus will tell you which phase he's on. Read the Spec for full context on that phase before writing any code.
 
@@ -113,23 +113,33 @@ bad:       #FF453A
 
 ---
 
-## File Structure (after Phase 3)
+## File Structure (after Phase 11)
 
 ```
 mBowl/
+├── app/
+│   ├── _layout.tsx          — root layout, seed logic, DarkTheme
+│   ├── index.tsx            — redirect to /(tabs)/log
+│   ├── log-frames.tsx       — Log Frames push screen
+│   └── (tabs)/
+│       ├── _layout.tsx      — bottom tab bar config
+│       ├── log.tsx          — Log tab
+│       ├── stats.tsx        — Stats tab
+│       ├── history.tsx      — History tab
+│       └── reference.tsx    — Reference tab
+├── components/
+│   ├── ScalePressable.tsx   — Reanimated spring press scale
+│   ├── SettingsContent.tsx  — Settings modal (all 4 tabs)
+│   ├── SignalsTab.tsx        — Reference: Signals sub-tab
+│   ├── PocketDiagnosticsTab.tsx — Reference: Pocket Diagnostics sub-tab
+│   └── PatternsTab.tsx      — Reference: Patterns sub-tab
 ├── src/
 │   ├── storage.js       — AsyncStorage read/write helpers
 │   ├── seeds.js         — 17 historical sessions
 │   └── balls.js         — initial ball roster
-├── screens/
-│   ├── LogScreen.js
-│   ├── StatsScreen.js
-│   ├── HistoryScreen.js
-│   └── ReferenceScreen.js
-├── components/          — shared components
 ├── CLAUDE.md            — this file
 ├── mBowl-SPEC.md        — permanent spec
-└── mBowl-SessionBrief-REV08.md  — session state
+└── mBowl-SessionBrief-REV10.md  — session state
 ```
 
 ---

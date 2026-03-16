@@ -22,6 +22,7 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import ScalePressable from '@/components/ScalePressable';
 import {
   readSessions,
   writeSessions,
@@ -452,7 +453,7 @@ export default function LogScreen() {
           {/* ---- Type selector ---- */}
           <View style={styles.typeBar}>
             {SESSION_TYPES.map(({ key, label }) => (
-              <TouchableOpacity
+              <ScalePressable
                 key={key}
                 style={[styles.typePill, sessionType === key && styles.typePillActive]}
                 onPress={() => setSessionType(key)}
@@ -460,7 +461,7 @@ export default function LogScreen() {
                 <Text style={[styles.typePillText, sessionType === key && styles.typePillTextActive]}>
                   {label}
                 </Text>
-              </TouchableOpacity>
+              </ScalePressable>
             ))}
           </View>
 
@@ -640,9 +641,9 @@ export default function LogScreen() {
               />
             </Swipeable>
           ))}
-          <TouchableOpacity style={styles.addGameButton} onPress={addGame}>
+          <ScalePressable style={styles.addGameButton} onPress={addGame}>
             <Text style={styles.addGameText}>+ Add Game</Text>
-          </TouchableOpacity>
+          </ScalePressable>
 
           {/* ---- Session notes ---- */}
           <Text style={styles.sectionLabel}>SESSION NOTES</Text>
@@ -659,9 +660,9 @@ export default function LogScreen() {
           </View>
 
           {/* ---- Submit ---- */}
-          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+          <ScalePressable style={styles.submitButton} onPress={handleSubmit}>
             <Text style={styles.submitText}>Submit Session</Text>
-          </TouchableOpacity>
+          </ScalePressable>
 
           <View style={styles.bottomSpacer} />
         </ScrollView>
@@ -729,12 +730,12 @@ export default function LogScreen() {
             <Text style={styles.resumeSubtitle}>
               You have an unfinished session in progress.
             </Text>
-            <TouchableOpacity style={styles.resumeButton} onPress={resumeDraft}>
+            <ScalePressable style={styles.resumeButton} onPress={resumeDraft}>
               <Text style={styles.resumeButtonText}>Resume</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.discardButton} onPress={discardDraft}>
+            </ScalePressable>
+            <ScalePressable style={styles.discardButton} onPress={discardDraft}>
               <Text style={styles.discardButtonText}>Discard</Text>
-            </TouchableOpacity>
+            </ScalePressable>
           </View>
         </BlurView>
       </Modal>

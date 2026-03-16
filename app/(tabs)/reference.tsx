@@ -23,6 +23,7 @@ import PocketDiagnosticsTab, {
 } from '@/components/PocketDiagnosticsTab';
 import PatternsTab, { PatternsData, DEFAULT_PATTERNS } from '@/components/PatternsTab';
 import { readReference, writeReference } from '@/src/storage';
+import ScalePressable from '@/components/ScalePressable';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -569,20 +570,19 @@ export default function ReferenceScreen() {
           bounces={false}
         >
           {SUB_TABS.map(tab => (
-            <TouchableOpacity
+            <ScalePressable
               key={tab}
               style={styles.subTabItem}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setActiveTab(tab);
               }}
-              activeOpacity={0.7}
             >
               <Text style={[styles.subTabText, activeTab === tab && styles.subTabTextActive]}>
                 {tab}
               </Text>
               {activeTab === tab && <View style={styles.subTabIndicator} />}
-            </TouchableOpacity>
+            </ScalePressable>
           ))}
         </ScrollView>
 

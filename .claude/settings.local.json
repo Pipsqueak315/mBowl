@@ -6,7 +6,8 @@
       "Bash(cd \"C:/Users/marcus/Desktop/mBowl\" && npm info react-native-chart-kit peerDependencies 2>&1)",
       "Bash(cd \"C:/Users/marcus/Desktop/mBowl\" && npx expo install react-native-svg 2>&1)",
       "Bash(cd \"C:/Users/marcus/Desktop/mBowl\" && npm install react-native-chart-kit 2>&1)",
-      "Bash(cd \"C:\\\\Users\\\\marcus\\\\Desktop\\\\mBowl\" && npx expo install expo-blur 2>&1)"
+      "Bash(cd \"C:\\\\Users\\\\marcus\\\\Desktop\\\\mBowl\" && npx expo install expo-blur 2>&1)",
+      "Bash(cd \"C:/Users/marcus/Desktop/mBowl\" && rm scripts/write_phase3.js scripts/write_brief_rev05.js scripts/write_brief_rev06.js scripts/write_stats_phase7a.js scripts/write_stats_phase7b.js write-brief-rev10.js && echo \"deleted\")"
     ]
   }
 }
