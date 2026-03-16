@@ -5,12 +5,12 @@ import {
   Modal,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import SettingsContent from '@/components/SettingsContent';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LineChart } from 'react-native-chart-kit';
@@ -426,13 +426,7 @@ export default function StatsScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setSettingsOpen(false)}
       >
-        <SafeAreaView style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setSettingsOpen(false)}>
-              <Text style={styles.doneText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+        <SettingsContent onClose={() => setSettingsOpen(false)} />
       </Modal>
     </>
   );
@@ -602,24 +596,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  // Gear / modal
+  // Gear button
   gearButton: {
     marginRight: 16,
-  },
-  modal: {
-    flex: 1,
-    backgroundColor: '#1C1C1E',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    padding: 16,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#38383A',
-  },
-  doneText: {
-    color: '#00CEC9',
-    fontSize: 17,
-    fontWeight: '600',
   },
 });

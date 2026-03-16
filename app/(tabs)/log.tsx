@@ -1,4 +1,5 @@
 import { useState, useLayoutEffect, useEffect, useRef, useCallback } from 'react';
+import SettingsContent from '@/components/SettingsContent';
 import {
   View,
   Text,
@@ -220,6 +221,17 @@ export default function LogScreen() {
     }
     init();
   }, []);
+
+  // ---- Reload balls when Settings modal closes ----------------------------
+  const wasSettingsOpen = useRef(false);
+  useEffect(() => {
+    if (wasSettingsOpen.current && !settingsOpen) {
+      readBalls().then(b => {
+        if (b) setAvailableBalls((b as Ball[]).filter(ball => ball.active));
+      });
+    }
+    wasSettingsOpen.current = settingsOpen;
+  }, [settingsOpen]);
 
   // ---- Read frame result when returning from log-frames -------------------
   useFocusEffect(
@@ -688,7 +700,12 @@ export default function LogScreen() {
             })}
           </ScrollView>
           <View style={styles.manageBallsRow}>
-            <TouchableOpacity onPress={() => setBallPickerOpen(false)}>
+            <TouchableOpacity
+              onPress={() => {
+                setBallPickerOpen(false);
+                setTimeout(() => setSettingsOpen(true), 350);
+              }}
+            >
               <Text style={styles.manageBallsText}>Manage Balls</Text>
             </TouchableOpacity>
           </View>
@@ -729,14 +746,7 @@ export default function LogScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setSettingsOpen(false)}
       >
-        <SafeAreaView style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Settings</Text>
-            <TouchableOpacity onPress={() => setSettingsOpen(false)}>
-              <Text style={styles.doneText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+        <SettingsContent onClose={() => setSettingsOpen(false)} />
       </Modal>
     </>
   );
@@ -966,7 +976,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#38383A',
     alignItems: 'center',
   },
-  manageBallsText: { fontSize: 15, color: '#8E8E93' },
+  manageBallsText: { fontSize: 15, color: '#00CEC9', fontWeight: '500' },
 
   // Draft resume sheet
   resumeOverlay: {

@@ -1,4 +1,5 @@
 import { useState, useLayoutEffect, useCallback, useRef } from 'react';
+import SettingsContent from '@/components/SettingsContent';
 import {
   View,
   Text,
@@ -469,13 +470,7 @@ export default function HistoryScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setSettingsOpen(false)}
       >
-        <SafeAreaView style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setSettingsOpen(false)}>
-              <Text style={styles.doneText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+        <SettingsContent onClose={() => setSettingsOpen(false)} />
       </Modal>
     </>
   );
