@@ -28,16 +28,6 @@ type Props = { onClose: () => void };
 // Sub-components: strength dots
 // ---------------------------------------------------------------------------
 
-function StrengthDots({ strength }: { strength: number }) {
-  return (
-    <View style={styles.dotsRow}>
-      {[1, 2, 3, 4, 5].map(i => (
-        <View key={i} style={[styles.dot, i <= strength ? styles.dotFilled : styles.dotEmpty]} />
-      ))}
-    </View>
-  );
-}
-
 function TappableStrengthDots({
   strength,
   onPress,

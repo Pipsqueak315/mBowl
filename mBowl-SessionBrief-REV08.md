@@ -1,4 +1,4 @@
-# mBowl -- Session Brief REV09
+# mBowl -- Session Brief REV10
 **Full spec lives in:** mBowl-SPEC.md (Project folder) -- read it before writing any code.
 **Last updated:** March 20, 2026
 
@@ -6,8 +6,8 @@
 
 ## Current Status
 
-**Phase:** Phase 15C complete -- Pocket Diagnostics My Data Integration
-**Last completed:** Phase 15C (March 20, 2026)
+**Phase:** Phase 15D complete -- Deep Code Audit (post 15A-C)
+**Last completed:** Phase 15D (March 20, 2026)
 **Up next:** Phase 14 -- Build + Install
 
 ---
@@ -70,6 +70,7 @@ This is an Expo Router project -- not bare React Navigation.
 | 15A | Session Edit + Ball Strength | 60-90 min | 1 | Complete |
 | 15B | Stats Extensions | 45-60 min | 1 | Complete |
 | 15C | Pocket Diagnostics My Data | 45-60 min | 1 | Complete |
+| 15D | Deep Code Audit (post 15A-C) | 30-60 min | 1 | Complete |
 | 14 | Build + Install | 60-90 min | 1 | Not started |
 
 ---
@@ -197,6 +198,25 @@ TSC: Clean (zero errors confirmed)
 
 ---
 
+### Phase 15D -- Deep Code Audit (post 15A-C)
+**Completed:** March 20, 2026
+
+Files audited: EditSessionModal.tsx, history.tsx, SettingsContent.tsx, PocketDiagnosticsTab.tsx, stats.tsx, leaveUtils.js
+
+**Clean (no changes):**
+- history.tsx: handleSaveEdit uses functional setSessions (no stale closure), swipe button wiring correct, EditSessionModal props correct
+- PocketDiagnosticsTab.tsx: getCardLeaveData composite summing correct (no double-count), computeLeaveStats only in useEffect not render path, all 14 CARD_LEAVE_KEYS verified, no any types, no console.log
+- EditSessionModal.tsx: isDirty tracking correct, toISODate local-time, id preserved on save
+- changeStrength in SettingsContent: stale closure acceptable (value passed as parameter, converges correctly on rapid taps)
+
+**Fixed:**
+- stats.tsx: `showAllLeaves` now resets to false when `filtered` changes (Season↔All-Time toggle no longer leaves expanded state stale). Added `useEffect(() => { setShowAllLeaves(false); }, [filtered])` after memos. Added `useEffect` to import.
+- SettingsContent.tsx: Removed dead `StrengthDots` component (replaced by TappableStrengthDots in 15A, never used)
+
+TSC: Clean (zero errors confirmed)
+
+---
+
 ## Phase 14 -- Build + Install
 
 Pre-requisites Marcus must complete away from Claude Code before starting this phase:
@@ -268,6 +288,7 @@ Done when: mBowl on home screen, runs without Expo Go, smoke test passes.
 | 15 | Phase 12B | Mar 16 | Pin Deck wired into Log Frames. MiniPinDeck in History. Draft persistence updated. |
 | 16 | Phase 13 | Mar 16 | Leave Stats complete. leaveUtils.js created. Common Leaves section in Stats tab. |
 | 17 | Audit Fixes | Mar 16 | Deep code audit fixes applied. TSC clean. Boilerplate deleted. See phase details above. |
+| 18 | Phase 15A-C + 15D | Mar 20 | Session edit, ball strength editable, stats extensions, pocket diagnostics my data, post-15A-C audit. TSC clean. |
 
 ---
 

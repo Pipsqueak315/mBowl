@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useCallback, useMemo } from 'react';
+import { useState, useLayoutEffect, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -359,6 +359,7 @@ export default function StatsScreen() {
   );
   const histogram = useMemo<HistBucket[]>(() => buildHistogram(filtered), [filtered]);
   const ballStats = useMemo<BallStat[]>(() => buildBallStats(filtered), [filtered]);
+  useEffect(() => { setShowAllLeaves(false); }, [filtered]);
 
   return (
     <>
