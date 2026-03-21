@@ -1,7 +1,7 @@
 # mBowl — Claude Code Instructions
 
 **Full spec:** `mBowl-SPEC.md` in this project folder. Read it before writing any code.
-**Session state:** `mBowl-SessionBrief-REV08.md` — check this for current phase and notes.
+**Session state:** `mBowl-SessionBrief-REV13.md` — check this for current phase and notes.
 
 ---
 
@@ -13,7 +13,7 @@ A personal iPhone bowling tracker and reference app built in React Native via Ex
 
 ## Current Phase
 
-**Check mBowl-SessionBrief-REV08.md for current phase before starting any session.**
+**Check mBowl-SessionBrief-REV13.md for current phase before starting any session.**
 
 At the top of each session Marcus will tell you which phase he's on. Read the Spec for full context on that phase before writing any code.
 

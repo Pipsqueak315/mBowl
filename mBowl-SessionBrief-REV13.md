@@ -1,4 +1,4 @@
-# mBowl -- Session Brief REV10
+# mBowl -- Session Brief REV13
 **Full spec lives in:** mBowl-SPEC.md (Project folder) -- read it before writing any code.
 **Last updated:** March 20, 2026
 
@@ -8,7 +8,7 @@
 
 **Phase:** Phase 15D complete -- Deep Code Audit (post 15A-C)
 **Last completed:** Phase 15D (March 20, 2026)
-**Up next:** Phase 14 -- Build + Install
+**Up next:** Phase 14 -- EAS Update Deploy
 
 ---
 
@@ -40,7 +40,7 @@ This is an Expo Router project -- not bare React Navigation.
 - **Pin Deck:** Dual input mode in Log Frames. Pins/Quick toggle. Pin data optional, analytics-only.
 - **Draft persistence:** Includes all form fields, frame data, and pinsStanding arrays. writeDraft(null) calls removeItem, not setItem.
 - **Date storage:** formatDateISO uses local time (getFullYear/getMonth/getDate), not toISOString(). No UTC offset bug.
-- **Stats:** filtered, metrics, seriesChartPoint, gameChartPoint all memoized with useMemo.
+- **Stats:** filtered, metrics, seriesChartPoint, gameChartPoint, leaveStats, histogram, ballStats all memoized with useMemo.
 - **Ball picker:** Sorted weakest to strongest. Empty state message if no active balls.
 - **Season start:** Derived from settings.seasonStart at runtime. No hardcoded date.
 
@@ -71,14 +71,14 @@ This is an Expo Router project -- not bare React Navigation.
 | 15B | Stats Extensions | 45-60 min | 1 | Complete |
 | 15C | Pocket Diagnostics My Data | 45-60 min | 1 | Complete |
 | 15D | Deep Code Audit (post 15A-C) | 30-60 min | 1 | Complete |
-| 14 | Build + Install | 60-90 min | 1 | Not started |
+| 14 | EAS Update -- Expo Go Deploy | 30-45 min | 1 | Complete |
 
 ---
 
 ## Phase Details (Completed Phases)
 
 ### Phases 1-12B
-See REV07 for full details. All complete as of March 16, 2026.
+See REV06 (archive) or git history for full details. All complete as of March 16, 2026.
 
 ### Phase 13 -- Leave Stats
 **Completed:** March 16, 2026
@@ -191,7 +191,7 @@ TSC: Clean (zero errors confirmed)
 - If pin data exists: cards shown with count (×N), conversion % (color-coded ≥80/60/below), teal frequency bar (3px, scaled to most frequent leave in the current filtered view)
 - Cards with data sorted by count descending; zero-occurrence cards moved to bottom and dimmed (opacity 0.4)
 - Filter pills (All Leaves / High Frequency / Common / Situational) work in both modes
-- Reference mode is pixel-identical to pre-15C — no changes to that render path
+- Reference mode is pixel-identical to pre-15C -- no changes to that render path
 - Expanded body (Why / Fix / Pattern) still editable in both modes
 
 TSC: Clean (zero errors confirmed)
@@ -217,44 +217,41 @@ TSC: Clean (zero errors confirmed)
 
 ---
 
-## Phase 14 -- Build + Install
+### Phase 14 -- EAS Update Deploy
+**Completed:** March 20, 2026
 
-Pre-requisites Marcus must complete away from Claude Code before starting this phase:
-- Apple Developer Program enrolled and active ($99/year -- apple.com/developer)
+**Deployment approach:** EAS Update (OTA) via Expo Go -- no standalone build, no Apple Developer account required.
+
+Pre-requisites:
 - Expo account created at expo.dev (free)
 - EAS CLI installed: npm install -g eas-cli
-- Apple Configurator 2 installed on Mac (free -- Mac App Store) OR Xcode installed
-- assets/images/icon.png (1024x1024) confirmed present
-- assets/images/splash-icon.png confirmed present
+- Expo Go installed on iPhone (App Store, free)
 
-Steps Claude Code will execute:
-1. Verify TSC clean
-2. Verify eas-cli version
-3. Create eas.json with preview internal distribution profile
-4. Verify app.json fields (name, slug, bundleIdentifier, buildNumber, version)
-5. eas login (Marcus authenticates in terminal)
-6. eas project:init
-7. eas build --platform ios --profile preview
-8. Report build URL and download link
+Steps Claude Code executed:
+1. Verified TSC clean
+2. Verified eas-cli version
+3. eas login (Marcus authenticated in terminal)
+4. eas update:configure (update config written to app.json)
+5. eas update --branch preview --message "Phase 14 -- initial deploy"
+6. Reported update URL / QR code
 
-Manual steps after build:
-- Download .ipa from EAS dashboard or build URL
-- Install via Apple Configurator 2 or Xcode Devices window
-- Trust developer certificate on iPhone: Settings > General > VPN & Device Management
-- Smoke test (see smoke test checklist below)
-- git commit: "Phase 14 complete -- production build"
+Manual steps after update:
+- Open Expo Go on iPhone → scan QR or open project link
+- Smoke test (see checklist below)
+- git commit: "Phase 14 complete -- EAS Update deploy"
 
 Smoke test checklist:
-- App opens without Expo Go
+- App loads in Expo Go
 - Seeded sessions appear in History
 - Log a new session with scores -- submits -- appears in Stats and History
 - Log a session with Pin Deck -- frames save -- leave data appears in Stats
 - Current Season toggle works (requires season dates set in Settings)
 - Delete a session from History
+- Edit a session from History (swipe left → Edit)
 - Settings opens from gear icon on all 4 tabs
 - Kill app and reopen -- data persists
 
-Done when: mBowl on home screen, runs without Expo Go, smoke test passes.
+Done when: mBowl running in Expo Go on iPhone, smoke test passes.
 
 ---
 
@@ -263,7 +260,6 @@ Done when: mBowl on home screen, runs without Expo Go, smoke test passes.
 | Question | When |
 |---|---|
 | House shot exact specs (length + volume) | Verify with house sheet before updating Patterns in-app |
-| Apple Developer enrollment status | Needed for Phase 14 -- must be active before starting |
 
 ---
 
@@ -289,6 +285,7 @@ Done when: mBowl on home screen, runs without Expo Go, smoke test passes.
 | 16 | Phase 13 | Mar 16 | Leave Stats complete. leaveUtils.js created. Common Leaves section in Stats tab. |
 | 17 | Audit Fixes | Mar 16 | Deep code audit fixes applied. TSC clean. Boilerplate deleted. See phase details above. |
 | 18 | Phase 15A-C + 15D | Mar 20 | Session edit, ball strength editable, stats extensions, pocket diagnostics my data, post-15A-C audit. TSC clean. |
+| 19 | REV13 Brief Cleanup | Mar 20 | Brief brought current: Phase 14 rewritten for EAS Update/Expo Go, backlog pruned (4 shipped items removed, 1 added), stale open question removed, file renamed REV08→REV13, CLAUDE.md pointer updated. |
 
 ---
 
@@ -296,8 +293,5 @@ Done when: mBowl on home screen, runs without Expo Go, smoke test passes.
 
 - iCloud backup / key-value sync
 - Export to CSV or JSON
-- Per-ball performance stats (average by ball)
-- Spare conversion by specific pin combo (deeper than top 10)
-- Pocket Diagnostics integration (link actual leave data to reference cards)
-- Score distribution histogram
 - Pin-by-pin entry default (make Pins mode default in both Live and Post-Game once users are comfortable)
+- Edit frame data in session edit (currently read-only by design -- v2 candidate)
