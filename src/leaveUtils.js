@@ -91,6 +91,7 @@ export function computeLeaveStats(sessions) {
     }
   }
 
+  // All leaves sorted by frequency — callers slice as needed
   const leaves = Object.values(leaveMap)
     .map(({ pins, count, converted }) => ({
       pins,
@@ -99,8 +100,7 @@ export function computeLeaveStats(sessions) {
       converted,
       conversionPct: count > 0 ? (converted / count) * 100 : 0,
     }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
+    .sort((a, b) => b.count - a.count);
 
   return { leaves, hasPinData };
 }

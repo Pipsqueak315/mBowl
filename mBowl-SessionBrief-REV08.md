@@ -1,4 +1,4 @@
-# mBowl -- Session Brief
+# mBowl -- Session Brief REV09
 **Full spec lives in:** mBowl-SPEC.md (Project folder) -- read it before writing any code.
 **Last updated:** March 20, 2026
 
@@ -6,8 +6,8 @@
 
 ## Current Status
 
-**Phase:** Phase 15A complete -- Session Edit + Ball Strength Editable
-**Last completed:** Phase 15A (March 20, 2026)
+**Phase:** Phase 15B complete -- Stats Extensions
+**Last completed:** Phase 15B (March 20, 2026)
 **Up next:** Phase 14 -- Build + Install
 
 ---
@@ -68,6 +68,7 @@ This is an Expo Router project -- not bare React Navigation.
 | 13 | Leave Stats | 45-60 min | 1 | Complete |
 | -- | Deep Code Audit Fixes | 30-60 min | 1 | Complete |
 | 15A | Session Edit + Ball Strength | 60-90 min | 1 | Complete |
+| 15B | Stats Extensions | 45-60 min | 1 | Complete |
 | 14 | Build + Install | 60-90 min | 1 | Not started |
 
 ---
@@ -132,6 +133,39 @@ TSC: Clean (zero errors confirmed)
 - Writes immediately to mbowl_balls_v1 (full replace)
 - Haptic on dot tap (Light)
 
+TSC: Clean (zero errors confirmed)
+
+---
+
+### Phase 15B -- Stats Extensions
+**Completed:** March 20, 2026
+
+**Score Distribution Histogram:**
+- New full-width card below Game-by-Game Trend chart
+- 10 buckets: 100--119 through 280--300
+- Custom horizontal bar chart (teal filled bars, scaled to max bucket count)
+- Shows count on right of each bar; empty label if count is 0
+- Empty state: lock icon + message if no scores fall in the 100--300 range
+- Respects Current Season / All-Time toggle via `filtered` sessions
+
+**Per-Ball Performance (By Ball):**
+- New full-width card below Score Distribution
+- Shows ball name, games logged count, and average score for each ball with data
+- Sorted by average score descending
+- Average color-coded using same thresholds as overall avg (≥180 green, ≥166 orange, below red)
+- Empty state: "No ball data logged yet" if no ball field on any game
+- Respects toggle via `filtered`
+
+**All Tracked Leaves:**
+- leaveUtils.js: removed `.slice(0, 10)` -- now returns all leaves sorted by frequency
+- stats.tsx: Common Leaves section now uses `.slice(0, 10)` explicitly
+- New "All Tracked Leaves" section renders after Common Leaves
+- Only shown when total leaves > 10 (otherwise identical to Common Leaves, not duplicated)
+- Show All / Show Less toggle when more than 10 entries (collapses to top 10 by default)
+- Same visual style (mini pin diagram, count, conversion % color-coded)
+- Respects toggle via `filtered`
+
+All three new sections use `useMemo` consistent with existing memoization pattern.
 TSC: Clean (zero errors confirmed)
 
 ---

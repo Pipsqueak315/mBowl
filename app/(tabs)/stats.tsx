@@ -76,6 +76,17 @@ interface LeaveEntry {
   conversionPct: number;
 }
 
+interface BallStat {
+  ball: string;
+  count: number;
+  avg: number;
+}
+
+interface HistBucket {
+  label: string;
+  count: number;
+}
+
 // --- Chart Config (defined outside component — stable reference) ---
 const CHART_CONFIG = {
   backgroundColor: '#1C1C1E',
@@ -234,6 +245,50 @@ function buildGameData(sessions: Session[]): ChartPoint | null {
   return { labels, data };
 }
 
+// --- Score Distribution ---
+const HIST_BUCKETS: { label: string; min: number; max: number }[] = [
+  { label: '100–119', min: 100, max: 119 },
+  { label: '120–139', min: 120, max: 139 },
+  { label: '140–159', min: 140, max: 159 },
+  { label: '160–179', min: 160, max: 179 },
+  { label: '180–199', min: 180, max: 199 },
+  { label: '200–219', min: 200, max: 219 },
+  { label: '220–239', min: 220, max: 239 },
+  { label: '240–259', min: 240, max: 259 },
+  { label: '260–279', min: 260, max: 279 },
+  { label: '280–300', min: 280, max: 300 },
+];
+
+function buildHistogram(sessions: Session[]): HistBucket[] {
+  const counts = HIST_BUCKETS.map(b => ({ label: b.label, min: b.min, max: b.max, count: 0 }));
+  for (const s of sessions) {
+    for (const g of s.games) {
+      if (g.score == null) continue;
+      const score = g.score as number;
+      const bucket = counts.find(b => score >= b.min && score <= b.max);
+      if (bucket) bucket.count++;
+    }
+  }
+  return counts.map(({ label, count }) => ({ label, count }));
+}
+
+// --- Per-Ball Performance ---
+function buildBallStats(sessions: Session[]): BallStat[] {
+  const ballMap: Record<string, { sum: number; count: number }> = {};
+  for (const s of sessions) {
+    for (const g of s.games) {
+      if (g.score == null || !g.ball) continue;
+      const ball = g.ball as string;
+      if (!ballMap[ball]) ballMap[ball] = { sum: 0, count: 0 };
+      ballMap[ball].sum += g.score as number;
+      ballMap[ball].count++;
+    }
+  }
+  return Object.entries(ballMap)
+    .map(([ball, { sum, count }]) => ({ ball, count, avg: sum / count }))
+    .sort((a, b) => b.avg - a.avg);
+}
+
 const NA_LABELS = ['Strike %', 'Spare %', 'Opens/Game'] as const;
 
 // --- Component ---
@@ -243,6 +298,7 @@ export default function StatsScreen() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showAllLeaves, setShowAllLeaves] = useState(false);
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
   // Chart fills the card edge-to-edge; card sits inside 16px scroll padding each side
@@ -301,6 +357,8 @@ export default function StatsScreen() {
     () => computeLeaveStats(filtered) as { leaves: LeaveEntry[]; hasPinData: boolean },
     [filtered],
   );
+  const histogram = useMemo<HistBucket[]>(() => buildHistogram(filtered), [filtered]);
+  const ballStats = useMemo<BallStat[]>(() => buildBallStats(filtered), [filtered]);
 
   return (
     <>
@@ -453,6 +511,71 @@ export default function StatsScreen() {
               )}
             </View>
 
+            {/* Score Distribution */}
+            {(() => {
+              const histTotal = histogram.reduce((s, b) => s + b.count, 0);
+              const maxCount = histogram.reduce((m, b) => Math.max(m, b.count), 0);
+              if (histTotal === 0) {
+                return (
+                  <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
+                    <Text style={styles.cardLabel}>Score Distribution</Text>
+                    <IconSymbol name="lock.fill" size={18} color="#48484A" />
+                    <Text style={styles.naText}>No game scores in range to display.</Text>
+                  </View>
+                );
+              }
+              return (
+                <View style={styles.histCard}>
+                  <Text style={styles.histTitle}>Score Distribution</Text>
+                  {histogram.map(bucket => {
+                    const barPct = maxCount > 0 ? bucket.count / maxCount : 0;
+                    return (
+                      <View key={bucket.label} style={styles.histRow}>
+                        <Text style={styles.histLabel}>{bucket.label}</Text>
+                        <View style={styles.histBarTrack}>
+                          <View
+                            style={[
+                              styles.histBar,
+                              { width: barPct > 0 ? `${Math.max(barPct * 100, 2)}%` : 0 },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.histCount}>
+                          {bucket.count > 0 ? bucket.count : ''}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })()}
+
+            {/* By Ball */}
+            {ballStats.length === 0 ? (
+              <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
+                <Text style={styles.cardLabel}>By Ball</Text>
+                <Text style={styles.naText}>No ball data logged yet.</Text>
+              </View>
+            ) : (
+              <View style={styles.leavesCard}>
+                <Text style={styles.leavesTitle}>By Ball</Text>
+                {ballStats.map((bs, i) => (
+                  <View
+                    key={bs.ball}
+                    style={[styles.ballStatRow, i > 0 && styles.leaveListRowBorder]}
+                  >
+                    <View style={styles.ballStatInfo}>
+                      <Text style={styles.ballStatName}>{bs.ball}</Text>
+                      <Text style={styles.ballStatCount}>{bs.count} game{bs.count !== 1 ? 's' : ''}</Text>
+                    </View>
+                    <Text style={[styles.ballStatAvg, { color: avgColor(bs.avg) }]}>
+                      {bs.avg.toFixed(1)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
             {/* Common Leaves */}
             {!leaveStats.hasPinData ? (
               <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
@@ -468,7 +591,7 @@ export default function StatsScreen() {
             ) : (
               <View style={styles.leavesCard}>
                 <Text style={styles.leavesTitle}>Common Leaves</Text>
-                {leaveStats.leaves.map((leave, i) => (
+                {leaveStats.leaves.slice(0, 10).map((leave, i) => (
                   <View
                     key={leave.pins.join('-')}
                     style={[styles.leaveListRow, i > 0 && styles.leaveListRowBorder]}
@@ -483,6 +606,40 @@ export default function StatsScreen() {
                     </Text>
                   </View>
                 ))}
+              </View>
+            )}
+
+            {/* All Tracked Leaves — only when more than 10 total (otherwise identical to Common Leaves) */}
+            {leaveStats.hasPinData && leaveStats.leaves.length > 10 && (
+              <View style={styles.leavesCard}>
+                <View style={styles.allLeavesHeader}>
+                  <Text style={styles.leavesTitle}>All Tracked Leaves</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowAllLeaves(v => !v)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.allLeavesToggle}>
+                      {showAllLeaves ? 'Show Less' : 'Show All'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {(showAllLeaves ? leaveStats.leaves : leaveStats.leaves.slice(0, 10)).map(
+                  (leave, i) => (
+                    <View
+                      key={leave.pins.join('-')}
+                      style={[styles.leaveListRow, i > 0 && styles.leaveListRowBorder]}
+                    >
+                      <LeaveMiniPinDeck pins={leave.pins} />
+                      <View style={styles.leaveInfo}>
+                        <Text style={styles.leaveName}>{leave.name}</Text>
+                        <Text style={styles.leaveCount}>× {leave.count}</Text>
+                      </View>
+                      <Text style={[styles.leaveConvPct, { color: conversionColor(leave.conversionPct) }]}>
+                        {Math.round(leave.conversionPct)}%
+                      </Text>
+                    </View>
+                  )
+                )}
               </View>
             )}
           </>
@@ -739,5 +896,91 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     minWidth: 46,
     textAlign: 'right',
+  },
+
+  // --- Score Distribution ---
+  histCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 13,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    marginBottom: 12,
+  },
+  histTitle: {
+    color: '#8E8E93',
+    fontSize: 13,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  histRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 7,
+  },
+  histLabel: {
+    color: '#8E8E93',
+    fontSize: 11,
+    fontWeight: '500',
+    width: 66,
+  },
+  histBarTrack: {
+    flex: 1,
+    height: 14,
+    backgroundColor: '#2C2C2E',
+    borderRadius: 7,
+    overflow: 'hidden',
+    marginHorizontal: 8,
+  },
+  histBar: {
+    height: 14,
+    backgroundColor: '#00CEC9',
+    borderRadius: 7,
+  },
+  histCount: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    width: 24,
+    textAlign: 'right',
+  },
+
+  // --- By Ball ---
+  ballStatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 11,
+  },
+  ballStatInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  ballStatName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  ballStatCount: {
+    color: '#8E8E93',
+    fontSize: 12,
+  },
+  ballStatAvg: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+
+  // --- All Tracked Leaves ---
+  allLeavesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  allLeavesToggle: {
+    color: '#00CEC9',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
