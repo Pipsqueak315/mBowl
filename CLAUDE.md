@@ -1,7 +1,7 @@
 # mBowl — Claude Code Instructions
 
-**Full spec:** `mBowl-SPEC.md` in this project folder. Read it before writing any code.  
-**Session state:** `mBowl-SessionBrief-REV10.md` — check this for current phase and notes.
+**Full spec:** `mBowl-SPEC.md` in this project folder. Read it before writing any code.
+**Session state:** `mBowl-SessionBrief-REV08.md` — check this for current phase and notes.
 
 ---
 
@@ -13,7 +13,7 @@ A personal iPhone bowling tracker and reference app built in React Native via Ex
 
 ## Current Phase
 
-**Check mBowl-SessionBrief-REV10.md for current phase before starting any session.**
+**Check mBowl-SessionBrief-REV08.md for current phase before starting any session.**
 
 At the top of each session Marcus will tell you which phase he's on. Read the Spec for full context on that phase before writing any code.
 
@@ -21,14 +21,37 @@ At the top of each session Marcus will tell you which phase he's on. Read the Sp
 
 ## Tech Stack
 
-- **React Native via Expo** (not PWA, not web)
+- **React Native via Expo** (SDK 54, Expo Router 6)
 - **AsyncStorage** (`@react-native-async-storage/async-storage`) — only storage solution
-- **React Navigation** — bottom tabs + native stack
+- **Expo Router** — file-based routing (NOT bare React Navigation)
 - **expo-haptics** — haptic feedback
 - **expo-blur** — modal overlays
 - **expo-symbols** — SF Symbols icons
-- **react-native-reanimated** — animations
+- **react-native-reanimated** (~4.1.1) — animations
+- **react-native-gesture-handler** — swipe gestures
+- **react-native-chart-kit** — Stats tab line charts
+- **react-native-svg** — required by chart-kit + PinDeck visuals
+- **@react-native-community/datetimepicker** — native iOS date pickers
 - **SF Pro** — system font, no import needed on iOS
+
+---
+
+## Critical Architecture Notes
+
+This is an **Expo Router** project — NOT bare React Navigation.
+
+- File-based routing. Tabs live in `app/(tabs)/`. Screens are files, not components registered manually.
+- `app/_layout.tsx` is the root layout. Seed logic and dark theme forced here.
+- `app/(tabs)/_layout.tsx` controls the bottom tab bar.
+- `app/index.tsx` exists as a redirect to `/(tabs)/log` — required because `unstable_settings` alone doesn't handle root in Expo Go.
+- React Navigation is included via Expo Router — do NOT reinstall it separately.
+
+### Windows Machine Constraints
+
+- **Never use python heredoc or bash heredoc.** They don't work on this machine.
+- File writes use Node: write JS to a file with `Set-Content`, then run `node path/to/script.js`.
+- PowerShell does not support `&&` — run commands one at a time.
+- `python3` is NOT in PATH.
 
 ---
 
@@ -36,9 +59,8 @@ At the top of each session Marcus will tell you which phase he's on. Read the Sp
 
 - Marcus tells you the phase at the top of each chat
 - You read the Spec for that phase's full requirements
+- **Audit before building:** At the start of each phase, read the relevant files and report what exists before writing code
 - You write complete, working code — no placeholders, no TODOs
-- One step at a time. Marcus pastes output back after each command
-- Clean run = one confirmation line back. Error = full output pasted
 - You explain what each step does before running it
 - You flag problems before they happen
 - On error: Marcus pastes full output, you diagnose, provide full corrected command
@@ -63,7 +85,7 @@ At the top of each session Marcus will tell you which phase he's on. Read the Sp
 | `mbowl_balls_v1` | Ball roster |
 | `mbowl_reference_v1` | Reference tab editable content |
 | `mbowl_settings_v1` | Season dates + preferences |
-| `mbowl_draft_v1` | In-progress Log tab draft |
+| `mbowl_draft_v1` | In-progress Log tab draft (includes frame + pin data) |
 
 Write strategy: full replace on every save, delete, or edit.
 
@@ -76,7 +98,7 @@ bg:        #000000
 surface:   #1C1C1E
 card:      #2C2C2E
 border:    #38383A
-teal:      #00CEC9   ← brand accent
+teal:      #00CEC9   <- brand accent
 white:     #FFFFFF
 dim:       #8E8E93
 dimmer:    #48484A
@@ -96,9 +118,9 @@ bad:       #FF453A
 
 ## Score Color Thresholds
 
-- Game vs session average: +5 or better → green · within 5 → orange · below → red
-- Series: > 550 → green · ≥ 500 → orange · below → red
-- Overall average: ≥ 180 → green · ≥ 166 → orange · below → red
+- Game vs session average: +5 or better -> green · within 5 -> orange · below -> red
+- Series: > 550 -> green · >= 500 -> orange · below -> red
+- Overall average: >= 180 -> green · >= 166 -> orange · below -> red
 
 ---
 
@@ -106,40 +128,62 @@ bad:       #FF453A
 
 - Navigation transitions slide horizontally
 - Modals sheet up from bottom — never pop from center
-- Haptics on: session submit, delete confirm, strike entry
-- Buttons scale down on press
+- Haptics on: session submit, delete confirm, strike entry, pin tap, filter/toggle tap
+- Buttons scale down on press (ScalePressable with withSpring)
 - Lists use momentum scrolling with rubber-band effect
 - Blur effects on modal overlays via expo-blur
 
 ---
 
-## File Structure (after Phase 11)
+## File Structure (current)
 
 ```
 mBowl/
 ├── app/
-│   ├── _layout.tsx          — root layout, seed logic, DarkTheme
+│   ├── _layout.tsx          — root layout, seed logic, DarkTheme, StatusBar
 │   ├── index.tsx            — redirect to /(tabs)/log
-│   ├── log-frames.tsx       — Log Frames push screen
+│   ├── log-frames.tsx       — frame entry screen (chip bar + pin deck)
 │   └── (tabs)/
-│       ├── _layout.tsx      — bottom tab bar config
-│       ├── log.tsx          — Log tab
-│       ├── stats.tsx        — Stats tab
-│       ├── history.tsx      — History tab
-│       └── reference.tsx    — Reference tab
+│       ├── _layout.tsx      — 4-tab bottom bar config
+│       ├── log.tsx          — Log tab (full session form + submit + draft)
+│       ├── stats.tsx        — Stats tab (metrics + charts + leave stats)
+│       ├── history.tsx      — History tab (cards + filter + delete)
+│       └── reference.tsx    — Reference tab (5 sub-tabs)
 ├── components/
-│   ├── ScalePressable.tsx   — Reanimated spring press scale
-│   ├── SettingsContent.tsx  — Settings modal (all 4 tabs)
-│   ├── SignalsTab.tsx        — Reference: Signals sub-tab
+│   ├── ScalePressable.tsx       — animated press-scale wrapper
+│   ├── SettingsContent.tsx      — Settings modal content (dates + ball roster)
+│   ├── SignalsTab.tsx           — Reference: Signals sub-tab
 │   ├── PocketDiagnosticsTab.tsx — Reference: Pocket Diagnostics sub-tab
-│   └── PatternsTab.tsx      — Reference: Patterns sub-tab
+│   ├── PatternsTab.tsx          — Reference: Patterns sub-tab
+│   ├── PinDeck.tsx              — visual pin deck input component
+│   ├── haptic-tab.tsx           — tab bar haptic wrapper (active, do not delete)
+│   └── ui/
+│       └── icon-symbol.ios.tsx  — SF Symbol routing (active, do not delete)
 ├── src/
-│   ├── storage.js       — AsyncStorage read/write helpers
-│   ├── seeds.js         — 17 historical sessions
-│   └── balls.js         — initial ball roster
-├── CLAUDE.md            — this file
-├── mBowl-SPEC.md        — permanent spec
-└── mBowl-SessionBrief-REV10.md  — session state
+│   ├── storage.js           — AsyncStorage read/write helpers (try/catch wrapped)
+│   ├── seeds.js             — 17 historical sessions
+│   ├── balls.js             — 9-ball roster
+│   └── leaveUtils.js        — leave extraction + named leave mapping
+└── scripts/
+    └── gen-assets.js        — icon/splash asset generation
+```
+
+---
+
+## Pin Deck System (added Phase 12)
+
+The Log Frames screen has two input modes, toggled via a Pins/Quick segmented control:
+- **Pins mode** (default in Live): visual pin deck — user taps pins left standing, captures `pinsStanding` boolean array
+- **Quick mode** (default in Post-Game): chip bar notation (X / — 0-9), no pin data captured
+
+Pin data is optional. `pinsStanding` is `null` for frames entered via chip bar. Scoring always runs on throw notation, never on pin data. Pin data is analytics-only — it powers the Leave Stats section in the Stats tab.
+
+Pin index mapping: indices 0-9 = pins 1-10. Layout:
+```
+    7  8  9  10      (back row — indices 6, 7, 8, 9)
+      4  5  6        (middle row — indices 3, 4, 5)
+        2  3         (front-middle — indices 1, 2)
+          1          (headpin — index 0)
 ```
 
 ---
@@ -158,150 +202,10 @@ mBowl/
 | Dark mode | Only — no light mode in v1 |
 | Accent color | Teal #00CEC9 |
 | Historical data | 17 sessions seeded on first launch |
-| Ball picker | Full-screen modal, sorted by strength |
-| Frame entry modes | Live / Post-Game toggle |
+| Ball picker | Full-screen modal, sorted by strength weakest to strongest |
+| Frame entry modes | Live / Post-Game toggle + Pins / Quick toggle |
 | Gutter notation | — (dash) |
-
-
----
-
-## Project Path (Locked)
-
-C:/Users/marcus/Desktop/mBowl
-
-All brief writes go here. Never ask Marcus to confirm this path again.
-
----
-
-## Windows File Write Method
-
-Always write files using a JS file via node. Never use python or bash heredoc.
-Write the JS to a file with Set-Content, then run: node path/to/script.js
-
----
-
-## End of Phase Protocol
-
-Run at the end of every phase in order. Do not skip steps.
-
-### Step 1 - Verify Phase Completion
-Run phase-specific checks below. Do not mark complete if any check fails.
-
-### Step 2 - Update the Brief
-- Mark phase complete in Build Schedule table
-- Update Current Status block at top
-- Add completion date to phase header
-- Write thorough session notes: files created/modified, version pins, workarounds, decisions, issues and resolutions, anything next session needs to know. Vague notes not acceptable. Next session starts cold with zero memory.
-- Add row to Session Notes table
-- Increment RevXX by 1 in filename and header
-- Update CLAUDE.md to reference new brief filename
-
-### Step 3 - Write the Updated Brief
-Write to both locations:
-- C:/Users/marcus/Desktop/mBowl/mBowl-SessionBrief-REVXX.md
-- C:/Users/marcus/Desktop/mBowl-SessionBrief-REVXX.md
-Confirm both files exist after writing.
-
-### Step 4 - Git Commit
-git add .
-git commit -m Phase X complete
-Confirm commit hash.
-
-### Step 5 - Wrap Confirmation
-Output:
-Phase X complete and verified.
-Brief updated: mBowl-SessionBrief-REVXX.md
-Written to project folder and Desktop backup.
-Git committed: [hash]
-One manual step: upload brief to Claude.ai project Knowledge folder.
-Next up: Phase X+1 -- [name and one sentence preview]
-
----
-
-## Phase Verification Checklists
-
-### Phase 3
-- app/(tabs)/log.tsx, stats.tsx, history.tsx, reference.tsx exist
-- app/(tabs)/_layout.tsx contains teal #00CEC9
-- app/log-frames.tsx exists
-- Gear icon modal wired on all 4 tabs
-- npx tsc --noEmit returns no errors
-- Marcus confirms app loads on iPhone via Expo Go
-
-### Phase 4
-- LogScreen renders all session types without crash
-- Type-specific fields show/hide correctly
-- Ball Picker Modal opens and dismisses cleanly
-- Draft persists across app close and reopen
-- Submit writes to mbowl_sessions_v1 and navigates to Stats
-- npx tsc --noEmit returns no errors
-- Marcus confirms on device
-
-### Phase 5
-- Log Frames screen pushes from Log tab
-- All 10 frames render in top strip
-- Chip bar inputs correctly for frames 1-9
-- 10th frame handles all 3-throw cases
-- Running score calculates in real time
-- Score auto-fills game row on complete
-- Cancel confirm sheet fires without saving
-- npx tsc --noEmit returns no errors
-- Marcus confirms on device
-
-### Phase 6
-- All 17 seeded sessions visible in History
-- Filter pills filter by type correctly
-- Scores color-coded vs session own average
-- Swipe left delete confirm removes from storage
-- Empty state shows per filter
-- npx tsc --noEmit returns no errors
-- Marcus confirms on device
-
-### Phase 7
-- Overall average correct against seeded data
-- High game and series correct
-- Current Season / All-Time toggle works
-- Strike/Spare/Opens shows N/A when no frame data
-- Both charts render without crash
-- npx tsc --noEmit returns no errors
-- Marcus confirms on device
-
-### Phase 8
-- Settings modal opens from gear on all 4 tabs
-- Season dates save and persist
-- Ball roster add rename toggle all work
-- Ball changes reflect in Log tab picker immediately
-- npx tsc --noEmit returns no errors
-- Marcus confirms on device
-
-### Phase 9
-- Reference tab renders 4 horizontal sub-tabs
-- Position table 6 rows editable saves on blur persists
-- Mental Shot Clock static 5 cues editable and persist
-- All content matches Spec exactly
-- npx tsc --noEmit returns no errors
-- Marcus confirms on device
-
-### Phase 10
-- Signals toggle works
-- Ball Arsenal 9 balls sorted weakest to strongest
-- Switch Guide 11 scenarios color-coded
-- Spares 14 leave cards filter pills work
-- All editable fields persist
-- npx tsc --noEmit returns no errors
-- Marcus confirms on device
-
-### Phase 11
-- Scale-on-press on all interactive elements
-- Haptics on submit delete confirm strike
-- No keyboard overlap on any form
-- Safe area insets correct everywhere
-- Modals blur via expo-blur
-- Marcus confirms feels native
-
-### Phase 12
-- App icon and splash in app.json
-- EAS build completes
-- ipa installs without Expo Go
-- Data persists across close and reopen
-- Marcus confirms on device
+| Pin tracking | Optional per-frame, analytics-only, does not affect scoring |
+| Chart library | react-native-chart-kit |
+| Reference sub-tabs | 5: Position, Signals, Pocket Diagnostics, Mental, Patterns |
+| Bundle identifier | com.marcus.mbowl |

@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Haptics from 'expo-haptics';
 import { readSettings, writeSettings, readBalls, writeBalls } from '@/src/storage';
 import ScalePressable from '@/components/ScalePressable';
 
@@ -24,7 +25,7 @@ type Settings = { seasonStart?: string | null; seasonEnd?: string | null };
 type Props = { onClose: () => void };
 
 // ---------------------------------------------------------------------------
-// Sub-component: strength dots
+// Sub-components: strength dots
 // ---------------------------------------------------------------------------
 
 function StrengthDots({ strength }: { strength: number }) {
@@ -32,6 +33,28 @@ function StrengthDots({ strength }: { strength: number }) {
     <View style={styles.dotsRow}>
       {[1, 2, 3, 4, 5].map(i => (
         <View key={i} style={[styles.dot, i <= strength ? styles.dotFilled : styles.dotEmpty]} />
+      ))}
+    </View>
+  );
+}
+
+function TappableStrengthDots({
+  strength,
+  onPress,
+}: {
+  strength: number;
+  onPress: (value: number) => void;
+}) {
+  return (
+    <View style={styles.dotsRow}>
+      {[1, 2, 3, 4, 5].map(i => (
+        <TouchableOpacity
+          key={i}
+          onPress={() => onPress(i)}
+          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+        >
+          <View style={[styles.dot, i <= strength ? styles.dotFilled : styles.dotEmpty]} />
+        </TouchableOpacity>
       ))}
     </View>
   );
@@ -118,6 +141,11 @@ export default function SettingsContent({ onClose }: Props) {
       saveBallsData(balls.map(b => (b.id === id ? { ...b, name: trimmed } : b)));
     }
     setEditingBallId(null);
+  }
+
+  function changeStrength(id: string, value: number) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    saveBallsData(balls.map(b => (b.id === id ? { ...b, strength: value } : b)));
   }
 
   function addBall() {
@@ -305,7 +333,10 @@ export default function SettingsContent({ onClose }: Props) {
               <View key={ball.id}>
                 {index > 0 && <View style={styles.separator} />}
                 <View style={styles.ballRow}>
-                  <StrengthDots strength={ball.strength} />
+                  <TappableStrengthDots
+                    strength={ball.strength}
+                    onPress={(v) => changeStrength(ball.id, v)}
+                  />
 
                   {editingBallId === ball.id ? (
                     <TextInput

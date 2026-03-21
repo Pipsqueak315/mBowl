@@ -1,5 +1,6 @@
 import { useState, useLayoutEffect, useCallback, useRef } from 'react';
 import SettingsContent from '@/components/SettingsContent';
+import EditSessionModal, { type EditableSession } from '@/components/EditSessionModal';
 import {
   View,
   Text,
@@ -232,9 +233,11 @@ function MadeCutBadge({ madeCut }: { madeCut: string | null }) {
 function SessionCard({
   session,
   onDelete,
+  onEdit,
 }: {
   session: Session;
   onDelete: (id: number | string) => void;
+  onEdit: (session: Session) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const swipeRef = useRef<Swipeable>(null);
@@ -244,25 +247,37 @@ function SessionCard({
   const frameStats = expanded ? calcFrameStats(session.games) : null;
 
   const renderRightActions = () => (
-    <TouchableOpacity
-      style={styles.deleteAction}
-      onPress={() => {
-        swipeRef.current?.close();
-        Alert.alert('Delete Session', 'Are you sure? This cannot be undone.', [
-          { text: 'Cancel', style: 'cancel', onPress: () => swipeRef.current?.close() },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: () => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              onDelete(session.id);
+    <View style={styles.swipeActions}>
+      <TouchableOpacity
+        style={styles.editAction}
+        onPress={() => {
+          swipeRef.current?.close();
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          onEdit(session);
+        }}
+      >
+        <Text style={styles.swipeActionText}>Edit</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.deleteAction}
+        onPress={() => {
+          swipeRef.current?.close();
+          Alert.alert('Delete Session', 'Are you sure? This cannot be undone.', [
+            { text: 'Cancel', style: 'cancel', onPress: () => swipeRef.current?.close() },
+            {
+              text: 'Delete',
+              style: 'destructive',
+              onPress: () => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onDelete(session.id);
+              },
             },
-          },
-        ]);
-      }}
-    >
-      <Text style={styles.deleteActionText}>Delete</Text>
-    </TouchableOpacity>
+          ]);
+        }}
+      >
+        <Text style={styles.swipeActionText}>Delete</Text>
+      </TouchableOpacity>
+    </View>
   );
 
   return (
@@ -398,6 +413,8 @@ export default function HistoryScreen() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -438,6 +455,22 @@ export default function HistoryScreen() {
       writeSessions(updated);
       return updated;
     });
+  }, []);
+
+  const handleEdit = useCallback((session: Session) => {
+    setEditingSession(session);
+    setEditModalOpen(true);
+  }, []);
+
+  const handleSaveEdit = useCallback((updated: EditableSession) => {
+    setSessions(prev => {
+      const newSessions = prev.map(s => s.id === updated.id ? (updated as Session) : s);
+      newSessions.sort((a, b) => b.date.localeCompare(a.date));
+      writeSessions(newSessions);
+      return newSessions;
+    });
+    setEditModalOpen(false);
+    setEditingSession(null);
   }, []);
 
   const filtered =
@@ -492,7 +525,7 @@ export default function HistoryScreen() {
             data={filtered}
             keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
-              <SessionCard session={item} onDelete={handleDelete} />
+              <SessionCard session={item} onDelete={handleDelete} onEdit={handleEdit} />
             )}
             contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 16 }]}
             showsVerticalScrollIndicator={false}
@@ -509,6 +542,17 @@ export default function HistoryScreen() {
       >
         <SettingsContent onClose={() => setSettingsOpen(false)} />
       </Modal>
+
+      {/* Edit session modal */}
+      <EditSessionModal
+        session={editingSession}
+        visible={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false);
+          setEditingSession(null);
+        }}
+        onSave={handleSaveEdit}
+      />
     </>
   );
 }
@@ -791,16 +835,28 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 
-  // Swipe delete action
+  // Swipe actions
+  swipeActions: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    paddingLeft: 8,
+    gap: 8,
+  },
+  editAction: {
+    backgroundColor: '#0A84FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    borderRadius: 13,
+  },
   deleteAction: {
     backgroundColor: '#FF453A',
     justifyContent: 'center',
     alignItems: 'center',
     width: 80,
     borderRadius: 13,
-    marginLeft: 8,
   },
-  deleteActionText: {
+  swipeActionText: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
