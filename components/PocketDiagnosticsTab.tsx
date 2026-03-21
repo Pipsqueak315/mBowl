@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,11 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  ActivityIndicator,
 } from 'react-native';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { readSessions } from '@/src/storage';
+import { computeLeaveStats } from '@/src/leaveUtils';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -21,6 +25,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 type FrequencyTier = 'High Frequency' | 'Common' | 'Situational';
 type FilterPill = 'All Leaves' | FrequencyTier;
+type ViewMode = 'reference' | 'mydata';
 
 interface DiagnosticCard {
   name: string;
@@ -38,6 +43,20 @@ export interface DiagnosticsTabProps {
   data: DiagnosticsData;
   onUpdate: (updated: DiagnosticsData) => void;
   onSave: () => void;
+}
+
+interface LeaveEntry {
+  name: string;
+  count: number;
+  converted: number;
+  conversionPct: number;
+}
+
+interface CardLeaveData {
+  count: number;
+  converted: number;
+  conversionPct: number;
+  hasData: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +179,27 @@ export const DEFAULT_DIAGNOSTICS: DiagnosticsData = {
 };
 
 // ---------------------------------------------------------------------------
+// Leave name mapping — diagnostic card name → leaveUtils leave name(s)
+// ---------------------------------------------------------------------------
+
+const CARD_LEAVE_KEYS: Record<string, string[]> = {
+  'Ringing 10 pin':           ['10 Pin'],
+  'Solid 8 pin':              ['8 Pin'],
+  'Ringing 7 pin':            ['7 Pin'],
+  'Big 4 (4-6-7-10)':        ['Big 4'],
+  '6-7-10':                   ['6-7-10'],
+  'Washout':                  [],
+  'Corner pin (7 or 10)':     ['7 Pin', '10 Pin'],
+  '2-8-10 bucket':            ['2-8-10 Bucket'],
+  '2-4-5-8 bucket':           ['2-4-5-8 Bucket'],
+  '4-6 split':                ['4-6 Split'],
+  '5-7 split':                ['5-7 Split'],
+  'Baby split (2-7 or 3-10)': ['Baby Split (2-7)', 'Baby Split (3-10)'],
+  '4-7-9 cluster':            ['4-7-9 Cluster'],
+  'Sleeper pocket (2-8 or 3-9)': ['Sleeper (2-8)', 'Sleeper (3-9)'],
+};
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -169,6 +209,12 @@ function frequencyColor(tier: FrequencyTier): string {
   if (tier === 'High Frequency') return '#FF453A';
   if (tier === 'Common') return '#FF9F0A';
   return '#FFD60A';
+}
+
+function conversionColor(pct: number): string {
+  if (pct >= 80) return '#30D158';
+  if (pct >= 60) return '#FF9F0A';
+  return '#FF453A';
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +228,53 @@ export default function PocketDiagnosticsTab({
 }: DiagnosticsTabProps) {
   const [activeFilter, setActiveFilter] = useState<FilterPill>('All Leaves');
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [mode, setMode] = useState<ViewMode>('reference');
+  const [leaveEntries, setLeaveEntries] = useState<LeaveEntry[]>([]);
+  const [hasPinData, setHasPinData] = useState(false);
+  const [leavesLoading, setLeavesLoading] = useState(true);
+
+  // Load all-time leave data on mount
+  useEffect(() => {
+    readSessions().then(sessions => {
+      if (!sessions) {
+        setHasPinData(false);
+        setLeaveEntries([]);
+        setLeavesLoading(false);
+        return;
+      }
+      const result = computeLeaveStats(sessions as unknown[]) as {
+        leaves: LeaveEntry[];
+        hasPinData: boolean;
+      };
+      setHasPinData(result.hasPinData);
+      setLeaveEntries(result.leaves);
+      setLeavesLoading(false);
+    });
+  }, []);
+
+  // ---- Helpers --------------------------------------------------------------
+
+  function getCardLeaveData(cardName: string): CardLeaveData {
+    const keys = CARD_LEAVE_KEYS[cardName] ?? [];
+    if (keys.length === 0) return { count: 0, converted: 0, conversionPct: 0, hasData: false };
+
+    let totalCount = 0;
+    let totalConverted = 0;
+    for (const key of keys) {
+      const entry = leaveEntries.find(l => l.name === key);
+      if (entry) {
+        totalCount += entry.count;
+        totalConverted += entry.converted;
+      }
+    }
+    if (totalCount === 0) return { count: 0, converted: 0, conversionPct: 0, hasData: false };
+    return {
+      count: totalCount,
+      converted: totalConverted,
+      conversionPct: (totalConverted / totalCount) * 100,
+      hasData: true,
+    };
+  }
 
   const visibleCards =
     activeFilter === 'All Leaves'
@@ -193,6 +286,19 @@ export default function PocketDiagnosticsTab({
     card,
     originalIndex: data.cards.indexOf(card),
   }));
+
+  // My Data: annotate with leave data and sort (data first desc, zeros at bottom)
+  const myDataItems = visibleWithIndex
+    .map(item => ({ ...item, leaveData: getCardLeaveData(item.card.name) }))
+    .sort((a, b) => {
+      if (a.leaveData.hasData && !b.leaveData.hasData) return -1;
+      if (!a.leaveData.hasData && b.leaveData.hasData) return 1;
+      return b.leaveData.count - a.leaveData.count;
+    });
+
+  const maxCount = myDataItems.reduce((m, item) => Math.max(m, item.leaveData.count), 0);
+
+  // ---- Actions -------------------------------------------------------------
 
   function toggleCard(originalIndex: number) {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -211,11 +317,89 @@ export default function PocketDiagnosticsTab({
 
   function handleFilterChange(pill: FilterPill) {
     setActiveFilter(pill);
-    setExpanded(new Set()); // collapse all when switching filters
+    setExpanded(new Set());
   }
+
+  // ---- Shared expanded body ------------------------------------------------
+
+  function renderExpandedBody(card: DiagnosticCard, originalIndex: number) {
+    return (
+      <View style={s.expandedBody}>
+        <View style={s.separator} />
+
+        <View style={s.fieldBlock}>
+          <Text style={s.fieldLabel}>WHY IT HAPPENS</Text>
+          <TextInput
+            style={s.fieldInput}
+            value={card.why}
+            onChangeText={v => patchCard(originalIndex, { why: v })}
+            onBlur={onSave}
+            multiline
+            textAlignVertical="top"
+            placeholder="Root cause..."
+            placeholderTextColor="#48484A"
+          />
+        </View>
+
+        <View style={s.fieldBlock}>
+          <Text style={s.fieldLabel}>FIX</Text>
+          <TextInput
+            style={s.fieldInput}
+            value={card.fix}
+            onChangeText={v => patchCard(originalIndex, { fix: v })}
+            onBlur={onSave}
+            multiline
+            textAlignVertical="top"
+            placeholder="Adjustment to make..."
+            placeholderTextColor="#48484A"
+          />
+        </View>
+
+        <View style={[s.fieldBlock, s.lastFieldBlock]}>
+          <Text style={s.fieldLabel}>PATTERN TO WATCH</Text>
+          <TextInput
+            style={s.fieldInput}
+            value={card.pattern}
+            onChangeText={v => patchCard(originalIndex, { pattern: v })}
+            onBlur={onSave}
+            multiline
+            textAlignVertical="top"
+            placeholder="What recurring instances mean..."
+            placeholderTextColor="#48484A"
+          />
+        </View>
+      </View>
+    );
+  }
+
+  // ---- Render --------------------------------------------------------------
 
   return (
     <View style={s.container}>
+      {/* Mode toggle */}
+      <View style={s.modeToggleWrap}>
+        <View style={s.modeToggle}>
+          <TouchableOpacity
+            style={[s.modeBtn, mode === 'reference' && s.modeBtnActive]}
+            onPress={() => setMode('reference')}
+            activeOpacity={0.8}
+          >
+            <Text style={[s.modeBtnText, mode === 'reference' && s.modeBtnTextActive]}>
+              Reference
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.modeBtn, mode === 'mydata' && s.modeBtnActive]}
+            onPress={() => setMode('mydata')}
+            activeOpacity={0.8}
+          >
+            <Text style={[s.modeBtnText, mode === 'mydata' && s.modeBtnTextActive]}>
+              My Data
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Filter pill bar */}
       <View style={s.pillBar}>
         {FILTER_PILLS.map(pill => (
@@ -232,87 +416,119 @@ export default function PocketDiagnosticsTab({
         ))}
       </View>
 
-      {/* Card list */}
-      <ScrollView
-        style={s.scroll}
-        contentContainerStyle={s.content}
-        showsVerticalScrollIndicator={false}
-        keyboardDismissMode="interactive"
-      >
-        {visibleWithIndex.map(({ card, originalIndex }) => {
-          const isOpen = expanded.has(originalIndex);
-          return (
-            <View key={originalIndex} style={s.card}>
-              {/* Collapsed header */}
-              <TouchableOpacity
-                style={s.cardHeader}
-                onPress={() => toggleCard(originalIndex)}
-                activeOpacity={0.7}
-              >
-                <Text style={s.cardName}>{card.name}</Text>
-                <View
-                  style={[
-                    s.freqDot,
-                    { backgroundColor: frequencyColor(card.frequency) },
-                  ]}
-                />
-                <Text style={[s.chevron, isOpen && s.chevronOpen]}>›</Text>
-              </TouchableOpacity>
+      {/* ---- Reference mode ---- */}
+      {mode === 'reference' && (
+        <ScrollView
+          style={s.scroll}
+          contentContainerStyle={s.content}
+          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="interactive"
+        >
+          {visibleWithIndex.map(({ card, originalIndex }) => {
+            const isOpen = expanded.has(originalIndex);
+            return (
+              <View key={originalIndex} style={s.card}>
+                <TouchableOpacity
+                  style={s.cardHeader}
+                  onPress={() => toggleCard(originalIndex)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={s.cardName}>{card.name}</Text>
+                  <View style={[s.freqDot, { backgroundColor: frequencyColor(card.frequency) }]} />
+                  <Text style={[s.chevron, isOpen && s.chevronOpen]}>›</Text>
+                </TouchableOpacity>
 
-              {/* Expanded body */}
-              {isOpen && (
-                <View style={s.expandedBody}>
-                  <View style={s.separator} />
+                {isOpen && renderExpandedBody(card, originalIndex)}
+              </View>
+            );
+          })}
+          <View style={s.bottomSpacer} />
+        </ScrollView>
+      )}
 
-                  <View style={s.fieldBlock}>
-                    <Text style={s.fieldLabel}>WHY IT HAPPENS</Text>
-                    <TextInput
-                      style={s.fieldInput}
-                      value={card.why}
-                      onChangeText={v => patchCard(originalIndex, { why: v })}
-                      onBlur={onSave}
-                      multiline
-                      textAlignVertical="top"
-                      placeholder="Root cause..."
-                      placeholderTextColor="#48484A"
-                    />
-                  </View>
-
-                  <View style={s.fieldBlock}>
-                    <Text style={s.fieldLabel}>FIX</Text>
-                    <TextInput
-                      style={s.fieldInput}
-                      value={card.fix}
-                      onChangeText={v => patchCard(originalIndex, { fix: v })}
-                      onBlur={onSave}
-                      multiline
-                      textAlignVertical="top"
-                      placeholder="Adjustment to make..."
-                      placeholderTextColor="#48484A"
-                    />
-                  </View>
-
-                  <View style={[s.fieldBlock, s.lastFieldBlock]}>
-                    <Text style={s.fieldLabel}>PATTERN TO WATCH</Text>
-                    <TextInput
-                      style={s.fieldInput}
-                      value={card.pattern}
-                      onChangeText={v => patchCard(originalIndex, { pattern: v })}
-                      onBlur={onSave}
-                      multiline
-                      textAlignVertical="top"
-                      placeholder="What recurring instances mean..."
-                      placeholderTextColor="#48484A"
-                    />
-                  </View>
-                </View>
-              )}
+      {/* ---- My Data mode ---- */}
+      {mode === 'mydata' && (
+        <>
+          {leavesLoading ? (
+            <View style={s.naState}>
+              <ActivityIndicator color="#00CEC9" />
             </View>
-          );
-        })}
+          ) : !hasPinData ? (
+            <View style={s.naState}>
+              <IconSymbol name="lock.fill" size={28} color="#48484A" />
+              <Text style={s.naTitle}>No pin data yet</Text>
+              <Text style={s.naSubtitle}>
+                Log frames with pin tracking to unlock your leave data.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              style={s.scroll}
+              contentContainerStyle={s.content}
+              showsVerticalScrollIndicator={false}
+              keyboardDismissMode="interactive"
+            >
+              {myDataItems.map(({ card, originalIndex, leaveData }) => {
+                const isOpen = expanded.has(originalIndex);
+                const barPct = maxCount > 0 && leaveData.hasData
+                  ? leaveData.count / maxCount
+                  : 0;
+                return (
+                  <View
+                    key={originalIndex}
+                    style={[s.card, !leaveData.hasData && s.cardDimmed]}
+                  >
+                    <TouchableOpacity
+                      style={s.cardHeader}
+                      onPress={() => toggleCard(originalIndex)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[s.cardName, !leaveData.hasData && s.cardNameDim]}>
+                        {card.name}
+                      </Text>
 
-        <View style={s.bottomSpacer} />
-      </ScrollView>
+                      {leaveData.hasData ? (
+                        <View style={s.myDataStats}>
+                          <Text style={s.myDataCount}>×{leaveData.count}</Text>
+                          <Text
+                            style={[
+                              s.myDataConv,
+                              { color: conversionColor(leaveData.conversionPct) },
+                            ]}
+                          >
+                            {Math.round(leaveData.conversionPct)}%
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={s.myDataNone}>—</Text>
+                      )}
+
+                      <View
+                        style={[s.freqDot, { backgroundColor: frequencyColor(card.frequency) }]}
+                      />
+                      <Text style={[s.chevron, isOpen && s.chevronOpen]}>›</Text>
+                    </TouchableOpacity>
+
+                    {leaveData.hasData && (
+                      <View style={s.myDataBarTrack}>
+                        <View
+                          style={[
+                            s.myDataBar,
+                            { width: `${Math.max(barPct * 100, 3)}%` as `${number}%` },
+                          ]}
+                        />
+                      </View>
+                    )}
+
+                    {isOpen && renderExpandedBody(card, originalIndex)}
+                  </View>
+                );
+              })}
+              <View style={s.bottomSpacer} />
+            </ScrollView>
+          )}
+        </>
+      )}
     </View>
   );
 }
@@ -327,11 +543,41 @@ const s = StyleSheet.create({
     backgroundColor: '#000000',
   },
 
+  // Mode toggle
+  modeToggleWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  modeToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 10,
+    padding: 3,
+  },
+  modeBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modeBtnActive: {
+    backgroundColor: '#00CEC9',
+  },
+  modeBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+  modeBtnTextActive: {
+    color: '#000000',
+  },
+
   // Filter pill bar
   pillBar: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 8,
     paddingBottom: 10,
     gap: 8,
     backgroundColor: '#000000',
@@ -374,6 +620,9 @@ const s = StyleSheet.create({
     marginBottom: 10,
     overflow: 'hidden',
   },
+  cardDimmed: {
+    opacity: 0.4,
+  },
 
   // Collapsed header
   cardHeader: {
@@ -387,6 +636,9 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  cardNameDim: {
+    color: '#8E8E93',
   },
   freqDot: {
     width: 9,
@@ -433,6 +685,63 @@ const s = StyleSheet.create({
     padding: 0,
     minHeight: 20,
     lineHeight: 20,
+  },
+
+  // My Data overlay
+  myDataStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  myDataCount: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+  myDataConv: {
+    fontSize: 15,
+    fontWeight: '700',
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  myDataNone: {
+    fontSize: 15,
+    color: '#48484A',
+    flexShrink: 0,
+  },
+  myDataBarTrack: {
+    height: 3,
+    backgroundColor: '#38383A',
+    borderRadius: 2,
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  myDataBar: {
+    height: 3,
+    backgroundColor: '#00CEC9',
+    borderRadius: 2,
+  },
+
+  // N/A locked state
+  naState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingHorizontal: 32,
+  },
+  naTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  naSubtitle: {
+    color: '#48484A',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 
   // Bottom spacer

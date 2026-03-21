@@ -6,8 +6,8 @@
 
 ## Current Status
 
-**Phase:** Phase 15B complete -- Stats Extensions
-**Last completed:** Phase 15B (March 20, 2026)
+**Phase:** Phase 15C complete -- Pocket Diagnostics My Data Integration
+**Last completed:** Phase 15C (March 20, 2026)
 **Up next:** Phase 14 -- Build + Install
 
 ---
@@ -69,6 +69,7 @@ This is an Expo Router project -- not bare React Navigation.
 | -- | Deep Code Audit Fixes | 30-60 min | 1 | Complete |
 | 15A | Session Edit + Ball Strength | 60-90 min | 1 | Complete |
 | 15B | Stats Extensions | 45-60 min | 1 | Complete |
+| 15C | Pocket Diagnostics My Data | 45-60 min | 1 | Complete |
 | 14 | Build + Install | 60-90 min | 1 | Not started |
 
 ---
@@ -166,6 +167,32 @@ TSC: Clean (zero errors confirmed)
 - Respects toggle via `filtered`
 
 All three new sections use `useMemo` consistent with existing memoization pattern.
+TSC: Clean (zero errors confirmed)
+
+---
+
+### Phase 15C -- Pocket Diagnostics My Data Integration
+**Completed:** March 20, 2026
+
+**Leave name alignment audit:**
+- Mapped all 14 DiagnosticCard names to their corresponding leaveUtils leave name(s)
+- 3 composite cards map to 2 leaves each: "Corner pin (7 or 10)" → [7 Pin, 10 Pin]; "Baby split (2-7 or 3-10)" → [Baby Split (2-7), Baby Split (3-10)]; "Sleeper pocket (2-8 or 3-9)" → [Sleeper (2-8), Sleeper (3-9)]
+- "Washout" has no matching leave (no headpin leave tracked in leaveUtils) → always shows no data
+- Static `CARD_LEAVE_KEYS` lookup table in PocketDiagnosticsTab.tsx holds all mappings
+
+**Reference / My Data toggle:**
+- Segmented control at top of Pocket Diagnostics tab (above filter pills)
+- Toggle state resets automatically on sub-tab switch because PocketDiagnosticsTab is conditionally rendered in reference.tsx
+
+**My Data mode:**
+- Sessions loaded all-time via `readSessions()` in `useEffect` on mount; `computeLeaveStats` processes them
+- N/A locked state (lock icon + message) if no pin data has ever been logged
+- If pin data exists: cards shown with count (×N), conversion % (color-coded ≥80/60/below), teal frequency bar (3px, scaled to most frequent leave in the current filtered view)
+- Cards with data sorted by count descending; zero-occurrence cards moved to bottom and dimmed (opacity 0.4)
+- Filter pills (All Leaves / High Frequency / Common / Situational) work in both modes
+- Reference mode is pixel-identical to pre-15C — no changes to that render path
+- Expanded body (Why / Fix / Pattern) still editable in both modes
+
 TSC: Clean (zero errors confirmed)
 
 ---
