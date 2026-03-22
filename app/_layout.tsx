@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { readSessions, writeSessions, readBalls, writeBalls, isValidSessionArray, KEYS } from '../src/storage';
 import { writeBackup } from '../src/backup';
+import { scheduleCertReminder } from '../src/notifications';
 import type { Session, Ball } from '../src/types';
 import { SEED_SESSIONS } from '../src/seeds';
 import { INITIAL_BALLS } from '../src/balls';
@@ -70,7 +71,7 @@ export default function RootLayout() {
         }
       }
     }
-    initStorage().then(() => { void writeBackup(); });
+    initStorage().then(() => { void writeBackup(); void scheduleCertReminder(); });
   }, []);
 
   return (

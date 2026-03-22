@@ -23,6 +23,7 @@ import PocketDiagnosticsTab, {
 } from '@/components/PocketDiagnosticsTab';
 import PatternsTab, { PatternsData, DEFAULT_PATTERNS } from '@/components/PatternsTab';
 import { readReference, writeReference } from '@/src/storage';
+import { writeBackup } from '@/src/backup';
 import ScalePressable from '@/components/ScalePressable';
 
 // ---------------------------------------------------------------------------
@@ -293,6 +294,7 @@ export default function ReferenceScreen() {
 
   function save() {
     void writeReference(latestData.current as unknown as Record<string, unknown>);
+    void writeBackup();
   }
 
   // -------------------------------------------------------------------------
