@@ -263,11 +263,13 @@ export default function ReferenceScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      let active = true;
       setLoaded(false);
       (async () => {
         const stored = await readReference();
+        if (!active) return;
         if (stored) {
-          const merged = mergeWithDefaults(stored as Record<string, unknown>);
+          const merged = mergeWithDefaults(stored);
           setData(merged);
           latestData.current = merged;
         } else {
@@ -276,6 +278,7 @@ export default function ReferenceScreen() {
         }
         setLoaded(true);
       })();
+      return () => { active = false; };
     }, []),
   );
 
@@ -289,7 +292,7 @@ export default function ReferenceScreen() {
   }
 
   function save() {
-    void writeReference(latestData.current);
+    void writeReference(latestData.current as unknown as Record<string, unknown>);
   }
 
   // -------------------------------------------------------------------------

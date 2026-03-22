@@ -40,12 +40,12 @@ function getLeaveName(pins) {
 /**
  * Compute leave statistics from a sessions array.
  *
- * @param {Array} sessions - array of session objects (already filtered for season/all-time)
+ * @param {import('./types').Session[]} sessions - array of session objects
  * @returns {{
  *   leaves: Array<{pins: number[], name: string, count: number, converted: number, conversionPct: number}>,
  *   hasPinData: boolean
  * }}
- *   leaves: top-10 most frequent non-strike leaves, sorted by count descending
+ *   leaves: most frequent non-strike leaves, sorted by count descending
  *   hasPinData: true if at least one frame in the data had valid pinsStanding
  */
 export function computeLeaveStats(sessions) {

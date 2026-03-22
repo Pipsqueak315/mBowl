@@ -13,39 +13,12 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import SettingsContent from '@/components/SettingsContent';
 import { LineChart } from 'react-native-chart-kit';
 import { readSessions, readSettings } from '@/src/storage';
+import type { GameEntry, Session, Settings } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import { computeLeaveStats } from '@/src/leaveUtils';
 
 // --- Types ---
-interface FrameEntry {
-  throws: string[];
-  note?: string | null;
-  throwNotes?: Record<string, string | null>;
-  pinsStanding?: Array<boolean[] | null> | null;
-}
-
-interface GameEntry {
-  game: number;
-  score: number | null;
-  ball?: string | null;
-  frames?: FrameEntry[] | null;
-  notes?: string | null;
-}
-
-interface Session {
-  id: number | string;
-  type: string;
-  date: string;
-  games: GameEntry[];
-  [key: string]: unknown;
-}
-
-interface Settings {
-  seasonStart?: string | null;
-  seasonEnd?: string | null;
-}
-
 interface FrameStats {
   strikeRate: number;
   spareRate: number;
@@ -149,7 +122,7 @@ function formatDateLabel(date: string): string {
 function filterSessions(
   sessions: Session[],
   mode: ToggleMode,
-  settings: Settings | null,
+  settings: Settings,
 ): Session[] {
   if (mode === 'alltime' || !settings?.seasonStart || !settings?.seasonEnd) {
     return sessions;
@@ -178,14 +151,14 @@ function calcMetrics(sessions: Session[]): Metrics | null {
   }
 
   const gamesWithFrames = allGames.filter(
-    g => Array.isArray(g.frames) && (g.frames as FrameEntry[]).length > 0,
+    g => Array.isArray(g.frames) && g.frames.length > 0,
   );
 
   let frameStats: FrameStats | null = null;
   if (gamesWithFrames.length > 0) {
     let totalFrames = 0, strikes = 0, spareOpps = 0, spares = 0, opens = 0;
     for (const g of gamesWithFrames) {
-      const scoringFrames = (g.frames as FrameEntry[]).slice(0, 9);
+      const scoringFrames = g.frames!.slice(0, 9);
       for (const f of scoringFrames) {
         totalFrames++;
         if (f.throws[0] === 'X') {
@@ -296,7 +269,7 @@ export default function StatsScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toggle, setToggle] = useState<ToggleMode>('season');
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const [settings, setSettings] = useState<Settings>({});
   const [loading, setLoading] = useState(true);
   const [showAllLeaves, setShowAllLeaves] = useState(false);
   const navigation = useNavigation();
@@ -328,8 +301,8 @@ export default function StatsScreen() {
           readSettings(),
         ]);
         if (active) {
-          setSessions(sessionsData ?? []);
-          setSettings(settingsData ?? null);
+          setSessions(sessionsData);
+          setSettings(settingsData);
           setLoading(false);
         }
       })();

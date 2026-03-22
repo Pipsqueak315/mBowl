@@ -17,50 +17,21 @@ import * as Haptics from 'expo-haptics';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import { readBalls } from '@/src/storage';
+import type { ThrowEntry, GameEntry, Ball, Session } from '@/src/types';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type FrameEntry = {
-  throws: string[];
-  note: string | null;
-  throwNotes: Record<string, string | null>;
-  pinsStanding?: Array<boolean[] | null> | null;
-};
-
-type GameEntry = {
-  game: number;
-  score: number | null;
-  ball: string | null;
-  frames: FrameEntry[] | null;
-  notes: string | null;
-};
-
-export type EditableSession = {
-  id: number | string;
-  type: 'league' | 'makeup' | 'tournament' | 'practice';
-  date: string;
-  week: number | null;
-  opponent: string | null;
-  name: string | null;
-  format: string | null;
-  pattern: string | null;
-  madeCut: 'Yes' | 'No' | 'N/A' | null;
-  placement: string | null;
-  games: GameEntry[];
-  notes: string | null;
-};
+export type EditableSession = Session;
 
 type EditGame = {
   game: number;
   score: string;
   ball: string;
   notes: string;
-  frames: FrameEntry[] | null;
+  frames: ThrowEntry[] | null;
 };
-
-type Ball = { id: string; name: string; short: string; strength: number; active: boolean };
 type SessionType = EditableSession['type'];
 type MadeCut = 'Yes' | 'No' | 'N/A';
 
@@ -171,11 +142,7 @@ export default function EditSessionModal({
     );
     setSessionNotes(session.notes ?? '');
     readBalls().then(b => {
-      if (b) {
-        setAvailableBalls(
-          (b as Ball[]).filter(ball => ball.active).sort((a, b) => a.strength - b.strength)
-        );
-      }
+      setAvailableBalls(b.filter(ball => ball.active).sort((a, b) => a.strength - b.strength));
     });
   }, [session, visible]);
 

@@ -14,6 +14,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { readSettings, writeSettings, readBalls, writeBalls } from '@/src/storage';
+import { writeBackup } from '@/src/backup';
 import ScalePressable from '@/components/ScalePressable';
 
 // ---------------------------------------------------------------------------
@@ -69,11 +70,14 @@ export default function SettingsContent({ onClose }: Props) {
 
   // Load settings + balls on mount
   useEffect(() => {
+    let active = true;
     (async () => {
       const [s, b] = await Promise.all([readSettings(), readBalls()]);
-      setSettings((s as Settings) ?? {});
-      setBalls((b as Ball[]) ?? []);
+      if (!active) return;
+      setSettings(s);
+      setBalls(b);
     })();
+    return () => { active = false; };
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -83,11 +87,13 @@ export default function SettingsContent({ onClose }: Props) {
   async function saveSettingsData(updated: Settings) {
     setSettings(updated);
     await writeSettings(updated);
+    void writeBackup();
   }
 
   async function saveBallsData(updated: Ball[]) {
     setBalls(updated);
     await writeBalls(updated);
+    void writeBackup();
   }
 
   // ---------------------------------------------------------------------------

@@ -19,6 +19,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Swipeable } from 'react-native-gesture-handler';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
+import { FRAME_RESULT_KEY } from '@/app/log-frames';
 import * as Haptics from 'expo-haptics';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -31,6 +32,8 @@ import {
   writeDraft,
   readSettings,
 } from '@/src/storage';
+import { writeBackup } from '@/src/backup';
+import type { ThrowEntry, Ball, DraftData } from '@/src/types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -71,23 +74,7 @@ function makeGame(): Game {
 
 type SessionType = 'league' | 'makeup' | 'tournament' | 'practice';
 type MadeCut = 'Yes' | 'No' | 'N/A';
-type FrameEntry = { throws: string[]; note: string; throwNotes: string[]; pinsStanding?: Array<boolean[] | null> };
-type Game = { id: string; score: string; ball: string; notes: string; frames?: FrameEntry[] };
-type Ball = { id: string; name: string; short: string; strength: number; active: boolean };
-
-type DraftData = {
-  sessionType: SessionType;
-  date: string;
-  week: string;
-  opponent: string;
-  tournamentName: string;
-  tournamentFormat: string;
-  tournamentPattern: string;
-  madeCut: MadeCut;
-  placement: string;
-  games: Game[];
-  sessionNotes: string;
-};
+type Game = { id: string; score: string; ball: string; notes: string; frames?: ThrowEntry[] };
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -108,9 +95,10 @@ type GameRowProps = {
   index: number;
   onChange: (field: 'score' | 'ball' | 'notes', value: string) => void;
   onPickBall: () => void;
+  onLogFrames: () => void;
 };
 
-function GameRow({ game, index, onChange, onPickBall }: GameRowProps) {
+function GameRow({ game, index, onChange, onPickBall, onLogFrames }: GameRowProps) {
   return (
     <View style={styles.gameCard}>
       <Text style={styles.gameLabel}>GAME {index + 1}</Text>
@@ -145,7 +133,7 @@ function GameRow({ game, index, onChange, onPickBall }: GameRowProps) {
       {/* Log Frames */}
       <TouchableOpacity
         style={styles.logFramesButton}
-        onPress={() => router.push({ pathname: '/log-frames', params: { gameIndex: String(index) } })}
+        onPress={onLogFrames}
       >
         <Text style={styles.logFramesText}>Log Frames</Text>
         <View style={styles.logFramesRight}>
@@ -224,10 +212,10 @@ export default function LogScreen() {
     async function init() {
       const [balls, draft, settingsData] = await Promise.all([readBalls(), readDraft(), readSettings()]);
       if (balls) {
-        setAvailableBalls((balls as Ball[]).filter((b) => b.active).sort((a, b) => a.strength - b.strength));
+        setAvailableBalls(balls.filter((b) => b.active).sort((a, b) => a.strength - b.strength));
       }
       if (draft) {
-        setPendingDraft(draft as DraftData);
+        setPendingDraft(draft);
         setDraftResumeVisible(true);
       }
       // Recalculate week using actual season start now that settings are loaded
@@ -245,7 +233,7 @@ export default function LogScreen() {
   useEffect(() => {
     if (wasSettingsOpen.current && !settingsOpen) {
       readBalls().then(b => {
-        if (b) setAvailableBalls((b as Ball[]).filter(ball => ball.active).sort((a, b) => a.strength - b.strength));
+        if (b) setAvailableBalls(b.filter(ball => ball.active).sort((a, b) => a.strength - b.strength));
       });
     }
     wasSettingsOpen.current = settingsOpen;
@@ -254,13 +242,13 @@ export default function LogScreen() {
   // ---- Read frame result when returning from log-frames -------------------
   useFocusEffect(
     useCallback(() => {
-      AsyncStorage.getItem('mbowl_frame_result').then((raw) => {
+      AsyncStorage.getItem(FRAME_RESULT_KEY).then((raw) => {
         if (!raw) return;
-        AsyncStorage.removeItem('mbowl_frame_result');
+        AsyncStorage.removeItem(FRAME_RESULT_KEY);
         const result = JSON.parse(raw) as {
           gameIndex: number;
           score: number;
-          frames: FrameEntry[];
+          frames: ThrowEntry[];
         };
         setGames((prev) =>
           prev.map((g, i) =>
@@ -432,7 +420,7 @@ export default function LogScreen() {
           ? g.frames.map((f) => ({
               throws: f.throws,
               note: f.note || null,
-              throwNotes: { '0': f.throwNotes[0] || null, '1': f.throwNotes[1] || null, '2': f.throwNotes[2] || null },
+              throwNotes: f.throwNotes ?? {},
               pinsStanding: f.pinsStanding ?? null,
             }))
           : null,
@@ -443,6 +431,7 @@ export default function LogScreen() {
 
     const existing = (await readSessions()) ?? [];
     await writeSessions([session, ...existing]);
+    void writeBackup();
     await writeDraft(null);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
@@ -661,6 +650,13 @@ export default function LogScreen() {
                 index={index}
                 onChange={(f, v) => updateGame(game.id, f, v)}
                 onPickBall={() => openBallPicker(game.id)}
+                onLogFrames={() => router.push({
+                  pathname: '/log-frames',
+                  params: {
+                    gameIndex: String(index),
+                    priorScores: games.slice(0, index).map((g) => parseInt(g.score, 10) || 0).join(','),
+                  },
+                })}
               />
             </Swipeable>
           ))}

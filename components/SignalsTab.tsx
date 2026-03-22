@@ -266,19 +266,16 @@ function directionColor(dir: string): string {
 
 function StrengthDots({ strength }: { strength: number }) {
   return (
-    <View style={dotRow}>
+    <View style={s.dotRow}>
       {[1, 2, 3, 4, 5].map(i => (
         <View
           key={i}
-          style={[dot, { backgroundColor: i <= strength ? '#00CEC9' : '#38383A' }]}
+          style={[s.dot, { backgroundColor: i <= strength ? '#00CEC9' : '#38383A' }]}
         />
       ))}
     </View>
   );
 }
-
-const dotRow: import('react-native').ViewStyle = { flexDirection: 'row', gap: 3, alignItems: 'center', flexShrink: 0 };
-const dot: import('react-native').ViewStyle = { width: 7, height: 7, borderRadius: 3.5 };
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -774,4 +771,8 @@ const s = StyleSheet.create({
   bottomSpacer: {
     height: 40,
   },
+
+  // Strength dots
+  dotRow: { flexDirection: 'row', gap: 3, alignItems: 'center', flexShrink: 0 },
+  dot: { width: 7, height: 7, borderRadius: 3.5 },
 });

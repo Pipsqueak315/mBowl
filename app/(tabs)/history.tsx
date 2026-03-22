@@ -17,38 +17,10 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { readSessions, writeSessions } from '@/src/storage';
+import { writeBackup } from '@/src/backup';
+import type { ThrowEntry, GameEntry, Session } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
-
-type FrameEntry = {
-  throws: string[];
-  note: string | null;
-  throwNotes: Record<string, string | null>;
-  pinsStanding?: Array<boolean[] | null> | null;
-};
-
-type GameEntry = {
-  game: number;
-  score: number | null;
-  ball: string | null;
-  frames: FrameEntry[] | null;
-  notes: string | null;
-};
-
-type Session = {
-  id: number | string;
-  type: 'league' | 'makeup' | 'tournament' | 'practice';
-  date: string;
-  week: number | null;
-  opponent: string | null;
-  name: string | null;
-  format: string | null;
-  pattern: string | null;
-  madeCut: 'Yes' | 'No' | 'N/A' | null;
-  placement: string | null;
-  games: GameEntry[];
-  notes: string | null;
-};
 
 type FilterType = 'all' | 'league' | 'makeup' | 'practice' | 'tournament';
 
@@ -180,7 +152,7 @@ function MiniPinDeck({ pinsStanding }: { pinsStanding: boolean[] }) {
   );
 }
 
-function FrameGrid({ frames }: { frames: FrameEntry[] }) {
+function FrameGrid({ frames }: { frames: ThrowEntry[] }) {
   return (
     <View style={styles.frameGrid}>
       {frames.slice(0, 10).map((frame, fi) => {
@@ -437,13 +409,8 @@ export default function HistoryScreen() {
     useCallback(() => {
       setLoaded(false);
       readSessions().then((raw) => {
-        if (!raw) {
-          setSessions([]);
-        } else {
-          const all = raw as Session[];
-          all.sort((a, b) => b.date.localeCompare(a.date));
-          setSessions(all);
-        }
+        raw.sort((a, b) => b.date.localeCompare(a.date));
+        setSessions(raw);
         setLoaded(true);
       });
     }, [])
@@ -452,7 +419,7 @@ export default function HistoryScreen() {
   const handleDelete = useCallback((id: number | string) => {
     setSessions((prev) => {
       const updated = prev.filter((s) => s.id !== id);
-      writeSessions(updated);
+      writeSessions(updated).then(() => { void writeBackup(); });
       return updated;
     });
   }, []);
@@ -466,7 +433,7 @@ export default function HistoryScreen() {
     setSessions(prev => {
       const newSessions = prev.map(s => s.id === updated.id ? (updated as Session) : s);
       newSessions.sort((a, b) => b.date.localeCompare(a.date));
-      writeSessions(newSessions);
+      writeSessions(newSessions).then(() => { void writeBackup(); });
       return newSessions;
     });
     setEditModalOpen(false);

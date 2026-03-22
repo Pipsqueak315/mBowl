@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useEffect, useRef } from 'react';
+import { useState, useLayoutEffect, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+
+import type { FrameData } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import PinDeck from '@/components/PinDeck';
@@ -24,12 +27,7 @@ import PinDeck from '@/components/PinDeck';
 // ---------------------------------------------------------------------------
 
 type ThrowVal = string; // 'X' | '/' | '—' | '0'-'9'
-type FrameData = {
-  throws: ThrowVal[];
-  note: string;
-  throwNotes: string[]; // indexed by throw position
-  pinsStanding?: Array<boolean[] | null>; // per-throw pin state (10 booleans each), optional
-};
+// FrameData is imported from @/src/types
 type Mode = 'post' | 'live';
 type InputMode = 'pins' | 'quick';
 
@@ -39,7 +37,7 @@ type InputMode = 'pins' | 'quick';
 
 const CHIPS: string[] = ['X', '/', '—', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const FRAME_ITEM_W = 52;
-const FRAME_RESULT_KEY = 'mbowl_frame_result';
+export const FRAME_RESULT_KEY = 'mbowl_frame_result';
 const ALL_UP: boolean[] = Array(10).fill(true);
 
 // ---------------------------------------------------------------------------
@@ -112,6 +110,62 @@ function calculateScores(frames: FrameData[]): (number | null)[] {
     else { running += raw[i]!; cum.push(running); }
   }
   return cum;
+}
+
+// ---------------------------------------------------------------------------
+// Max score calculation
+// ---------------------------------------------------------------------------
+
+// Fill every remaining throw with the best possible result.
+// Frames 1–9: unfilled throw 1 → strike; partial frame → spare.
+// 10th frame: fill remaining slots with strikes (or spare where applicable).
+function buildMaxFrames(frames: FrameData[]): FrameData[] {
+  return frames.map((f, fi) => {
+    const throws = f.throws;
+    if (fi < 9) {
+      if (throws.length === 0) return { ...f, throws: ['X'] };
+      if (throws.length === 1 && throws[0] !== 'X') return { ...f, throws: [...throws, '/'] };
+      return f;
+    }
+    // 10th frame
+    if (throws.length === 0) return { ...f, throws: ['X', 'X', 'X'] };
+    if (throws.length === 1) {
+      if (throws[0] === 'X') return { ...f, throws: ['X', 'X', 'X'] };
+      return { ...f, throws: [...throws, '/', 'X'] };
+    }
+    if (throws.length === 2) {
+      const [t1, t2] = throws;
+      if (t1 === 'X' && t2 === 'X') return { ...f, throws: [...throws, 'X'] };
+      if (t1 === 'X') return { ...f, throws: [...throws, '/'] }; // spare remaining pins
+      if (t2 === '/') return { ...f, throws: [...throws, 'X'] };
+      return f; // open frame in 10th — no bonus ball earned
+    }
+    return f; // 3 throws = complete
+  });
+}
+
+function calculateMaxScore(frames: FrameData[]): number {
+  const filled = buildMaxFrames(frames);
+  const s = calculateScores(filled);
+  return s[9] ?? 0;
+}
+
+// ---------------------------------------------------------------------------
+// Strike streak
+// ---------------------------------------------------------------------------
+
+// Count consecutive 'X' throws from the most recent throw backward.
+function getStrikeStreak(frames: FrameData[]): number {
+  const allThrows: string[] = [];
+  for (let fi = 0; fi < 10; fi++) {
+    for (const t of frames[fi].throws) allThrows.push(t);
+  }
+  let streak = 0;
+  for (let i = allThrows.length - 1; i >= 0; i--) {
+    if (allThrows[i] === 'X') streak++;
+    else break;
+  }
+  return streak;
 }
 
 // ---------------------------------------------------------------------------
@@ -397,11 +451,11 @@ function ChipBar({
 // ---------------------------------------------------------------------------
 
 function emptyFrames(): FrameData[] {
-  return Array.from({ length: 10 }, () => ({ throws: [], note: '', throwNotes: [] }));
+  return Array.from({ length: 10 }, () => ({ throws: [], note: '', throwNotes: {} }));
 }
 
 export default function LogFramesScreen() {
-  const { gameIndex } = useLocalSearchParams<{ gameIndex: string }>();
+  const { gameIndex, priorScores } = useLocalSearchParams<{ gameIndex: string; priorScores?: string }>();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const stripRef = useRef<FlatList<FrameData>>(null);
@@ -411,6 +465,10 @@ export default function LogFramesScreen() {
   const [inputMode, setInputMode] = useState<InputMode>('quick');
   const [frames, setFrames] = useState<FrameData[]>(emptyFrames);
   const [currentFrame, setCurrentFrame] = useState(0);
+
+  // Streak animation
+  const streakAnim = useSharedValue(0);
+  const prevStreakRef = useRef(0);
 
   // Strip auto-scroll
   useEffect(() => {
@@ -426,12 +484,54 @@ export default function LogFramesScreen() {
     setInputMode(mode === 'live' ? 'pins' : 'quick');
   }, [mode]);
 
-  // Derived
-  const scores = calculateScores(frames);
-  const allComplete = isFrameComplete(frames, 9);
-  const available = allComplete ? new Set<string>() : getAvailableChips(frames, currentFrame);
-  const runningTotal = [...scores].reverse().find((s) => s !== null) ?? null;
-  const canDelete = frames.some((f) => f.throws.length > 0);
+  // Derived — all memoised on frames so scoring only reruns when frames changes
+  const scores = useMemo(() => calculateScores(frames), [frames]);
+  const allComplete = useMemo(() => isFrameComplete(frames, 9), [frames]);
+  const available = useMemo(
+    () => (allComplete ? new Set<string>() : getAvailableChips(frames, currentFrame)),
+    [frames, allComplete, currentFrame],
+  );
+  const runningTotal = useMemo(
+    () => [...scores].reverse().find((s) => s !== null) ?? null,
+    [scores],
+  );
+  const canDelete = useMemo(() => frames.some((f) => f.throws.length > 0), [frames]);
+
+  // Series total — prior game scores passed in as comma-separated param
+  const priorGameScores = priorScores
+    ? priorScores.split(',').filter((s) => s !== '')
+    : [];
+  const priorTotal = priorGameScores.reduce((sum, s) => sum + (parseInt(s, 10) || 0), 0);
+  const gameCount = priorGameScores.length + 1;
+  const showSeries = gameCount > 1;
+  const seriesTotal = priorTotal + (runningTotal ?? 0);
+
+  // Max available score — Live + Pins mode only, not when complete
+  const showMax = mode === 'live' && inputMode === 'pins' && !allComplete;
+  const rawMax = useMemo(() => (showMax ? calculateMaxScore(frames) : null), [showMax, frames]);
+  const maxScore = rawMax !== null ? Math.max(rawMax, runningTotal ?? 0) : null;
+
+  // Strike streak
+  const strikeStreak = useMemo(() => getStrikeStreak(frames), [frames]);
+  const showStreak = strikeStreak >= 2;
+
+  // Streak animation — fire on increment, instant clear on break
+  useEffect(() => {
+    const prev = prevStreakRef.current;
+    prevStreakRef.current = strikeStreak;
+    if (strikeStreak >= 2 && strikeStreak > prev) {
+      streakAnim.value = 0;
+      streakAnim.value = withSpring(1, { damping: 12, stiffness: 200 });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else if (strikeStreak < 2) {
+      streakAnim.value = 0;
+    }
+  }, [strikeStreak]);
+
+  const streakAnimStyle = useAnimatedStyle(() => ({
+    opacity: streakAnim.value,
+    transform: [{ scale: 0.85 + 0.15 * streakAnim.value }],
+  }));
 
   // ---- Actions ------------------------------------------------------------
 
@@ -506,9 +606,7 @@ export default function LogFramesScreen() {
     setFrames((prev) =>
       prev.map((f, i) => {
         if (i !== fi) return f;
-        const throwNotes = [...f.throwNotes];
-        throwNotes[ti] = note;
-        return { ...f, throwNotes };
+        return { ...f, throwNotes: { ...f.throwNotes, [ti]: note } };
       })
     );
   }
@@ -621,11 +719,28 @@ export default function LogFramesScreen() {
 
       {/* Running total */}
       <View style={styles.totalRow}>
-        <Text style={styles.totalLabel}>Running Total</Text>
-        <Text style={[styles.totalValue, allComplete && styles.totalValueFinal]}>
-          {runningTotal !== null ? String(runningTotal) : '—'}
-        </Text>
+        <View>
+          <Text style={styles.totalLabel}>Running Total</Text>
+          {showSeries && (
+            <Text style={styles.seriesText}>SERIES  {seriesTotal}</Text>
+          )}
+        </View>
+        <View style={styles.totalRight}>
+          {maxScore !== null && (
+            <Text style={styles.maxLabel}>MAX  {maxScore}</Text>
+          )}
+          <Text style={[styles.totalValue, allComplete && styles.totalValueFinal]}>
+            {runningTotal !== null ? String(runningTotal) : '—'}
+          </Text>
+        </View>
       </View>
+
+      {/* Strike streak badge */}
+      {showStreak && (
+        <Animated.View style={[styles.streakBadge, streakAnimStyle]}>
+          <Text style={styles.streakText}>🔥 {strikeStreak} IN A ROW</Text>
+        </Animated.View>
+      )}
 
       {/* Active frame card or complete state */}
       <View style={styles.cardArea}>
@@ -743,9 +858,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#38383A',
   },
+  totalRight: { alignItems: 'flex-end' },
   totalLabel: { fontSize: 13, color: '#8E8E93', fontWeight: '500' },
   totalValue: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
   totalValueFinal: { color: '#00CEC9' },
+  maxLabel: { fontSize: 11, fontWeight: '600', color: '#8E8E93', letterSpacing: 0.5, textAlign: 'right' },
+  seriesText: { fontSize: 12, fontWeight: '600', color: '#8E8E93', letterSpacing: 0.8, marginTop: 2 },
+
+  // Strike streak badge
+  streakBadge: {
+    alignSelf: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#2C2C2E',
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  streakText: { fontSize: 13, fontWeight: '700', color: '#FFD60A' },
 
   // Card area
   cardArea: {

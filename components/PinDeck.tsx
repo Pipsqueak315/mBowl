@@ -94,9 +94,7 @@ export default function PinDeck({
   onConfirm,
 }: PinDeckProps) {
   // Initialize: available pins start STANDING, unavailable pins start DOWN.
-  const [standing, setStanding] = useState<boolean[]>(() =>
-    availablePins.map(a => a),
-  );
+  const [standing, setStanding] = useState<boolean[]>(() => [...availablePins]);
 
   // Tap a pin to toggle it between standing and knocked-down.
   // Non-available pins are not interactive (already down from a prior throw).

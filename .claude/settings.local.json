@@ -12,7 +12,11 @@
       "Bash(del scripts\\\\test-notation.js)",
       "Bash(ls -la \"/c/Users/marcus/Desktop/mBowl/app/\\(tabs\\)/\")",
       "Bash(grep -rn \"console\\\\.\\\\|TODO\\\\|FIXME\\\\|placeholder\\\\|debug\" --include=\"*.tsx\" --include=\"*.ts\" --include=\"*.js\" \"/c/Users/marcus/Desktop/mBowl/app/\" \"/c/Users/marcus/Desktop/mBowl/components/\" \"/c/Users/marcus/Desktop/mBowl/src/\" 2>/dev/null | head -100)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(ls:*)",
+      "Bash(eas update:*)",
+      "Bash(del:*)",
+      "Bash(npx expo:*)"
     ]
   }
 }

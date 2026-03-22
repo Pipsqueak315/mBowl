@@ -235,14 +235,16 @@ export default function PocketDiagnosticsTab({
 
   // Load all-time leave data on mount
   useEffect(() => {
+    let active = true;
     readSessions().then(sessions => {
+      if (!active) return;
       if (!sessions) {
         setHasPinData(false);
         setLeaveEntries([]);
         setLeavesLoading(false);
         return;
       }
-      const result = computeLeaveStats(sessions as unknown[]) as {
+      const result = computeLeaveStats(sessions) as {
         leaves: LeaveEntry[];
         hasPinData: boolean;
       };
@@ -250,6 +252,7 @@ export default function PocketDiagnosticsTab({
       setLeaveEntries(result.leaves);
       setLeavesLoading(false);
     });
+    return () => { active = false; };
   }, []);
 
   // ---- Helpers --------------------------------------------------------------
