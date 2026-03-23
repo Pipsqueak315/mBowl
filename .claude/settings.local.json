@@ -16,7 +16,12 @@
       "Bash(ls:*)",
       "Bash(eas update:*)",
       "Bash(del:*)",
-      "Bash(npx expo:*)"
+      "Bash(npx expo:*)",
+      "Bash(rm code:*)",
+      "Bash(rm constants/theme.ts)",
+      "Bash(rm -rf hooks/)",
+      "Bash(rm assets/images/partial-react-logo.png assets/images/react-logo.png \"assets/images/react-logo@2x.png\" \"assets/images/react-logo@3x.png\")",
+      "Bash(rm -rf dist/)"
     ]
   }
 }

@@ -1,50 +1,46 @@
-# Welcome to your Expo app 👋
+# mBowl
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Personal iPhone bowling tracker and coaching app. Built for one bowler — not a generic score tracker.
 
-## Get started
+## What It Does
 
-1. Install dependencies
+- **Log** sessions with full frame-by-frame pin tracking
+- **Stats** dashboard with averages, trends, strike/spare rates, leave analysis, and per-ball performance
+- **History** of every session, filterable and searchable
+- **Reference** tab with personalized coaching content: switch guide, shot clock, pocket diagnostics, lane reads, pattern library, and release data
 
-   ```bash
-   npm install
-   ```
+## Tech Stack
 
-2. Start the app
+- React Native via Expo (SDK 54, Expo Router 6)
+- AsyncStorage for all persistence
+- TypeScript
+- Apple dark mode design language (SF Pro, SF Symbols, teal accent)
 
-   ```bash
-   npx expo start
-   ```
+## Development
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Requires Node.js and Expo CLI.
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Preview on iPhone via Expo Go, or deploy OTA via EAS Update.
 
-## Learn more
+## Deployment
 
-To learn more about developing your project with Expo, look at the following resources:
+- **Expo Go**: `eas update --branch preview --message "description"`
+- **Standalone IPA**: Built via `expo prebuild` + Xcode Archive on Mac, sideloaded via SideStore
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Project Structure
 
-## Join the community
+```
+app/           — Expo Router screens (tabs + log-frames)
+components/    — Shared UI components
+src/           — Data layer (storage, seeds, types, utilities)
+scripts/       — Asset generation
+```
 
-Join our community of developers creating universal apps.
+## Not on the App Store
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+This is a personal tool, sideloaded via SideStore. Not intended for public distribution.
