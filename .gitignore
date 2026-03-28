@@ -31,6 +31,7 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
@@ -44,3 +45,6 @@ app-example
 
 # mBowl auto-export
 mBowl-backup.json
+
+# IPA build output
+*.ipa
