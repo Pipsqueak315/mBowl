@@ -17,6 +17,7 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
+      "icon": "./assets/images/icon.png",
       "supportsTablet": false,
       "bundleIdentifier": "com.marcus.mbowl",
       "buildNumber": "1",
