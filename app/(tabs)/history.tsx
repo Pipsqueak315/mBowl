@@ -369,6 +369,7 @@ function SessionCard({
     if (!canShare) return;
     setSharing(true);
     try {
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
       const uri = await captureRef(shareCardRef, { format: 'png', quality: 1 });
       await Sharing.shareAsync(uri, { mimeType: 'image/png', UTI: 'public.png' });
     } catch {
@@ -1067,7 +1068,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: -10000,
     top: 0,
-    opacity: 0,
+    backgroundColor: '#1C1C1E',
   },
 
   // Swipe actions
