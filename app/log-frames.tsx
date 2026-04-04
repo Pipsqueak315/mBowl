@@ -539,7 +539,7 @@ export default function LogFramesScreen() {
   const scores = useMemo(() => calculateScores(frames), [frames]);
   const allComplete = useMemo(() => isFrameComplete(frames, 9), [frames]);
   const available = useMemo(
-    () => (allComplete ? new Set<string>() : getAvailableChips(frames, currentFrame)),
+    () => (allComplete && currentFrame === 9 ? new Set<string>() : getAvailableChips(frames, currentFrame)),
     [frames, allComplete, currentFrame],
   );
   const runningTotal = useMemo(
@@ -587,7 +587,7 @@ export default function LogFramesScreen() {
   // ---- Actions ------------------------------------------------------------
 
   function addThrow(chip: string) {
-    if (allComplete) return;
+    if (allComplete && currentFrame === 9) return;
     if (chip === 'X') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -602,7 +602,7 @@ export default function LogFramesScreen() {
 
   // Called by PinDeck.onConfirm — records both the notation and the raw pin state.
   function addThrowWithPins(notation: string, throwPinsStanding: boolean[]) {
-    if (allComplete) return;
+    if (allComplete && currentFrame === 9) return;
     if (notation === 'X') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -708,10 +708,10 @@ export default function LogFramesScreen() {
   // ---- Render -------------------------------------------------------------
 
   const showThrowNoteBar =
-    mode === 'live' && inputMode === 'quick' && !allComplete && frames[currentFrame].throws.length > 0;
+    mode === 'live' && inputMode === 'quick' && !(allComplete && currentFrame === 9) && frames[currentFrame].throws.length > 0;
 
   // Compute PinDeck props once — used in render to avoid duplication.
-  const pinDeckProps = (!allComplete && inputMode === 'pins')
+  const pinDeckProps = (!(allComplete && currentFrame === 9) && inputMode === 'pins')
     ? getPinDeckProps(frames, currentFrame)
     : null;
 
@@ -800,7 +800,7 @@ export default function LogFramesScreen() {
 
       {/* Active frame card or complete state */}
       <View style={styles.cardArea}>
-        {allComplete ? (
+        {(allComplete && currentFrame === 9) ? (
           <View style={styles.completeCard}>
             <Text style={styles.completeTitle}>All Frames Complete</Text>
             <Text style={styles.completeFinalScore}>{scores[9]}</Text>
@@ -841,7 +841,7 @@ export default function LogFramesScreen() {
       </TouchableOpacity>
 
       {/* Input area: chip bar (Quick mode or complete) — pin deck (Pins mode, not complete) */}
-      {(inputMode === 'quick' || allComplete) ? (
+      {(inputMode === 'quick' || (allComplete && currentFrame === 9)) ? (
         <ChipBar available={available} onPress={addThrow} bottomInset={insets.bottom} />
       ) : pinDeckProps && (
         <View style={[styles.pinDeckContainer, { paddingBottom: insets.bottom + 8 }]}>
