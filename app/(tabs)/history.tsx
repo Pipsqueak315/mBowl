@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useCallback, useRef } from 'react';
+import { useState, useLayoutEffect, useCallback, useRef, useEffect } from 'react';
 import SettingsContent from '@/components/SettingsContent';
 import EditSessionModal, { type EditableSession } from '@/components/EditSessionModal';
 import {
@@ -11,13 +11,19 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 import { readSessions, writeSessions } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
+import { FRAME_RESULT_KEY } from '@/app/log-frames';
 import type { ThrowEntry, GameEntry, Session } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
@@ -202,6 +208,143 @@ function MadeCutBadge({ madeCut }: { madeCut: string | null }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Share card — rendered off-screen, captured with captureRef
+// ---------------------------------------------------------------------------
+
+function ShareCardView({ session }: { session: Session }) {
+  const avg = sessionAvg(session.games);
+  const series = seriesTotal(session.games);
+  const isPractice = session.type === 'practice';
+  const frameStats = calcFrameStats(session.games);
+  const hasFrames = session.games.some(g => g.frames && g.frames.length === 10);
+
+  return (
+    <View style={sc.card}>
+      {/* Header row */}
+      <View style={sc.headerRow}>
+        <Text style={sc.date}>{formatDate(session.date)}</Text>
+        <View style={[sc.badge, { backgroundColor: typeBadgeColor(session.type) }]}>
+          <Text style={[sc.badgeText, { color: typeBadgeTextColor(session.type) }]}>
+            {typeLabel(session.type)}
+          </Text>
+        </View>
+      </View>
+
+      {/* Tournament info */}
+      {session.type === 'tournament' && (session.name || session.madeCut || session.placement) && (
+        <View style={sc.tournRow}>
+          {session.name ? <Text style={sc.tournName}>{session.name}</Text> : null}
+          {session.madeCut && session.madeCut !== 'N/A' ? (
+            <View style={[sc.madeCutBadge, { backgroundColor: session.madeCut === 'Yes' ? '#30D158' : '#FF453A' }]}>
+              <Text style={sc.madeCutText}>{session.madeCut === 'Yes' ? 'Made Cut' : 'Missed Cut'}</Text>
+            </View>
+          ) : null}
+          {session.placement ? <Text style={sc.placement}>Finish: {session.placement}</Text> : null}
+        </View>
+      )}
+
+      {/* Per-game scores */}
+      <View style={sc.gamesRow}>
+        {session.games.filter(g => g.score != null).map((g, i) => (
+          <View key={i} style={sc.gameItem}>
+            <Text style={[sc.gameScore, { color: scoreColor(g.score as number, avg) }]}>
+              {g.score}
+            </Text>
+            {g.ball ? <Text style={sc.gameBall}>{g.ball}</Text> : null}
+          </View>
+        ))}
+        {!isPractice && (
+          <View style={sc.seriesItem}>
+            <Text style={[sc.seriesScore, { color: seriesColor(series) }]}>{series}</Text>
+            <Text style={sc.seriesLabel}>series</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Frame grid per game */}
+      {hasFrames && (
+        <View style={sc.framesSection}>
+          {session.games.map((g, i) =>
+            g.frames && g.frames.length === 10 ? (
+              <View key={i} style={sc.gameFrameRow}>
+                <Text style={sc.gameFrameLabel}>G{g.game}</Text>
+                <FrameGrid frames={g.frames} />
+              </View>
+            ) : null
+          )}
+        </View>
+      )}
+
+      {/* Key stats */}
+      {frameStats && (
+        <View style={sc.statsRow}>
+          <View style={sc.statItem}>
+            <Text style={sc.statValue}>{frameStats.strikes}</Text>
+            <Text style={sc.statLabel}>Strikes</Text>
+          </View>
+          <View style={sc.statDivider} />
+          <View style={sc.statItem}>
+            <Text style={sc.statValue}>
+              {frameStats.sparesPct != null ? `${Math.round(frameStats.sparesPct)}%` : 'N/A'}
+            </Text>
+            <Text style={sc.statLabel}>Spare %</Text>
+          </View>
+          <View style={sc.statDivider} />
+          <View style={sc.statItem}>
+            <Text style={sc.statValue}>{frameStats.opens}</Text>
+            <Text style={sc.statLabel}>Opens</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Watermark */}
+      <Text style={sc.watermark}>mBowl</Text>
+    </View>
+  );
+}
+
+// Share card styles (inline, self-contained — never references outer `styles`)
+const sc = StyleSheet.create({
+  card: {
+    width: 340,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 13,
+    padding: 16,
+    gap: 12,
+  },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  date: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  badgeText: { fontSize: 11, fontWeight: '700' },
+  tournRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  tournName: { fontSize: 13, color: '#FFFFFF', fontWeight: '500' },
+  madeCutBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 },
+  madeCutText: { fontSize: 10, fontWeight: '700', color: '#FFFFFF' },
+  placement: { fontSize: 12, color: '#8E8E93' },
+  gamesRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 14 },
+  gameItem: { alignItems: 'center', gap: 3 },
+  gameScore: { fontSize: 28, fontWeight: '700' },
+  gameBall: { fontSize: 10, color: '#8E8E93', textAlign: 'center' },
+  seriesItem: { marginLeft: 'auto', alignItems: 'center' },
+  seriesScore: { fontSize: 22, fontWeight: '700' },
+  seriesLabel: { fontSize: 10, color: '#8E8E93' },
+  framesSection: { gap: 6 },
+  gameFrameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  gameFrameLabel: { fontSize: 10, fontWeight: '700', color: '#8E8E93', width: 16 },
+  statsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#2C2C2E',
+    borderRadius: 10,
+    paddingVertical: 10,
+  },
+  statItem: { flex: 1, alignItems: 'center' },
+  statValue: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
+  statLabel: { fontSize: 10, color: '#8E8E93', marginTop: 2 },
+  statDivider: { width: 1, backgroundColor: '#38383A', marginVertical: 4 },
+  watermark: { fontSize: 10, color: '#00CEC9', textAlign: 'right', opacity: 0.6 },
+});
+
 function SessionCard({
   session,
   onDelete,
@@ -212,11 +355,29 @@ function SessionCard({
   onEdit: (session: Session) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const swipeRef = useRef<Swipeable>(null);
+  const shareCardRef = useRef<View>(null);
   const avg = sessionAvg(session.games);
   const series = seriesTotal(session.games);
   const isPractice = session.type === 'practice';
   const frameStats = expanded ? calcFrameStats(session.games) : null;
+
+  async function handleShare() {
+    if (Platform.OS !== 'ios') return;
+    const canShare = await Sharing.isAvailableAsync();
+    if (!canShare) return;
+    setSharing(true);
+    try {
+      const uri = await captureRef(shareCardRef, { format: 'png', quality: 1 });
+      await Sharing.shareAsync(uri, { mimeType: 'image/png', UTI: 'public.png' });
+    } catch {
+      // share cancelled or failed — silent
+    } finally {
+      setSharing(false);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }
 
   const renderRightActions = () => (
     <View style={styles.swipeActions}>
@@ -374,6 +535,28 @@ function SessionCard({
             {session.notes ? (
               <Text style={styles.sessionNotes}>{session.notes}</Text>
             ) : null}
+
+            {/* Share button */}
+            <TouchableOpacity
+              style={styles.shareButton}
+              onPress={handleShare}
+              disabled={sharing}
+              activeOpacity={0.7}
+            >
+              <IconSymbol name="square.and.arrow.up" size={14} color="#00CEC9" />
+              <Text style={styles.shareButtonText}>{sharing ? 'Sharing…' : 'Share'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Off-screen capture view for share card — always mounted when expanded */}
+        {expanded && (
+          <View
+            ref={shareCardRef}
+            style={styles.offScreenCapture}
+            collapsable={false}
+          >
+            <ShareCardView session={session} />
           </View>
         )}
       </TouchableOpacity>
@@ -391,6 +574,15 @@ export default function HistoryScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
 
+  // Tracks a pending frame-edit: session snapshot + game index, used to reopen modal on return
+  const pendingFrameEditRef = useRef<{ session: Session; gameIndex: number } | null>(null);
+  // When set, triggers a router.push after the edit modal state update has been applied
+  const shouldPushFramesRef = useRef<{
+    gameIndex: number;
+    priorScores: string;
+    initialFrames: string;
+  } | null>(null);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
@@ -405,14 +597,57 @@ export default function HistoryScreen() {
     });
   }, [navigation]);
 
+  // Push to log-frames once editModalOpen has settled to false (avoids navigating over an open modal)
+  useEffect(() => {
+    if (!editModalOpen && shouldPushFramesRef.current) {
+      const { gameIndex, priorScores, initialFrames } = shouldPushFramesRef.current;
+      shouldPushFramesRef.current = null;
+      router.push({
+        pathname: '/log-frames',
+        params: { gameIndex: String(gameIndex), priorScores, initialFrames },
+      });
+    }
+  }, [editModalOpen]);
+
   useFocusEffect(
     useCallback(() => {
-      setLoaded(false);
-      readSessions().then((raw) => {
+      let active = true;
+      const load = async () => {
+        setLoaded(false);
+        const raw = await readSessions();
+        if (!active) return;
         raw.sort((a, b) => b.date.localeCompare(a.date));
         setSessions(raw);
         setLoaded(true);
-      });
+
+        // If returning from a frame edit, reopen the edit modal with updated data
+        const resultRaw = await AsyncStorage.getItem(FRAME_RESULT_KEY);
+        if (!active) return;
+        if (resultRaw && pendingFrameEditRef.current) {
+          const result = JSON.parse(resultRaw) as {
+            gameIndex: number;
+            score: number;
+            frames: ThrowEntry[];
+          };
+          await AsyncStorage.removeItem(FRAME_RESULT_KEY);
+          const pending = pendingFrameEditRef.current;
+          pendingFrameEditRef.current = null;
+          const updatedSession: Session = {
+            ...pending.session,
+            games: pending.session.games.map((g, i) =>
+              i === result.gameIndex
+                ? { ...g, score: result.score, frames: result.frames }
+                : g
+            ),
+          };
+          if (active) {
+            setEditingSession(updatedSession);
+            setEditModalOpen(true);
+          }
+        }
+      };
+      load();
+      return () => { active = false; };
     }, [])
   );
 
@@ -439,6 +674,19 @@ export default function HistoryScreen() {
     setEditModalOpen(false);
     setEditingSession(null);
   }, []);
+
+  const handleEditFrames = useCallback((gameIndex: number) => {
+    if (!editingSession) return;
+    const game = editingSession.games[gameIndex];
+    const priorScores = editingSession.games
+      .slice(0, gameIndex)
+      .map(g => g.score ?? 0)
+      .join(',');
+    const initialFrames = game?.frames ? JSON.stringify(game.frames) : '';
+    pendingFrameEditRef.current = { session: editingSession, gameIndex };
+    shouldPushFramesRef.current = { gameIndex, priorScores, initialFrames };
+    setEditModalOpen(false);
+  }, [editingSession]);
 
   const filtered =
     filter === 'all' ? sessions : sessions.filter((s) => s.type === filter);
@@ -519,6 +767,7 @@ export default function HistoryScreen() {
           setEditingSession(null);
         }}
         onSave={handleSaveEdit}
+        onEditFrames={handleEditFrames}
       />
     </>
   );
@@ -800,6 +1049,25 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontSize: 13,
     fontStyle: 'italic',
+  },
+
+  // Share
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    marginTop: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#38383A',
+  },
+  shareButtonText: { fontSize: 14, fontWeight: '600', color: '#00CEC9' },
+  offScreenCapture: {
+    position: 'absolute',
+    left: -10000,
+    top: 0,
+    opacity: 0,
   },
 
   // Swipe actions

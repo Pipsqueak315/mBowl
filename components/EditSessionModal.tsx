@@ -94,11 +94,13 @@ export default function EditSessionModal({
   visible,
   onClose,
   onSave,
+  onEditFrames,
 }: {
   session: EditableSession | null;
   visible: boolean;
   onClose: () => void;
   onSave: (updated: EditableSession) => void;
+  onEditFrames?: (gameIndex: number) => void;
 }) {
   const [sessionType, setSessionType] = useState<SessionType>('league');
   const [dateStr, setDateStr] = useState('');
@@ -120,6 +122,7 @@ export default function EditSessionModal({
   // Populate state from session whenever modal opens
   useEffect(() => {
     if (!session || !visible) return;
+    let active = true;
     isDirty.current = false;
     setSessionType(session.type);
     setDateStr(session.date);
@@ -142,8 +145,9 @@ export default function EditSessionModal({
     );
     setSessionNotes(session.notes ?? '');
     readBalls().then(b => {
-      setAvailableBalls(b.filter(ball => ball.active).sort((a, b) => a.strength - b.strength));
+      if (active) setAvailableBalls(b.filter(ball => ball.active).sort((a, b) => a.strength - b.strength));
     });
+    return () => { active = false; };
   }, [session, visible]);
 
   const markDirty = () => {
@@ -480,12 +484,17 @@ export default function EditSessionModal({
                   </Text>
                 </TouchableOpacity>
 
-                {/* Frame data read-only notice */}
-                {g.frames && g.frames.length > 0 && (
-                  <View style={styles.frameNoticeRow}>
-                    <IconSymbol name="lock.fill" size={12} color="#48484A" />
-                    <Text style={styles.frameNotice}>Frame data cannot be edited</Text>
-                  </View>
+                {/* Frame data edit button */}
+                {onEditFrames && (
+                  <TouchableOpacity
+                    style={styles.editFramesButton}
+                    onPress={() => onEditFrames(i)}
+                  >
+                    <Text style={styles.editFramesText}>
+                      {g.frames && g.frames.length > 0 ? 'Edit Frames' : 'Log Frames'}
+                    </Text>
+                    <IconSymbol name="chevron.right" size={14} color="#8E8E93" />
+                  </TouchableOpacity>
                 )}
 
                 {/* Game notes */}
@@ -711,15 +720,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: '#38383A',
   },
-  frameNoticeRow: {
+  editFramesButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#38383A',
+    justifyContent: 'space-between',
+    backgroundColor: '#2C2C2E',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 8,
   },
-  frameNotice: { fontSize: 12, color: '#48484A', fontStyle: 'italic' },
+  editFramesText: { fontSize: 15, color: '#FFFFFF' },
   gameNotesInput: {
     fontSize: 14,
     color: '#8E8E93',

@@ -10,19 +10,19 @@ import {
   Switch,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { readSettings, writeSettings, readBalls, writeBalls } from '@/src/storage';
-import { writeBackup } from '@/src/backup';
+import { writeBackup, restoreBackup } from '@/src/backup';
 import ScalePressable from '@/components/ScalePressable';
+import type { Settings, Ball } from '@/src/types';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type Ball = { id: string; name: string; short: string; strength: number; active: boolean };
-type Settings = { seasonStart?: string | null; seasonEnd?: string | null };
 type Props = { onClose: () => void };
 
 // ---------------------------------------------------------------------------
@@ -268,6 +268,57 @@ export default function SettingsContent({ onClose }: Props) {
         </View>
 
         {/* ----------------------------------------------------------------
+            Goals
+        ---------------------------------------------------------------- */}
+        <Text style={styles.sectionLabel}>GOALS</Text>
+        <View style={styles.card}>
+          <View style={styles.fieldRow}>
+            <Text style={styles.fieldLabel}>Target Average</Text>
+            <TextInput
+              style={styles.goalInput}
+              value={settings.targetAverage != null ? String(settings.targetAverage) : ''}
+              onChangeText={v => {
+                const digits = v.replace(/[^0-9]/g, '');
+                setSettings(prev => ({
+                  ...prev,
+                  targetAverage: digits === '' ? null : Math.min(300, parseInt(digits, 10)),
+                }));
+              }}
+              onBlur={() => {
+                saveSettingsData(settings);
+              }}
+              keyboardType="number-pad"
+              placeholder="—"
+              placeholderTextColor="#48484A"
+              maxLength={3}
+              returnKeyType="done"
+            />
+          </View>
+          <View style={[styles.fieldRow, styles.fieldRowLast]}>
+            <Text style={styles.fieldLabel}>Target Series</Text>
+            <TextInput
+              style={styles.goalInput}
+              value={settings.targetSeries != null ? String(settings.targetSeries) : ''}
+              onChangeText={v => {
+                const digits = v.replace(/[^0-9]/g, '');
+                setSettings(prev => ({
+                  ...prev,
+                  targetSeries: digits === '' ? null : Math.min(900, parseInt(digits, 10)),
+                }));
+              }}
+              onBlur={() => {
+                saveSettingsData(settings);
+              }}
+              keyboardType="number-pad"
+              placeholder="—"
+              placeholderTextColor="#48484A"
+              maxLength={3}
+              returnKeyType="done"
+            />
+          </View>
+        </View>
+
+        {/* ----------------------------------------------------------------
             Ball Roster
         ---------------------------------------------------------------- */}
         <View style={styles.sectionRow}>
@@ -365,6 +416,38 @@ export default function SettingsContent({ onClose }: Props) {
             ))}
           </View>
         )}
+
+        {/* ----------------------------------------------------------------
+            Restore from Backup
+        ---------------------------------------------------------------- */}
+        <View style={styles.restoreSpacer} />
+        <TouchableOpacity
+          style={styles.restoreButton}
+          onPress={() => {
+            Alert.alert(
+              'Restore from Backup?',
+              'This will replace ALL current data (sessions, balls, settings, reference) with the data from your last backup. This cannot be undone.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Restore',
+                  style: 'destructive',
+                  onPress: async () => {
+                    const result = await restoreBackup();
+                    if (result.success) {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      Alert.alert('Backup Restored', 'Restart the app to see your data.');
+                    } else {
+                      Alert.alert('Restore Failed', result.error ?? 'Unknown error.');
+                    }
+                  },
+                },
+              ]
+            );
+          }}
+        >
+          <Text style={styles.restoreText}>Restore from Backup</Text>
+        </TouchableOpacity>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -592,5 +675,37 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 40,
+  },
+
+  // Goals
+  fieldRowLast: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#38383A',
+  },
+  goalInput: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#00CEC9',
+    textAlign: 'right',
+    minWidth: 60,
+    padding: 0,
+  },
+
+  // Restore from backup
+  restoreSpacer: {
+    height: 24,
+  },
+  restoreButton: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 13,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  restoreText: {
+    fontSize: 15,
+    color: '#FF453A',
+    fontWeight: '500',
   },
 });

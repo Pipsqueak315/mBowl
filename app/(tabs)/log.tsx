@@ -74,7 +74,7 @@ function makeGame(): Game {
 
 type SessionType = 'league' | 'makeup' | 'tournament' | 'practice';
 type MadeCut = 'Yes' | 'No' | 'N/A';
-type Game = { id: string; score: string; ball: string; notes: string; frames?: ThrowEntry[] };
+type Game = { id: string; score: string; ball: string; notes: string; frames?: ThrowEntry[]; calculatedScore?: number };
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -90,6 +90,57 @@ function StrengthDots({ strength }: { strength: number }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Mini scorecard sub-components (same layout as History expanded card)
+// ---------------------------------------------------------------------------
+
+const MINI_PIN_ROWS: number[][] = [[6, 7, 8, 9], [3, 4, 5], [1, 2], [0]];
+
+function MiniPinDeck({ pinsStanding }: { pinsStanding: boolean[] }) {
+  if (!pinsStanding.some(s => s)) return null;
+  return (
+    <View style={styles.miniDeck}>
+      {MINI_PIN_ROWS.map((row, ri) => (
+        <View key={ri} style={styles.miniRow}>
+          {row.map(idx => (
+            <View
+              key={idx}
+              style={[styles.miniPin, pinsStanding[idx] ? styles.miniPinUp : styles.miniPinDown]}
+            />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function FrameGrid({ frames }: { frames: ThrowEntry[] }) {
+  return (
+    <View style={styles.frameGrid}>
+      {frames.slice(0, 10).map((frame, fi) => {
+        const is10th = fi === 9;
+        const throws = is10th ? frame.throws.slice(0, 3) : frame.throws.slice(0, 2);
+        const leaveData = frame.pinsStanding?.[0] ?? null;
+        return (
+          <View key={fi} style={[styles.frameBox, is10th && styles.frameBoxWide]}>
+            <View style={styles.frameThrows}>
+              {throws.map((t, ti) => (
+                <Text key={ti} style={[styles.frameThrowChip, t === 'X' && styles.strikeChip]}>
+                  {t}
+                </Text>
+              ))}
+            </View>
+            {leaveData && <MiniPinDeck pinsStanding={leaveData} />}
+            <View style={styles.frameNumberRow}>
+              <Text style={styles.frameNumberText}>{fi + 1}</Text>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 type GameRowProps = {
   game: Game;
   index: number;
@@ -99,6 +150,20 @@ type GameRowProps = {
 };
 
 function GameRow({ game, index, onChange, onPickBall, onLogFrames }: GameRowProps) {
+  function handleScoreEndEditing() {
+    if (game.calculatedScore === undefined) return;
+    const entered = parseInt(game.score, 10);
+    if (isNaN(entered) || entered === game.calculatedScore) return;
+    Alert.alert(
+      'Override Calculated Score?',
+      `This game has a calculated score of ${game.calculatedScore} from frame data. Replace with ${entered}?`,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => onChange('score', String(game.calculatedScore)) },
+        { text: 'Override', style: 'destructive' },
+      ]
+    );
+  }
+
   return (
     <View style={styles.gameCard}>
       <Text style={styles.gameLabel}>GAME {index + 1}</Text>
@@ -114,6 +179,7 @@ function GameRow({ game, index, onChange, onPickBall, onLogFrames }: GameRowProp
             if (digits === '') { onChange('score', ''); return; }
             onChange('score', String(Math.min(300, parseInt(digits, 10))));
           }}
+          onEndEditing={handleScoreEndEditing}
           keyboardType="number-pad"
           placeholder="—"
           placeholderTextColor="#48484A"
@@ -130,18 +196,22 @@ function GameRow({ game, index, onChange, onPickBall, onLogFrames }: GameRowProp
         </Text>
       </TouchableOpacity>
 
-      {/* Log Frames */}
+      {/* Inline mini scorecard — shown when frame data exists */}
+      {game.frames && game.frames.length > 0 && (
+        <View style={styles.miniScorecardWrapper}>
+          <FrameGrid frames={game.frames} />
+        </View>
+      )}
+
+      {/* Log / Edit Frames button */}
       <TouchableOpacity
         style={styles.logFramesButton}
         onPress={onLogFrames}
       >
-        <Text style={styles.logFramesText}>Log Frames</Text>
-        <View style={styles.logFramesRight}>
-          {game.frames && game.frames.length > 0 && (
-            <Text style={styles.framesLoggedBadge}>✓ Logged</Text>
-          )}
-          <IconSymbol name="chevron.right" size={14} color="#8E8E93" />
-        </View>
+        <Text style={styles.logFramesText}>
+          {game.frames && game.frames.length > 0 ? 'Edit Frames' : 'Log Frames'}
+        </Text>
+        <IconSymbol name="chevron.right" size={14} color="#8E8E93" />
       </TouchableOpacity>
 
       {/* Game notes */}
@@ -232,9 +302,11 @@ export default function LogScreen() {
   const wasSettingsOpen = useRef(false);
   useEffect(() => {
     if (wasSettingsOpen.current && !settingsOpen) {
+      let active = true;
       readBalls().then(b => {
-        if (b) setAvailableBalls(b.filter(ball => ball.active).sort((a, b) => a.strength - b.strength));
+        if (active && b) setAvailableBalls(b.filter(ball => ball.active).sort((a, b) => a.strength - b.strength));
       });
+      return () => { active = false; };
     }
     wasSettingsOpen.current = settingsOpen;
   }, [settingsOpen]);
@@ -242,8 +314,9 @@ export default function LogScreen() {
   // ---- Read frame result when returning from log-frames -------------------
   useFocusEffect(
     useCallback(() => {
+      let active = true;
       AsyncStorage.getItem(FRAME_RESULT_KEY).then((raw) => {
-        if (!raw) return;
+        if (!active || !raw) return;
         AsyncStorage.removeItem(FRAME_RESULT_KEY);
         const result = JSON.parse(raw) as {
           gameIndex: number;
@@ -253,11 +326,12 @@ export default function LogScreen() {
         setGames((prev) =>
           prev.map((g, i) =>
             i === result.gameIndex
-              ? { ...g, score: String(result.score), frames: result.frames }
+              ? { ...g, score: String(result.score), frames: result.frames, calculatedScore: result.score }
               : g
           )
         );
       });
+      return () => { active = false; };
     }, [])
   );
 
@@ -332,6 +406,9 @@ export default function LogScreen() {
 
   const openBallPicker = (gameId: string) => {
     setBallPickerForGameId(gameId);
+    readBalls().then(b => {
+      if (b) setAvailableBalls(b.filter(ball => ball.active).sort((a, b) => a.strength - b.strength));
+    });
     setBallPickerOpen(true);
   };
 
@@ -655,6 +732,9 @@ export default function LogScreen() {
                   params: {
                     gameIndex: String(index),
                     priorScores: games.slice(0, index).map((g) => parseInt(g.score, 10) || 0).join(','),
+                    ...(game.frames && game.frames.length > 0
+                      ? { initialFrames: JSON.stringify(game.frames) }
+                      : {}),
                   },
                 })}
               />
@@ -927,6 +1007,36 @@ const styles = StyleSheet.create({
   logFramesText: { fontSize: 15, color: '#FFFFFF' },
   logFramesRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   framesLoggedBadge: { fontSize: 12, color: '#30D158', fontWeight: '600' },
+
+  // Mini scorecard
+  miniScorecardWrapper: {
+    marginBottom: 10,
+  },
+  frameGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 3,
+  },
+  frameBox: {
+    width: 28,
+    backgroundColor: '#2C2C2E',
+    borderRadius: 4,
+    paddingVertical: 3,
+    paddingHorizontal: 2,
+    alignItems: 'center',
+    gap: 2,
+  },
+  frameBoxWide: { width: 38 },
+  frameThrows: { flexDirection: 'row', gap: 1, flexWrap: 'wrap', justifyContent: 'center' },
+  frameThrowChip: { fontSize: 9, fontWeight: '600', color: '#FFFFFF' },
+  strikeChip: { color: '#00CEC9' },
+  frameNumberRow: { marginTop: 1 },
+  frameNumberText: { fontSize: 7, color: '#48484A', fontWeight: '600' },
+  miniDeck: { gap: 1 },
+  miniRow: { flexDirection: 'row', justifyContent: 'center', gap: 1 },
+  miniPin: { width: 4, height: 4, borderRadius: 2 },
+  miniPinUp: { backgroundColor: '#FFFFFF' },
+  miniPinDown: { backgroundColor: '#38383A' },
   gameNotesInput: {
     fontSize: 14,
     color: '#8E8E93',

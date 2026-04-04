@@ -17,7 +17,7 @@ import * as Haptics from 'expo-haptics';
 
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
-import type { FrameData } from '@/src/types';
+import type { FrameData, ThrowEntry } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import PinDeck from '@/components/PinDeck';
@@ -278,14 +278,18 @@ function getPinDeckProps(
 // ---------------------------------------------------------------------------
 
 function FrameStripItem({
-  frame, index, score, isCurrent,
+  frame, index, score, isCurrent, onPress,
 }: {
-  frame: FrameData; index: number; score: number | null; isCurrent: boolean;
+  frame: FrameData; index: number; score: number | null; isCurrent: boolean; onPress: () => void;
 }) {
   const slotCount = index === 9 ? 3 : 2;
   const hasPinData = !!(frame.pinsStanding && frame.pinsStanding.length > 0);
   return (
-    <View style={[styles.stripItem, isCurrent && styles.stripItemCurrent]}>
+    <TouchableOpacity
+      activeOpacity={0.65}
+      onPress={onPress}
+      style={[styles.stripItem, isCurrent && styles.stripItemCurrent]}
+    >
       <Text style={[styles.stripNum, isCurrent && styles.stripNumCurrent]}>{index + 1}</Text>
       <View style={styles.stripThrows}>
         {Array.from({ length: slotCount }).map((_, i) => {
@@ -309,7 +313,7 @@ function FrameStripItem({
         </Text>
         {hasPinData && <View style={styles.stripPinDot} />}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -454,17 +458,64 @@ function emptyFrames(): FrameData[] {
   return Array.from({ length: 10 }, () => ({ throws: [], note: '', throwNotes: {} }));
 }
 
+function throwEntriesToFrameData(entries: ThrowEntry[]): FrameData[] {
+  const result = emptyFrames();
+  for (let i = 0; i < Math.min(entries.length, 10); i++) {
+    const e = entries[i];
+    result[i] = {
+      throws: e.throws ?? [],
+      note: e.note ?? '',
+      throwNotes: e.throwNotes ?? {},
+      pinsStanding: e.pinsStanding ?? undefined,
+    };
+  }
+  return result;
+}
+
+// Return the index of the first incomplete frame (for positioning cursor after pre-load).
+function firstIncompleteFrame(frames: FrameData[]): number {
+  for (let i = 0; i < 10; i++) {
+    if (!isFrameComplete(frames, i)) return i;
+  }
+  return 9;
+}
+
 export default function LogFramesScreen() {
-  const { gameIndex, priorScores } = useLocalSearchParams<{ gameIndex: string; priorScores?: string }>();
+  const { gameIndex, priorScores, initialFrames } = useLocalSearchParams<{
+    gameIndex: string;
+    priorScores?: string;
+    initialFrames?: string;
+  }>();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const stripRef = useRef<FlatList<FrameData>>(null);
 
   const [mode, setMode] = useState<Mode>('post');
-  // inputMode defaults to the natural mode for each entry style: live → pins, post → quick.
-  const [inputMode, setInputMode] = useState<InputMode>('quick');
-  const [frames, setFrames] = useState<FrameData[]>(emptyFrames);
-  const [currentFrame, setCurrentFrame] = useState(0);
+  // Pins mode is the default for both Post-Game and Live.
+  const [inputMode, setInputMode] = useState<InputMode>('pins');
+
+  const [frames, setFrames] = useState<FrameData[]>(() => {
+    if (initialFrames) {
+      try {
+        const parsed = JSON.parse(initialFrames) as ThrowEntry[];
+        return throwEntriesToFrameData(parsed);
+      } catch {
+        return emptyFrames();
+      }
+    }
+    return emptyFrames();
+  });
+  const [currentFrame, setCurrentFrame] = useState(() => {
+    if (initialFrames) {
+      try {
+        const parsed = JSON.parse(initialFrames) as ThrowEntry[];
+        return firstIncompleteFrame(throwEntriesToFrameData(parsed));
+      } catch {
+        return 0;
+      }
+    }
+    return 0;
+  });
 
   // Streak animation
   const streakAnim = useSharedValue(0);
@@ -479,9 +530,9 @@ export default function LogFramesScreen() {
     });
   }, [currentFrame]);
 
-  // When mode changes, reset inputMode to the appropriate default for that style
+  // When mode changes, reset inputMode to pins (default for both modes).
   useEffect(() => {
-    setInputMode(mode === 'live' ? 'pins' : 'quick');
+    setInputMode('pins');
   }, [mode]);
 
   // Derived — all memoised on frames so scoring only reruns when frames changes
@@ -710,7 +761,12 @@ export default function LogFramesScreen() {
             frame={item}
             index={index}
             score={scores[index]}
-            isCurrent={index === currentFrame && !allComplete}
+            isCurrent={index === currentFrame}
+            onPress={() => {
+              if (index === currentFrame) return;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setCurrentFrame(index);
+            }}
           />
         )}
         style={styles.strip}

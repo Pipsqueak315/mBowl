@@ -262,6 +262,29 @@ function buildBallStats(sessions: Session[]): BallStat[] {
     .sort((a, b) => b.avg - a.avg);
 }
 
+// --- Game-by-Game Performance ---
+interface GamePositionStat {
+  position: number;
+  avg: number;
+  count: number;
+}
+
+function buildGameByGameStats(sessions: Session[]): GamePositionStat[] {
+  const map: Record<number, { sum: number; count: number }> = {};
+  for (const s of sessions) {
+    for (const g of s.games) {
+      if (g.score == null) continue;
+      const pos = g.game;
+      if (!map[pos]) map[pos] = { sum: 0, count: 0 };
+      map[pos].sum += g.score as number;
+      map[pos].count++;
+    }
+  }
+  return Object.entries(map)
+    .map(([pos, { sum, count }]) => ({ position: parseInt(pos, 10), avg: sum / count, count }))
+    .sort((a, b) => a.position - b.position);
+}
+
 const NA_LABELS = ['Strike %', 'Spare %', 'Opens/Game'] as const;
 
 // --- Component ---
@@ -332,6 +355,27 @@ export default function StatsScreen() {
   );
   const histogram = useMemo<HistBucket[]>(() => buildHistogram(filtered), [filtered]);
   const ballStats = useMemo<BallStat[]>(() => buildBallStats(filtered), [filtered]);
+  const gameByGameStats = useMemo<GamePositionStat[]>(() => buildGameByGameStats(filtered), [filtered]);
+
+  // Goal deltas — memoized so they don't recalculate on every render
+  const avgGoalDelta = useMemo(() => {
+    const target = settings.targetAverage;
+    if (target == null || !metrics) return null;
+    const diff = metrics.avg - target;
+    if (Math.abs(diff) <= 0.5) return { text: 'On target', color: '#00CEC9' };
+    if (diff > 0) return { text: `+${diff.toFixed(1)} above target`, color: '#30D158' };
+    return { text: `${diff.toFixed(1)} below target`, color: '#FF453A' };
+  }, [metrics, settings.targetAverage]);
+
+  const seriesGoalDelta = useMemo(() => {
+    const target = settings.targetSeries;
+    if (target == null || !metrics) return null;
+    const diff = metrics.highSeries - target;
+    if (diff === 0) return { text: 'On target', color: '#00CEC9' };
+    if (diff > 0) return { text: `+${diff} above target`, color: '#30D158' };
+    return { text: `${diff} below target`, color: '#FF453A' };
+  }, [metrics, settings.targetSeries]);
+
   useEffect(() => { setShowAllLeaves(false); }, [filtered]);
 
   return (
@@ -384,6 +428,11 @@ export default function StatsScreen() {
               <Text style={[styles.heroNumber, { color: avgColor(metrics.avg) }]}>
                 {metrics.avg.toFixed(1)}
               </Text>
+              {avgGoalDelta && (
+                <Text style={[styles.heroGoalDelta, { color: avgGoalDelta.color }]}>
+                  {avgGoalDelta.text}
+                </Text>
+              )}
               <Text style={styles.heroMeta}>
                 {metrics.gameCount} games · {metrics.sessionCount} sessions
               </Text>
@@ -398,6 +447,11 @@ export default function StatsScreen() {
               <View style={[styles.card, styles.flex1]}>
                 <Text style={styles.cardLabel}>High Series</Text>
                 <Text style={styles.cardNumber}>{metrics.highSeries}</Text>
+                {seriesGoalDelta && (
+                  <Text style={[styles.cardGoalDelta, { color: seriesGoalDelta.color }]}>
+                    {seriesGoalDelta.text}
+                  </Text>
+                )}
               </View>
             </View>
 
@@ -544,6 +598,33 @@ export default function StatsScreen() {
                     </View>
                     <Text style={[styles.ballStatAvg, { color: avgColor(bs.avg) }]}>
                       {bs.avg.toFixed(1)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* By Game Number */}
+            {gameByGameStats.length === 0 ? (
+              <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
+                <Text style={styles.cardLabel}>By Game Number</Text>
+                <IconSymbol name="lock.fill" size={18} color="#48484A" />
+                <Text style={styles.naText}>Log a session to see game-by-game trends.</Text>
+              </View>
+            ) : (
+              <View style={styles.leavesCard}>
+                <Text style={styles.leavesTitle}>By Game Number</Text>
+                {gameByGameStats.map((gs, i) => (
+                  <View
+                    key={gs.position}
+                    style={[styles.ballStatRow, i > 0 && styles.leaveListRowBorder]}
+                  >
+                    <View style={styles.ballStatInfo}>
+                      <Text style={styles.ballStatName}>Game {gs.position}</Text>
+                      <Text style={styles.ballStatCount}>{gs.count} game{gs.count !== 1 ? 's' : ''}</Text>
+                    </View>
+                    <Text style={[styles.ballStatAvg, { color: avgColor(gs.avg) }]}>
+                      {gs.avg.toFixed(1)}
                     </Text>
                   </View>
                 ))}
@@ -718,6 +799,16 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontSize: 13,
     marginTop: 6,
+  },
+  heroGoalDelta: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  cardGoalDelta: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
   },
   // Metric cards
   row2: {

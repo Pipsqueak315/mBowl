@@ -55,6 +55,8 @@ export type Ball = {
 export type Settings = {
   seasonStart?: string | null;
   seasonEnd?: string | null;
+  targetAverage?: number | null;
+  targetSeries?: number | null;
 };
 
 /** Shape of the in-progress log form persisted as a draft */
