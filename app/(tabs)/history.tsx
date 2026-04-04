@@ -12,6 +12,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -212,6 +213,8 @@ function MadeCutBadge({ madeCut }: { madeCut: string | null }) {
 // Share card — rendered off-screen, captured with captureRef
 // ---------------------------------------------------------------------------
 
+const SHARE_CARD_WIDTH = Dimensions.get('window').width;
+
 function ShareCardView({ session }: { session: Session }) {
   const avg = sessionAvg(session.games);
   const series = seriesTotal(session.games);
@@ -254,13 +257,15 @@ function ShareCardView({ session }: { session: Session }) {
             {g.ball ? <Text style={sc.gameBall}>{g.ball}</Text> : null}
           </View>
         ))}
-        {!isPractice && (
-          <View style={sc.seriesItem}>
-            <Text style={[sc.seriesScore, { color: seriesColor(series) }]}>{series}</Text>
-            <Text style={sc.seriesLabel}>series</Text>
-          </View>
-        )}
       </View>
+
+      {/* Series total — own row below scores */}
+      {!isPractice && (
+        <View style={sc.seriesRow}>
+          <Text style={sc.seriesLabel}>Series</Text>
+          <Text style={[sc.seriesScore, { color: seriesColor(series) }]}>{series}</Text>
+        </View>
+      )}
 
       {/* Frame grid per game */}
       {hasFrames && (
@@ -269,7 +274,9 @@ function ShareCardView({ session }: { session: Session }) {
             g.frames && g.frames.length === 10 ? (
               <View key={i} style={sc.gameFrameRow}>
                 <Text style={sc.gameFrameLabel}>G{g.game}</Text>
-                <FrameGrid frames={g.frames} />
+                <View style={{ flex: 1 }}>
+                  <FrameGrid frames={g.frames} />
+                </View>
               </View>
             ) : null
           )}
@@ -307,11 +314,12 @@ function ShareCardView({ session }: { session: Session }) {
 // Share card styles (inline, self-contained — never references outer `styles`)
 const sc = StyleSheet.create({
   card: {
-    width: 340,
+    width: SHARE_CARD_WIDTH,
     backgroundColor: '#1C1C1E',
     borderRadius: 13,
     padding: 16,
     gap: 12,
+    overflow: 'hidden',
   },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   date: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
@@ -326,9 +334,9 @@ const sc = StyleSheet.create({
   gameItem: { alignItems: 'center', gap: 3 },
   gameScore: { fontSize: 28, fontWeight: '700' },
   gameBall: { fontSize: 10, color: '#8E8E93', textAlign: 'center' },
-  seriesItem: { marginLeft: 'auto', alignItems: 'center' },
+  seriesRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'flex-end', gap: 6 },
   seriesScore: { fontSize: 22, fontWeight: '700' },
-  seriesLabel: { fontSize: 10, color: '#8E8E93' },
+  seriesLabel: { fontSize: 11, color: '#8E8E93' },
   framesSection: { gap: 6 },
   gameFrameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   gameFrameLabel: { fontSize: 10, fontWeight: '700', color: '#8E8E93', width: 16 },
@@ -554,7 +562,7 @@ function SessionCard({
         {expanded && (
           <View
             ref={shareCardRef}
-            style={styles.offScreenCapture}
+            style={[styles.offScreenCapture, { width: SHARE_CARD_WIDTH }]}
             collapsable={false}
           >
             <ShareCardView session={session} />
@@ -1067,7 +1075,6 @@ const styles = StyleSheet.create({
   offScreenCapture: {
     position: 'absolute',
     left: -10000,
-    top: 0,
     backgroundColor: '#1C1C1E',
   },
 
