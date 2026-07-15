@@ -172,7 +172,18 @@ function getStrikeStreak(frames: FrameData[]): number {
 // Chip availability
 // ---------------------------------------------------------------------------
 
+// Count chips for a 2nd/3rd ball at a partial rack: only counts strictly below
+// the pins left are valid — clearing them all is a spare, entered via '/'.
+function countChipsBelow(pinsLeft: number): string[] {
+  const avail: string[] = ['/', '—'];
+  for (let i = 0; i < pinsLeft; i++) avail.push(String(i));
+  return avail;
+}
+
 function getAvailableChips(frames: FrameData[], fi: number): Set<string> {
+  // A complete frame takes no further throws — 10th included.
+  if (isFrameComplete(frames, fi)) return new Set();
+
   const { throws } = frames[fi];
   const ti = throws.length;
   const is10th = fi === 9;
@@ -180,9 +191,7 @@ function getAvailableChips(frames: FrameData[], fi: number): Set<string> {
   if (!is10th) {
     if (ti === 0) return new Set(['X', '—', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
     const t1Pins = throws[0] === '—' ? 0 : parseInt(throws[0], 10);
-    const avail: string[] = ['/', '—'];
-    for (let i = 0; i <= 10 - t1Pins; i++) avail.push(String(i));
-    return new Set(avail);
+    return new Set(countChipsBelow(10 - t1Pins));
   }
 
   if (ti === 0) return new Set(['X', '—', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
@@ -190,17 +199,13 @@ function getAvailableChips(frames: FrameData[], fi: number): Set<string> {
     const t1 = throws[0];
     if (t1 === 'X') return new Set(['X', '—', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
     const t1Pins = t1 === '—' ? 0 : parseInt(t1, 10);
-    const avail: string[] = ['/', '—'];
-    for (let i = 0; i <= 10 - t1Pins; i++) avail.push(String(i));
-    return new Set(avail);
+    return new Set(countChipsBelow(10 - t1Pins));
   }
   const t1 = throws[0], t2 = throws[1];
   if (t1 === 'X' && t2 === 'X') return new Set(['X', '—', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
   if (t1 === 'X') {
     const t2Pins = t2 === '—' ? 0 : parseInt(t2, 10);
-    const avail: string[] = ['/', '—'];
-    for (let i = 0; i <= 10 - t2Pins; i++) avail.push(String(i));
-    return new Set(avail);
+    return new Set(countChipsBelow(10 - t2Pins));
   }
   if (t2 === '/') return new Set(['X', '—', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
   return new Set();
@@ -230,10 +235,13 @@ function getPinsAfterThrow(frame: FrameData, throwIdx: number): boolean[] {
 }
 
 // Derive the PinDeck props for the CURRENT pending throw in a frame.
+// Returns null when the frame is complete — there is no pending throw to enter.
 function getPinDeckProps(
   frames: FrameData[],
   fi: number,
-): { availablePins: boolean[]; isFirstThrow: boolean; prevPinsStanding: boolean[] | null } {
+): { availablePins: boolean[]; isFirstThrow: boolean; prevPinsStanding: boolean[] | null } | null {
+  if (isFrameComplete(frames, fi)) return null;
+
   const frame = frames[fi];
   const ti = frame.throws.length; // index of the throw about to be entered
   const is10th = fi === 9;
@@ -537,10 +545,19 @@ export default function LogFramesScreen() {
 
   // Derived — all memoised on frames so scoring only reruns when frames changes
   const scores = useMemo(() => calculateScores(frames), [frames]);
-  const allComplete = useMemo(() => isFrameComplete(frames, 9), [frames]);
+  // Every frame, not just the 10th — a complete 10th over empty earlier frames
+  // is not a finished game and scores[9] would be null.
+  const allComplete = useMemo(
+    () => frames.every((_, i) => isFrameComplete(frames, i)),
+    [frames],
+  );
+  const currentFrameComplete = useMemo(
+    () => isFrameComplete(frames, currentFrame),
+    [frames, currentFrame],
+  );
   const available = useMemo(
-    () => (allComplete && currentFrame === 9 ? new Set<string>() : getAvailableChips(frames, currentFrame)),
-    [frames, allComplete, currentFrame],
+    () => getAvailableChips(frames, currentFrame),
+    [frames, currentFrame],
   );
   const runningTotal = useMemo(
     () => [...scores].reverse().find((s) => s !== null) ?? null,
@@ -587,7 +604,7 @@ export default function LogFramesScreen() {
   // ---- Actions ------------------------------------------------------------
 
   function addThrow(chip: string) {
-    if (allComplete && currentFrame === 9) return;
+    if (currentFrameComplete) return;
     if (chip === 'X') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -602,7 +619,7 @@ export default function LogFramesScreen() {
 
   // Called by PinDeck.onConfirm — records both the notation and the raw pin state.
   function addThrowWithPins(notation: string, throwPinsStanding: boolean[]) {
-    if (allComplete && currentFrame === 9) return;
+    if (currentFrameComplete) return;
     if (notation === 'X') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -663,9 +680,14 @@ export default function LogFramesScreen() {
   }
 
   async function handleDone() {
+    // Backstop: never persist a placeholder 0 over a game that has not scored out.
+    if (scores[9] === null) {
+      Alert.alert('Game Not Complete', 'Fill in every frame before saving.');
+      return;
+    }
     const result = {
       gameIndex: gameIndex !== undefined ? parseInt(gameIndex, 10) : 0,
-      score: scores[9] ?? 0,
+      score: scores[9],
       frames,
     };
     await AsyncStorage.setItem(FRAME_RESULT_KEY, JSON.stringify(result));
@@ -711,9 +733,9 @@ export default function LogFramesScreen() {
     mode === 'live' && inputMode === 'quick' && !(allComplete && currentFrame === 9) && frames[currentFrame].throws.length > 0;
 
   // Compute PinDeck props once — used in render to avoid duplication.
-  const pinDeckProps = (!(allComplete && currentFrame === 9) && inputMode === 'pins')
-    ? getPinDeckProps(frames, currentFrame)
-    : null;
+  // null when the frame is complete, which falls the input area back to the
+  // (fully disabled) chip bar so the layout height stays stable.
+  const pinDeckProps = inputMode === 'pins' ? getPinDeckProps(frames, currentFrame) : null;
 
   return (
     <View style={styles.container}>
@@ -841,9 +863,9 @@ export default function LogFramesScreen() {
       </TouchableOpacity>
 
       {/* Input area: chip bar (Quick mode or complete) — pin deck (Pins mode, not complete) */}
-      {(inputMode === 'quick' || (allComplete && currentFrame === 9)) ? (
+      {!pinDeckProps ? (
         <ChipBar available={available} onPress={addThrow} bottomInset={insets.bottom} />
-      ) : pinDeckProps && (
+      ) : (
         <View style={[styles.pinDeckContainer, { paddingBottom: insets.bottom + 8 }]}>
           <PinDeck
             key={`pd-${currentFrame}-${frames[currentFrame].throws.length}`}

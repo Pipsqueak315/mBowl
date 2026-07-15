@@ -47,6 +47,7 @@ interface LeaveEntry {
   count: number;
   converted: number;
   conversionPct: number;
+  isSplit: boolean;
 }
 
 interface BallStat {
@@ -103,6 +104,24 @@ function LeaveMiniPinDeck({ pins }: { pins: number[] }) {
           ))}
         </View>
       ))}
+    </View>
+  );
+}
+
+function LeaveRow({ leave, showBorder }: { leave: LeaveEntry; showBorder: boolean }) {
+  return (
+    <View style={[styles.leaveListRow, showBorder && styles.leaveListRowBorder]}>
+      <LeaveMiniPinDeck pins={leave.pins} />
+      <View style={styles.leaveInfo}>
+        <View style={styles.leaveNameRow}>
+          <Text style={styles.leaveName}>{leave.name}</Text>
+          {leave.isSplit && <Text style={styles.splitBadge}>SPLIT</Text>}
+        </View>
+        <Text style={styles.leaveCount}>× {leave.count}</Text>
+      </View>
+      <Text style={[styles.leaveConvPct, { color: conversionColor(leave.conversionPct) }]}>
+        {Math.round(leave.conversionPct)}%
+      </Text>
     </View>
   );
 }
@@ -349,8 +368,19 @@ export default function StatsScreen() {
     () => (metrics ? buildGameData(filtered) : null),
     [metrics, filtered],
   );
-  const leaveStats = useMemo<{ leaves: LeaveEntry[]; hasPinData: boolean }>(
-    () => computeLeaveStats(filtered) as { leaves: LeaveEntry[]; hasPinData: boolean },
+  const leaveStats = useMemo<{
+    leaves: LeaveEntry[];
+    hasPinData: boolean;
+    makeableSparePct: number | null;
+    makeableCount: number;
+  }>(
+    () =>
+      computeLeaveStats(filtered) as {
+        leaves: LeaveEntry[];
+        hasPinData: boolean;
+        makeableSparePct: number | null;
+        makeableCount: number;
+      },
     [filtered],
   );
   const histogram = useMemo<HistBucket[]>(() => buildHistogram(filtered), [filtered]);
@@ -486,6 +516,39 @@ export default function StatsScreen() {
                     <Text style={styles.naText}>Log frames to unlock.</Text>
                   </View>
                 ))}
+              </View>
+            )}
+
+            {/* Makeable Spare % — pin-data gated, splits excluded from denominator */}
+            {!leaveStats.hasPinData ? (
+              <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
+                <Text style={styles.cardLabel}>Makeable Spare %</Text>
+                <IconSymbol name="lock.fill" size={18} color="#48484A" />
+                <Text style={styles.naText}>Log frames with pin tracking to unlock.</Text>
+              </View>
+            ) : (
+              <View style={[styles.card, styles.makeableCard]}>
+                <Text style={styles.cardLabel}>Makeable Spare %</Text>
+                <Text
+                  style={[
+                    styles.cardNumber,
+                    {
+                      color:
+                        leaveStats.makeableSparePct != null
+                          ? conversionColor(leaveStats.makeableSparePct)
+                          : '#FFFFFF',
+                    },
+                  ]}
+                >
+                  {leaveStats.makeableSparePct != null
+                    ? `${Math.round(leaveStats.makeableSparePct)}%`
+                    : '—'}
+                </Text>
+                <Text style={styles.makeableSub}>
+                  {leaveStats.makeableSparePct != null
+                    ? `Splits excluded · ${leaveStats.makeableCount} makeable`
+                    : 'No makeable leaves yet'}
+                </Text>
               </View>
             )}
 
@@ -647,19 +710,7 @@ export default function StatsScreen() {
               <View style={styles.leavesCard}>
                 <Text style={styles.leavesTitle}>Common Leaves</Text>
                 {leaveStats.leaves.slice(0, 10).map((leave, i) => (
-                  <View
-                    key={leave.pins.join('-')}
-                    style={[styles.leaveListRow, i > 0 && styles.leaveListRowBorder]}
-                  >
-                    <LeaveMiniPinDeck pins={leave.pins} />
-                    <View style={styles.leaveInfo}>
-                      <Text style={styles.leaveName}>{leave.name}</Text>
-                      <Text style={styles.leaveCount}>× {leave.count}</Text>
-                    </View>
-                    <Text style={[styles.leaveConvPct, { color: conversionColor(leave.conversionPct) }]}>
-                      {Math.round(leave.conversionPct)}%
-                    </Text>
-                  </View>
+                  <LeaveRow key={leave.pins.join('-')} leave={leave} showBorder={i > 0} />
                 ))}
               </View>
             )}
@@ -680,19 +731,7 @@ export default function StatsScreen() {
                 </View>
                 {(showAllLeaves ? leaveStats.leaves : leaveStats.leaves.slice(0, 10)).map(
                   (leave, i) => (
-                    <View
-                      key={leave.pins.join('-')}
-                      style={[styles.leaveListRow, i > 0 && styles.leaveListRowBorder]}
-                    >
-                      <LeaveMiniPinDeck pins={leave.pins} />
-                      <View style={styles.leaveInfo}>
-                        <Text style={styles.leaveName}>{leave.name}</Text>
-                        <Text style={styles.leaveCount}>× {leave.count}</Text>
-                      </View>
-                      <Text style={[styles.leaveConvPct, { color: conversionColor(leave.conversionPct) }]}>
-                        {Math.round(leave.conversionPct)}%
-                      </Text>
-                    </View>
+                    <LeaveRow key={leave.pins.join('-')} leave={leave} showBorder={i > 0} />
                   )
                 )}
               </View>
@@ -961,6 +1000,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     minWidth: 46,
     textAlign: 'right',
+  },
+  leaveNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  splitBadge: {
+    marginLeft: 6,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: '#00CEC9',
+    borderWidth: 1,
+    borderColor: '#00CEC9',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    overflow: 'hidden',
+  },
+  makeableCard: {
+    marginBottom: 12,
+  },
+  makeableSub: {
+    color: '#8E8E93',
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 4,
   },
 
   // --- Score Distribution ---

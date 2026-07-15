@@ -6,7 +6,15 @@ import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { readSessions, writeSessions, readBalls, writeBalls, isValidSessionArray, KEYS } from '../src/storage';
+import {
+  readSessionsResult,
+  writeSessions,
+  readBallsResult,
+  writeBalls,
+  isValidSessionArray,
+  isBallArray,
+  KEYS,
+} from '../src/storage';
 import { writeBackup } from '../src/backup';
 import { scheduleCertReminder } from '../src/notifications';
 import type { Session, Ball } from '../src/types';
@@ -21,25 +29,53 @@ export default function RootLayout() {
   useEffect(() => {
     async function initStorage() {
       // Step 2: Seed flag — seeds run at most once, ever
-      const seeded = await AsyncStorage.getItem(KEYS.SEEDED_FLAG);
-      if (seeded !== 'true') {
-        // Migration-safe: only seed what isn't already there
-        const existingSessions = await readSessions();
-        const existingBalls = await readBalls();
-        if (existingSessions.length === 0) {
-          await writeSessions(SEED_SESSIONS as Session[]);
-        }
-        if (existingBalls.length === 0) {
-          await writeBalls(INITIAL_BALLS as Ball[]);
-        }
-        await AsyncStorage.setItem(KEYS.SEEDED_FLAG, 'true');
+      let seeded: string | null = null;
+      try {
+        seeded = await AsyncStorage.getItem(KEYS.SEEDED_FLAG);
+      } catch (e) {
+        console.error('[mBowl] seed flag read failed; deferring init', e);
         return;
       }
 
-      // Steps 3 & 4: Restore check — only runs on subsequent launches
+      if (seeded !== 'true') {
+        const sessionsRead = await readSessionsResult();
+        const ballsRead = await readBallsResult();
+
+        // A read that threw tells us nothing about what's in the store. Bail
+        // without latching the flag so a genuine first launch still seeds later.
+        if (sessionsRead.status === 'error' || ballsRead.status === 'error') {
+          console.warn('[mBowl] storage read failed; skipping seed this launch');
+          return;
+        }
+
+        // S11: seed ONLY a key that has never been written. 'ok' (even with
+        // zero sessions) and 'invalid' both mean something is already there —
+        // seeding over either would destroy real history.
+        if (sessionsRead.status === 'missing') {
+          await writeSessions(SEED_SESSIONS as Session[]);
+        } else if (sessionsRead.status === 'invalid') {
+          console.warn('[mBowl] sessions key present but unreadable — not seeding over it');
+        }
+
+        if (ballsRead.status === 'missing') {
+          await writeBalls(INITIAL_BALLS as Ball[]);
+        } else if (ballsRead.status === 'invalid') {
+          console.warn('[mBowl] balls key present but unreadable — not seeding over it');
+        }
+
+        try {
+          await AsyncStorage.setItem(KEYS.SEEDED_FLAG, 'true');
+        } catch (e) {
+          console.error('[mBowl] seed flag write failed', e);
+        }
+        // Falls through to the restore check: an 'invalid' store on a
+        // never-seeded install can still recover from its shadow key.
+      }
+
+      // Steps 3 & 4: Restore check
       // Sessions
-      const sessions = await readSessions();
-      if (sessions.length === 0) {
+      const sessionsRead = await readSessionsResult();
+      if (sessionsRead.status !== 'error' && sessionsRead.value.length === 0) {
         try {
           const raw = await AsyncStorage.getItem(KEYS.SESSIONS_BACKUP);
           if (raw) {
@@ -55,13 +91,13 @@ export default function RootLayout() {
       }
 
       // Balls
-      const balls = await readBalls();
-      if (balls.length === 0) {
+      const ballsRead = await readBallsResult();
+      if (ballsRead.status !== 'error' && ballsRead.value.length === 0) {
         try {
           const raw = await AsyncStorage.getItem(KEYS.BALLS_BACKUP);
           if (raw) {
             const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed) && parsed.length > 0) {
+            if (isBallArray(parsed) && parsed.length > 0) {
               await writeBalls(parsed);
               console.warn('[mBowl] balls restored from backup');
             }

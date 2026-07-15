@@ -95,12 +95,18 @@ export default function EditSessionModal({
   onClose,
   onSave,
   onEditFrames,
+  initiallyDirty = false,
 }: {
   session: EditableSession | null;
   visible: boolean;
   onClose: () => void;
   onSave: (updated: EditableSession) => void;
-  onEditFrames?: (gameIndex: number) => void;
+  /** Receives the live form state, plus the current dirty flag so a cancelled
+   *  frame edit can restore it, so in-progress edits survive the frame editor. */
+  onEditFrames?: (gameIndex: number, liveSession: EditableSession, wasDirty: boolean) => void;
+  /** True when `session` already carries unsaved edits (e.g. returning from the
+   *  frame editor) — keeps Cancel guarded instead of silently discarding them. */
+  initiallyDirty?: boolean;
 }) {
   const [sessionType, setSessionType] = useState<SessionType>('league');
   const [dateStr, setDateStr] = useState('');
@@ -118,12 +124,18 @@ export default function EditSessionModal({
   const [ballPickerForIndex, setBallPickerForIndex] = useState<number | null>(null);
   const [availableBalls, setAvailableBalls] = useState<Ball[]>([]);
   const isDirty = useRef(false);
+  // Mirrored so the populate effect can read the latest value without taking it
+  // as a dependency — re-running that effect would wipe the edits it guards.
+  const initiallyDirtyRef = useRef(initiallyDirty);
+  initiallyDirtyRef.current = initiallyDirty;
 
   // Populate state from session whenever modal opens
   useEffect(() => {
     if (!session || !visible) return;
     let active = true;
-    isDirty.current = false;
+    // Normally a fresh open starts clean, but a session handed back from the
+    // frame editor already carries unsaved edits — stay dirty so Cancel warns.
+    isDirty.current = initiallyDirtyRef.current;
     setSessionType(session.type);
     setDateStr(session.date);
     setShowDatePicker(false);
@@ -165,15 +177,11 @@ export default function EditSessionModal({
     }
   }
 
-  function handleSave() {
-    if (!session) return;
-    const hasScore = games.some(g => g.score !== '');
-    if (!hasScore) {
-      Alert.alert('No scores entered', 'Enter at least one score before saving.');
-      return;
-    }
-
-    const updated: EditableSession = {
+  // Snapshot the live form state as a Session. Used by Save, and by Edit Frames
+  // so in-progress field edits survive the round trip to the frame editor.
+  function buildSession(): EditableSession | null {
+    if (!session) return null;
+    return {
       id: session.id,
       type: sessionType,
       date: dateStr,
@@ -199,6 +207,17 @@ export default function EditSessionModal({
       })),
       notes: sessionNotes.trim() || null,
     };
+  }
+
+  function handleSave() {
+    if (!session) return;
+    const hasScore = games.some(g => g.score !== '');
+    if (!hasScore) {
+      Alert.alert('No scores entered', 'Enter at least one score before saving.');
+      return;
+    }
+    const updated = buildSession();
+    if (!updated) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     onSave(updated);
@@ -488,7 +507,10 @@ export default function EditSessionModal({
                 {onEditFrames && (
                   <TouchableOpacity
                     style={styles.editFramesButton}
-                    onPress={() => onEditFrames(i)}
+                    onPress={() => {
+                      const live = buildSession();
+                      if (live) onEditFrames(i, live, isDirty.current);
+                    }}
                   >
                     <Text style={styles.editFramesText}>
                       {g.frames && g.frames.length > 0 ? 'Edit Frames' : 'Log Frames'}

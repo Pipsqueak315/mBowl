@@ -25,7 +25,7 @@ import * as Haptics from 'expo-haptics';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import {
-  readSessions,
+  readSessionsResult,
   writeSessions,
   readBalls,
   readDraft,
@@ -506,8 +506,20 @@ export default function LogScreen() {
       notes: sessionNotes.trim() || null,
     };
 
-    const existing = (await readSessions()) ?? [];
-    await writeSessions([session, ...existing]);
+    // writeSessions is a full replace — `existing` becomes the entire store.
+    // A failed or corrupt read reports [], and appending to that would erase
+    // every saved session. Refuse instead; the draft is left untouched so the
+    // just-entered session survives, and the shadow-key restore on next launch
+    // repairs the store.
+    const existingRead = await readSessionsResult();
+    if (existingRead.status === 'invalid' || existingRead.status === 'error') {
+      Alert.alert(
+        'Could not save session',
+        'Your saved sessions could not be read. This session was not saved, because saving now would overwrite your history. Your entry is kept as a draft — please relaunch the app and try again.'
+      );
+      return;
+    }
+    await writeSessions([session, ...existingRead.value]);
     void writeBackup();
     await writeDraft(null);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);

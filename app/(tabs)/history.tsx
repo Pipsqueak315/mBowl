@@ -579,12 +579,19 @@ export default function HistoryScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  // True when editingSession carries unsaved edits returned from the frame editor
+  const [editModalDirty, setEditModalDirty] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
 
-  // Tracks a pending frame-edit: session snapshot + game index, used to reopen modal on return
-  const pendingFrameEditRef = useRef<{ session: Session; gameIndex: number } | null>(null);
+  // Tracks a pending frame-edit: live session snapshot + game index + whether the
+  // modal already had unsaved edits, used to reopen the modal on return either way
+  const pendingFrameEditRef = useRef<{
+    session: Session;
+    gameIndex: number;
+    wasDirty: boolean;
+  } | null>(null);
   // When set, triggers a router.push after the edit modal state update has been applied
   const shouldPushFramesRef = useRef<{
     gameIndex: number;
@@ -629,19 +636,29 @@ export default function HistoryScreen() {
         setSessions(raw);
         setLoaded(true);
 
-        // If returning from a frame edit, reopen the edit modal with updated data
+        // Only act when WE sent the user to the frame editor. The Log tab consumes
+        // this same key unguarded, so an unguarded read here would swallow its result.
+        const pending = pendingFrameEditRef.current;
+        if (!pending) return;
+
         const resultRaw = await AsyncStorage.getItem(FRAME_RESULT_KEY);
-        if (!active) return;
-        if (resultRaw && pendingFrameEditRef.current) {
+        if (!active) return; // leave the ref set — a later focus retries cleanly
+        pendingFrameEditRef.current = null;
+
+        // No result means the editor was left without saving — Cancel, swipe-back,
+        // or hardware back. Reopen on the in-progress edits instead of dropping the
+        // user back on the list with their edits silently gone.
+        let reopenWith: Session = pending.session;
+        let dirty = pending.wasDirty;
+
+        if (resultRaw) {
           const result = JSON.parse(resultRaw) as {
             gameIndex: number;
             score: number;
             frames: ThrowEntry[];
           };
           await AsyncStorage.removeItem(FRAME_RESULT_KEY);
-          const pending = pendingFrameEditRef.current;
-          pendingFrameEditRef.current = null;
-          const updatedSession: Session = {
+          reopenWith = {
             ...pending.session,
             games: pending.session.games.map((g, i) =>
               i === result.gameIndex
@@ -649,10 +666,14 @@ export default function HistoryScreen() {
                 : g
             ),
           };
-          if (active) {
-            setEditingSession(updatedSession);
-            setEditModalOpen(true);
-          }
+          // Frames just changed and nothing is persisted yet — Cancel must confirm.
+          dirty = true;
+        }
+
+        if (active) {
+          setEditingSession(reopenWith);
+          setEditModalOpen(true);
+          setEditModalDirty(dirty);
         }
       };
       load();
@@ -671,6 +692,7 @@ export default function HistoryScreen() {
   const handleEdit = useCallback((session: Session) => {
     setEditingSession(session);
     setEditModalOpen(true);
+    setEditModalDirty(false);
   }, []);
 
   const handleSaveEdit = useCallback((updated: EditableSession) => {
@@ -682,20 +704,28 @@ export default function HistoryScreen() {
     });
     setEditModalOpen(false);
     setEditingSession(null);
+    setEditModalDirty(false);
   }, []);
 
-  const handleEditFrames = useCallback((gameIndex: number) => {
-    if (!editingSession) return;
-    const game = editingSession.games[gameIndex];
-    const priorScores = editingSession.games
+  // liveSession is the modal's in-progress state, not the pre-edit snapshot —
+  // carrying it through the round trip is what preserves unsaved field edits.
+  // wasDirty rides along so a cancelled trip restores the modal's dirty state
+  // exactly, rather than inventing one.
+  const handleEditFrames = useCallback((
+    gameIndex: number,
+    liveSession: EditableSession,
+    wasDirty: boolean,
+  ) => {
+    const game = liveSession.games[gameIndex];
+    const priorScores = liveSession.games
       .slice(0, gameIndex)
       .map(g => g.score ?? 0)
       .join(',');
     const initialFrames = game?.frames ? JSON.stringify(game.frames) : '';
-    pendingFrameEditRef.current = { session: editingSession, gameIndex };
+    pendingFrameEditRef.current = { session: liveSession, gameIndex, wasDirty };
     shouldPushFramesRef.current = { gameIndex, priorScores, initialFrames };
     setEditModalOpen(false);
-  }, [editingSession]);
+  }, []);
 
   const filtered =
     filter === 'all' ? sessions : sessions.filter((s) => s.type === filter);
@@ -774,9 +804,11 @@ export default function HistoryScreen() {
         onClose={() => {
           setEditModalOpen(false);
           setEditingSession(null);
+          setEditModalDirty(false);
         }}
         onSave={handleSaveEdit}
         onEditFrames={handleEditFrames}
+        initiallyDirty={editModalDirty}
       />
     </>
   );
