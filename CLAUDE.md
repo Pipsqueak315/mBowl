@@ -1,7 +1,7 @@
 # mBowl — Claude Code Instructions
 
 **Full spec:** `mBowl-SPEC.md` in this project folder. Read it before writing any code.
-**Session state:** `mBowl-SessionBrief-REV17.md` — check this for current phase and notes.
+**Session state:** `mBowl-SessionBrief-REV18.md` — check this for current phase and notes.
 
 ---
 
@@ -13,7 +13,7 @@ A personal iPhone bowling tracker and reference app built in React Native via Ex
 
 ## Current Phase
 
-**Check mBowl-SessionBrief-REV13.md for current phase before starting any session.**
+**Check mBowl-SessionBrief-REV18.md for current phase before starting any session.**
 
 At the top of each session Marcus will tell you which phase he's on. Read the Spec for full context on that phase before writing any code.
 
@@ -79,15 +79,26 @@ This is an **Expo Router** project — NOT bare React Navigation.
 
 ## Storage Keys
 
-| Key | Contents |
-|---|---|
-| `mbowl_sessions_v1` | Full sessions array |
-| `mbowl_balls_v1` | Ball roster |
-| `mbowl_reference_v1` | Reference tab editable content |
-| `mbowl_settings_v1` | Season dates + preferences |
-| `mbowl_draft_v1` | In-progress Log tab draft (includes frame + pin data) |
+All keys live in the exported `KEYS` object in `src/storage.ts`. **Never write a raw key string at a call site — always `KEYS.X`.**
+
+| `KEYS` name | Key | Contents |
+|---|---|---|
+| `SESSIONS` | `mbowl_sessions_v1` | Full sessions array |
+| `SESSIONS_BACKUP` | `mbowl_sessions_backup_v1` | Shadow copy — written on every `writeSessions` |
+| `BALLS` | `mbowl_balls_v1` | Ball roster |
+| `BALLS_BACKUP` | `mbowl_balls_backup_v1` | Shadow copy — written on every `writeBalls` |
+| `REFERENCE` | `mbowl_reference_v1` | Reference tab editable content |
+| `SETTINGS` | `mbowl_settings_v1` | Season dates + preferences + goals |
+| `DRAFT` | `mbowl_draft_v1` | In-progress Log tab draft (includes frame + pin data) |
+| `SEEDED_FLAG` | `mbowl_seeded_v1` | `'true'` once seeding has been decided — seeds run at most once, ever |
 
 Write strategy: full replace on every save, delete, or edit.
+
+`REFERENCE` and `SETTINGS` have **no shadow key** — a bad write to either is permanent. This is why `restoreBackup` shape-checks every value before writing anything.
+
+**Reading (Phase 20):** `readSessions()` returns a plain array and is for **display-only** callers. Anything that **writes** based on what it read must use `readSessionsResult()` / `readBallsResult()`, which return `{ status, value }` where status is `'missing' | 'ok' | 'invalid' | 'error'`. A bare `[]` cannot distinguish "genuinely empty" from "corrupt" or "read failed" — **never act on `[]` alone.** Only `missing` may be seeded over. See `mBowl-SessionBrief-REV18.md` → Fix Session C.
+
+`FRAME_RESULT_KEY` (the log-frames → caller result channel) is exported from `app/log-frames.tsx` and is **not** in `KEYS` (audit N4, deferred).
 
 ---
 
@@ -151,22 +162,29 @@ mBowl/
 │       └── reference.tsx    — Reference tab (5 sub-tabs)
 ├── components/
 │   ├── ScalePressable.tsx       — animated press-scale wrapper
-│   ├── SettingsContent.tsx      — Settings modal content (dates + ball roster)
+│   ├── SettingsContent.tsx      — Settings modal content (dates + ball roster + goals + restore)
+│   ├── EditSessionModal.tsx     — session edit sheet (buildSession shared builder)
 │   ├── SignalsTab.tsx           — Reference: Signals sub-tab
 │   ├── PocketDiagnosticsTab.tsx — Reference: Pocket Diagnostics sub-tab
 │   ├── PatternsTab.tsx          — Reference: Patterns sub-tab
 │   ├── PinDeck.tsx              — visual pin deck input component
 │   ├── haptic-tab.tsx           — tab bar haptic wrapper (active, do not delete)
 │   └── ui/
-│       └── icon-symbol.ios.tsx  — SF Symbol routing (active, do not delete)
+│       ├── icon-symbol.ios.tsx  — SF Symbol routing (active, do not delete)
+│       └── icon-symbol.tsx      — TS resolution stub; Metro resolves .ios.tsx at runtime
 ├── src/
-│   ├── storage.js           — AsyncStorage read/write helpers (try/catch wrapped)
-│   ├── seeds.js             — 17 historical sessions
+│   ├── storage.ts           — AsyncStorage read/write helpers + KEYS + read states
+│   ├── types.ts             — canonical shared types (do not redefine locally)
+│   ├── backup.ts            — writeBackup / restoreBackup (mBowl-backup.json)
+│   ├── notifications.ts     — SideStore cert reminder (6-day repeating, iOS only)
+│   ├── seeds.js             — 18 historical sessions (ids 1001–1018)
 │   ├── balls.js             — 9-ball roster
-│   └── leaveUtils.js        — leave extraction + named leave mapping
+│   └── leaveUtils.js        — leave extraction + named leaves + isSplit (single source of truth)
 └── scripts/
     └── gen-assets.js        — icon/splash asset generation
 ```
+
+`_archive/` also exists (retired boilerplate). It is still inside the TS graph — `tsconfig.json` includes `**/*.tsx` with no `exclude` (audit S15, deferred).
 
 ---
 
@@ -201,7 +219,7 @@ Pin index mapping: indices 0-9 = pins 1-10. Layout:
 | History default sort | Most recent first |
 | Dark mode | Only — no light mode in v1 |
 | Accent color | Teal #00CEC9 |
-| Historical data | 17 sessions seeded on first launch |
+| Historical data | 18 sessions seeded on first launch (ids 1001–1018) |
 | Ball picker | Full-screen modal, sorted by strength weakest to strongest |
 | Frame entry modes | Live / Post-Game toggle + Pins / Quick toggle |
 | Gutter notation | — (dash) |

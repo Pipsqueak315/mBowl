@@ -1,5 +1,6 @@
-// 17 historical league sessions — 2025-26 season
-// Seeded on first launch if mbowl_sessions_v1 is empty.
+// 18 historical league sessions (ids 1001–1018) — 2025-26 season
+// Seeded on first launch only when mbowl_sessions_v1 has never been written.
+// A corrupt or unreadable store is never seeded over — see src/storage.ts read states.
 
 function makeGames(scores) {
   return scores.map((score, i) => ({

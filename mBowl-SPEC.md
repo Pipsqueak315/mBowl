@@ -521,3 +521,41 @@ Native iOS modal sheet from gear icon on any tab.
 | App icon | Deferred to Phase 12 |
 | Historical data | 17 sessions seeded on first launch |
 | Adding new ball to Arsenal | Get motion profile from Claude → paste into editable field in app |
+
+---
+
+# Appendix — Reality Deltas (post-lock)
+
+**Added:** July 14, 2026 (REV18 doc reconciliation) · **Status:** append-only record
+
+> This spec is a **locked document**. Nothing above this line has been rewritten, and nothing above it should be.
+>
+> This appendix records where **shipped reality diverges from the locked text**. Where the two disagree, **shipped reality wins and this appendix is the tiebreaker** — the text above is preserved as the original intent, not as a description of the current app. Anything not listed here still stands as written.
+>
+> Current state of the build lives in `mBowl-SessionBrief-REV18.md`.
+
+| # | Spec says | Shipped reality | Where |
+|---|---|---|---|
+| 1 | "Reference nav: Horizontal sub-tabs, **4 tabs**" · "Reference sections: Position · Signals · **Spares** · Mental" (:511–512) | **5 sub-tabs.** Spares was renamed **Pocket Diagnostics**, and **Patterns** was added: Position · Signals · Pocket Diagnostics · Mental · Patterns | Phases 9, 10A–10C |
+| 2 | "**Edit:** Not in v1. Post-ship." (:324) | **Both edit paths ship.** Session edit (swipe left → Edit → `EditSessionModal`) landed in Phase 15A; frame edit (Edit Frames → `log-frames` round trip) landed in Phase 19 | Phases 15A, 19 |
+| 3 | "Stats layout: Hero avg → High game/series → Strike/Spare/Opens → Charts" (:500) — 5 blocks | **Stats carries more.** Also: Leave Stats (Common Leaves + All Tracked Leaves), Score Distribution histogram, By Ball, By Game Number, and **Makeable Spare %** | Phases 13, 15B, 19, 20 |
+| 4 | "Historical data: **17** sessions seeded on first launch" (:522) | **18** sessions, ids **1001–1018**. Verified by count, not by comment — `seeds.js`'s own header also said 17 and has been corrected | Phase 2 (drift caught in Phase 20) |
+| 5 | "App icon: **Deferred to Phase 12**" (:521) | **Shipped** (`6d55680`) | post-Phase 19 |
+
+### Notes on #1 and #3
+
+The "Spares → Pocket Diagnostics" rename and the Patterns sub-tab were agreed in a Mar 11 spec-update session; the locked table at the foot of this spec was never updated to match. The Stats blocks accreted across four phases, each individually agreed.
+
+### Note on #4 — why the seed count matters
+
+Nothing depends on the number being 17 vs 18. It is recorded because **three separate documents asserted 17** (this spec, `CLAUDE.md`, and `seeds.js`'s own header comment) and all three were wrong — the discrepancy only surfaced when a Phase 20 verification harness asserted 17 and failed against the real data. A fact repeated in three places is not a verified fact.
+
+### Bowling ruling — 2-8-10 and 4-7-9 are SPLITS (Phase 20)
+
+Not a spec conflict, but a **bowling decision** recorded here so it is not relitigated:
+
+- **2-8-10 and 4-7-9 classify as splits.** Each strands a pin the others cannot reach.
+- The **"bucket" / "cluster" labels in this spec are naming conventions, not makeability calls.** A leave having a friendly name does not make it a single-ball convert.
+- **No `NEVER_SPLIT` override exists, and none should be added.**
+- Rationale: classifying them makeable would pad the Makeable Spare % denominator with genuinely hard converts, making the metric lie about spare-shooting ability — the only thing it exists to measure.
+- `leaveUtils.isSplit()` is the **single source of truth**, derived at read time from `pinsStanding` and never persisted.
