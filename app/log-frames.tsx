@@ -154,16 +154,27 @@ function calculateMaxScore(frames: FrameData[]): number {
 // Strike streak
 // ---------------------------------------------------------------------------
 
-// Count consecutive 'X' throws from the most recent throw backward.
+// Count consecutive 'X' throws ending at the most recently thrown ball.
+// Walk frames backward from the last frame that has any throws; an empty
+// (skipped) frame is a gap that ends the streak, as does any non-strike
+// throw. The 10th frame's multiple strikes each count.
 function getStrikeStreak(frames: FrameData[]): number {
-  const allThrows: string[] = [];
-  for (let fi = 0; fi < 10; fi++) {
-    for (const t of frames[fi].throws) allThrows.push(t);
+  let lastPlayed = -1;
+  for (let fi = 9; fi >= 0; fi--) {
+    if (frames[fi].throws.length > 0) { lastPlayed = fi; break; }
   }
+  if (lastPlayed === -1) return 0;
+
   let streak = 0;
-  for (let i = allThrows.length - 1; i >= 0; i--) {
-    if (allThrows[i] === 'X') streak++;
-    else break;
+  for (let fi = lastPlayed; fi >= 0; fi--) {
+    const throws = frames[fi].throws;
+    if (throws.length === 0) break; // skipped frame → gap → streak ends
+    let broke = false;
+    for (let ti = throws.length - 1; ti >= 0; ti--) {
+      if (throws[ti] === 'X') streak++;
+      else { broke = true; break; }
+    }
+    if (broke) break;
   }
   return streak;
 }

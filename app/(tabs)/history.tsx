@@ -28,6 +28,7 @@ import { FRAME_RESULT_KEY } from '@/app/log-frames';
 import type { ThrowEntry, GameEntry, Session } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
+import { FrameGrid } from '@/components/FrameGrid';
 
 type FilterType = 'all' | 'league' | 'makeup' | 'practice' | 'tournament';
 
@@ -137,56 +138,6 @@ function calcFrameStats(
   return { strikes: totalStrikes, sparesPct, opens: totalOpens };
 }
 
-// Compact 5-dot × 4-row pin diagram used inside each frame box.
-// Only rendered when pinsStanding data exists AND at least one pin is standing.
-const MINI_PIN_ROWS: number[][] = [[6, 7, 8, 9], [3, 4, 5], [1, 2], [0]];
-
-function MiniPinDeck({ pinsStanding }: { pinsStanding: boolean[] }) {
-  if (!pinsStanding.some(s => s)) return null; // all down → nothing interesting to show
-  return (
-    <View style={styles.miniDeck}>
-      {MINI_PIN_ROWS.map((row, ri) => (
-        <View key={ri} style={styles.miniRow}>
-          {row.map(idx => (
-            <View
-              key={idx}
-              style={[styles.miniPin, pinsStanding[idx] ? styles.miniPinUp : styles.miniPinDown]}
-            />
-          ))}
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function FrameGrid({ frames }: { frames: ThrowEntry[] }) {
-  return (
-    <View style={styles.frameGrid}>
-      {frames.slice(0, 10).map((frame, fi) => {
-        const is10th = fi === 9;
-        const throws = is10th ? frame.throws.slice(0, 3) : frame.throws.slice(0, 2);
-        // Show mini pin diagram for the state after the first ball (the leave)
-        const leaveData = frame.pinsStanding?.[0] ?? null;
-        return (
-          <View key={fi} style={[styles.frameBox, is10th && styles.frameBoxWide]}>
-            <View style={styles.frameThrows}>
-              {throws.map((t, ti) => (
-                <Text key={ti} style={[styles.frameThrowChip, t === 'X' && styles.strikeChip]}>
-                  {t}
-                </Text>
-              ))}
-            </View>
-            {leaveData && <MiniPinDeck pinsStanding={leaveData} />}
-            <View style={styles.frameNumberRow}>
-              <Text style={styles.frameNumberText}>{fi + 1}</Text>
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
 function MadeCutBadge({ madeCut }: { madeCut: string | null }) {
   if (!madeCut || madeCut === 'N/A') {
     return (
@@ -275,7 +226,7 @@ function ShareCardView({ session }: { session: Session }) {
               <View key={i} style={sc.gameFrameRow}>
                 <Text style={sc.gameFrameLabel}>G{g.game}</Text>
                 <View style={{ flex: 1 }}>
-                  <FrameGrid frames={g.frames} />
+                  <FrameGrid frames={g.frames} variant="full" />
                 </View>
               </View>
             ) : null
@@ -494,7 +445,7 @@ function SessionCard({
                   <Text style={styles.gameNotes}>{g.notes}</Text>
                 ) : null}
                 {g.frames && g.frames.length === 10 ? (
-                  <FrameGrid frames={g.frames} />
+                  <FrameGrid frames={g.frames} variant="full" />
                 ) : null}
               </View>
             ))}
@@ -960,72 +911,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontStyle: 'italic',
   },
-
-  // Frame grid
-  frameGrid: {
-    flexDirection: 'row',
-    marginTop: 6,
-    borderWidth: 0.5,
-    borderColor: '#38383A',
-    borderRadius: 6,
-    overflow: 'hidden',
-  },
-  frameBox: {
-    flex: 1,
-    borderRightWidth: 0.5,
-    borderRightColor: '#38383A',
-    alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 2,
-  },
-  frameBoxWide: {
-    flex: 1.4,
-    borderRightWidth: 0,
-  },
-  frameThrows: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 2,
-    minHeight: 16,
-  },
-  frameThrowChip: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  strikeChip: {
-    color: '#00CEC9',
-  },
-  frameNumberRow: {
-    marginTop: 2,
-    borderTopWidth: 0.5,
-    borderTopColor: '#38383A',
-    width: '100%',
-    alignItems: 'center',
-    paddingTop: 2,
-  },
-  frameNumberText: {
-    color: '#48484A',
-    fontSize: 8,
-  },
-
-  // Mini pin diagram (inside FrameGrid frame boxes)
-  miniDeck: {
-    alignItems: 'center',
-    gap: 1.5,
-    marginVertical: 2,
-  },
-  miniRow: {
-    flexDirection: 'row',
-    gap: 1.5,
-  },
-  miniPin: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-  },
-  miniPinUp: { backgroundColor: '#00CEC9' },
-  miniPinDown: { backgroundColor: '#38383A' },
 
   // Stats row
   statsRow: {

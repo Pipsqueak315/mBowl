@@ -24,6 +24,7 @@ import * as Haptics from 'expo-haptics';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
+import { FrameGrid } from '@/components/FrameGrid';
 import {
   readSessionsResult,
   writeSessions,
@@ -117,57 +118,6 @@ function StrengthDots({ strength }: { strength: number }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Mini scorecard sub-components (same layout as History expanded card)
-// ---------------------------------------------------------------------------
-
-const MINI_PIN_ROWS: number[][] = [[6, 7, 8, 9], [3, 4, 5], [1, 2], [0]];
-
-function MiniPinDeck({ pinsStanding }: { pinsStanding: boolean[] }) {
-  if (!pinsStanding.some(s => s)) return null;
-  return (
-    <View style={styles.miniDeck}>
-      {MINI_PIN_ROWS.map((row, ri) => (
-        <View key={ri} style={styles.miniRow}>
-          {row.map(idx => (
-            <View
-              key={idx}
-              style={[styles.miniPin, pinsStanding[idx] ? styles.miniPinUp : styles.miniPinDown]}
-            />
-          ))}
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function FrameGrid({ frames }: { frames: ThrowEntry[] }) {
-  return (
-    <View style={styles.frameGrid}>
-      {frames.slice(0, 10).map((frame, fi) => {
-        const is10th = fi === 9;
-        const throws = is10th ? frame.throws.slice(0, 3) : frame.throws.slice(0, 2);
-        const leaveData = frame.pinsStanding?.[0] ?? null;
-        return (
-          <View key={fi} style={[styles.frameBox, is10th && styles.frameBoxWide]}>
-            <View style={styles.frameThrows}>
-              {throws.map((t, ti) => (
-                <Text key={ti} style={[styles.frameThrowChip, t === 'X' && styles.strikeChip]}>
-                  {t}
-                </Text>
-              ))}
-            </View>
-            {leaveData && <MiniPinDeck pinsStanding={leaveData} />}
-            <View style={styles.frameNumberRow}>
-              <Text style={styles.frameNumberText}>{fi + 1}</Text>
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
 type GameRowProps = {
   game: Game;
   index: number;
@@ -226,7 +176,7 @@ function GameRow({ game, index, onChange, onPickBall, onLogFrames }: GameRowProp
       {/* Inline mini scorecard — shown when frame data exists */}
       {game.frames && game.frames.length > 0 && (
         <View style={styles.miniScorecardWrapper}>
-          <FrameGrid frames={game.frames} />
+          <FrameGrid frames={game.frames} variant="compact" />
         </View>
       )}
 
@@ -1054,31 +1004,6 @@ const styles = StyleSheet.create({
   miniScorecardWrapper: {
     marginBottom: 10,
   },
-  frameGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 3,
-  },
-  frameBox: {
-    width: 28,
-    backgroundColor: '#2C2C2E',
-    borderRadius: 4,
-    paddingVertical: 3,
-    paddingHorizontal: 2,
-    alignItems: 'center',
-    gap: 2,
-  },
-  frameBoxWide: { width: 38 },
-  frameThrows: { flexDirection: 'row', gap: 1, flexWrap: 'wrap', justifyContent: 'center' },
-  frameThrowChip: { fontSize: 9, fontWeight: '600', color: '#FFFFFF' },
-  strikeChip: { color: '#00CEC9' },
-  frameNumberRow: { marginTop: 1 },
-  frameNumberText: { fontSize: 7, color: '#48484A', fontWeight: '600' },
-  miniDeck: { gap: 1 },
-  miniRow: { flexDirection: 'row', justifyContent: 'center', gap: 1 },
-  miniPin: { width: 4, height: 4, borderRadius: 2 },
-  miniPinUp: { backgroundColor: '#FFFFFF' },
-  miniPinDown: { backgroundColor: '#38383A' },
   gameNotesInput: {
     fontSize: 14,
     color: '#8E8E93',
