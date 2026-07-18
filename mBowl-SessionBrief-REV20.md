@@ -9,8 +9,9 @@
 **Phase:** Phase 22 complete -- Stats tab compaction redesign (one-screen layout through Score Distribution, 200/300/500 type scale, hero strip + two 4-across compact-cell groups) + session-type filter pills (League / Tournament / Practice / Makeup, AND-stacked with the season window)
 **Last completed:** July 17, 2026 -- commit `528d060`, committed + pushed, shipped OTA to production, confirmed live on device
 **Up next:**
+- **Housekeeping / deferred audit cleanup** -- **S15** (`_archive` dead boilerplate still inside the TS graph), **S16** (`MiniPinDeck` + `FrameGrid` duplicated + already diverged across log.tsx / history.tsx), **N3** (strike-streak false "2 IN A ROW" when a frame is skipped), and the remaining **NICE** items (`docs/PHASE20-AUDIT.md`). See the Deferred table below.
+- **App-wide typography unification** -- propagate the Stats 200/300/500 type scale (hero 200 · values 300 · labels/eyebrows 500; 700/bold killed except color-coded values at a 400 ceiling) across the Log, History, Reference, and Settings surfaces so the whole app reads as one system.
 - **Color-threshold calibration for the newer stat cards** (First Ball Avg, Bounce-Back %, Doubles %, Clean Games) -- still white-only on purpose. **Revisit ~early August 2026**, after 2-3 weeks of real logged data, to set green/orange/red bands off actual distributions rather than guesses.
-- Next feature phase TBD.
 
 > **The Mac rebuild is DONE.** The production-channel binary is installed on the phone and OTA delivery is verified end-to-end (verification-marker round-trip + Phase 21 both landed live). Every JS-only change now ships via `eas update --branch production` with **no Mac involvement** -- unless a native module or SDK version changes.
 
