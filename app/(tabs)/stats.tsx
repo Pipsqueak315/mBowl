@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useCallback, useMemo, useEffect } from 'react';
+import { useState, useLayoutEffect, useCallback, useMemo, useEffect, type ReactNode } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,12 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import SettingsContent from '@/components/SettingsContent';
 import { LineChart } from 'react-native-chart-kit';
 import { readSessions, readSettings } from '@/src/storage';
-import type { GameEntry, Session, Settings, ThrowEntry } from '@/src/types';
+import type { Session, Settings, ThrowEntry } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import { computeLeaveStats } from '@/src/leaveUtils';
@@ -40,6 +41,9 @@ interface ChartPoint {
 }
 
 type ToggleMode = 'season' | 'alltime';
+
+// Session-type filter (Phase 22). 'all' + the four Session['type'] values.
+type TypeFilter = 'all' | Session['type'];
 
 interface LeaveEntry {
   pins: number[];
@@ -70,7 +74,7 @@ const CHART_CONFIG = {
   color: (opacity = 1) => 'rgba(0, 206, 201, ' + String(opacity) + ')',
   labelColor: (opacity = 1) => 'rgba(142, 142, 147, ' + String(opacity) + ')',
   propsForDots: {
-    r: '4',
+    r: '3',
     strokeWidth: '2',
     stroke: '#00CEC9',
     fill: '#1C1C1E',
@@ -79,6 +83,22 @@ const CHART_CONFIG = {
     stroke: '#38383A',
     strokeDasharray: '',
   },
+};
+
+// --- Session-type filter pills (Phase 22) ---
+const TYPE_PILLS: { key: TypeFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'league', label: 'Lg' },
+  { key: 'tournament', label: 'Trn' },
+  { key: 'practice', label: 'Prc' },
+  { key: 'makeup', label: 'Mk' },
+];
+
+const TYPE_FULL_LABEL: Record<Exclude<TypeFilter, 'all'>, string> = {
+  league: 'League',
+  tournament: 'Tournament',
+  practice: 'Practice',
+  makeup: 'Makeup',
 };
 
 // --- Leave stats helpers ---
@@ -138,17 +158,26 @@ function formatDateLabel(date: string): string {
   return parseInt(p[1]) + '/' + parseInt(p[2]);
 }
 
+// Filter by the season window (when in season mode with dates set) AND by the
+// selected session type. AND logic: a session must satisfy both to survive.
+// This is the single choke point — every downstream memo reads `filtered`, so
+// the type filter propagates through the entire tab from here.
 function filterSessions(
   sessions: Session[],
   mode: ToggleMode,
   settings: Settings,
+  typeFilter: TypeFilter,
 ): Session[] {
-  if (mode === 'alltime' || !settings?.seasonStart || !settings?.seasonEnd) {
-    return sessions;
+  let result = sessions;
+  if (mode === 'season' && settings?.seasonStart && settings?.seasonEnd) {
+    result = result.filter(
+      s => s.date >= settings.seasonStart! && s.date <= settings.seasonEnd!,
+    );
   }
-  return sessions.filter(
-    s => s.date >= settings.seasonStart! && s.date <= settings.seasonEnd!,
-  );
+  if (typeFilter !== 'all') {
+    result = result.filter(s => s.type === typeFilter);
+  }
+  return result;
 }
 
 function calcMetrics(sessions: Session[]): Metrics | null {
@@ -419,24 +448,35 @@ const LEAVE_SORTS = [
 ] as const;
 type LeaveSort = (typeof LEAVE_SORTS)[number]['key'];
 
-const NA_LABELS = ['Strike %', 'Spare %', 'Opens/Game'] as const;
-
-// Small stat cell matching the Strike%/Spare%/Opens row exactly. White value,
-// no colour thresholds; null value renders the shared "Log frames to unlock" N/A.
-function StatCell({ label, value }: { label: string; value: string | null }) {
-  if (value == null) {
-    return (
-      <View style={[styles.card, styles.flex1, styles.naCard]}>
-        <Text style={styles.cardLabel}>{label}</Text>
-        <IconSymbol name="lock.fill" size={18} color="#48484A" />
-        <Text style={styles.naText}>Log frames to unlock.</Text>
-      </View>
-    );
-  }
+// Compact 4-across grid cell. White '300' value by default; pass `color` to
+// colour-code a value (weight bumps to '400' for legibility). `value == null`
+// AND no children → the locked state (frame-derived metric not yet unlocked),
+// restyled to a small lock glyph in place of the value. Same gating behaviour
+// as the old "Log frames to unlock" cards, just compacted.
+function GridCell({
+  label,
+  value,
+  color,
+  children,
+}: {
+  label: string;
+  value?: string | null;
+  color?: string;
+  children?: ReactNode;
+}) {
+  const locked = value == null && children == null;
   return (
-    <View style={[styles.card, styles.flex1]}>
-      <Text style={styles.cardLabel}>{label}</Text>
-      <Text style={styles.cardNumber}>{value}</Text>
+    <View style={styles.gridCell}>
+      <Text style={styles.gridCellLabel} numberOfLines={1}>{label}</Text>
+      {locked ? (
+        <IconSymbol name="lock.fill" size={13} color="#48484A" />
+      ) : children != null ? (
+        children
+      ) : (
+        <Text style={[color ? styles.gridCellValueColored : styles.gridCellValue, color ? { color } : null]}>
+          {value}
+        </Text>
+      )}
     </View>
   );
 }
@@ -445,6 +485,7 @@ function StatCell({ label, value }: { label: string; value: string | null }) {
 export default function StatsScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toggle, setToggle] = useState<ToggleMode>('season');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [settings, setSettings] = useState<Settings>({});
   const [loading, setLoading] = useState(true);
@@ -472,8 +513,9 @@ export default function StatsScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      // Leaves sort has no persisted preference — reset to Frequency each visit.
+      // Neither the leaves sort nor the type filter is persisted — reset both each visit.
       setLeaveSort('frequency');
+      setTypeFilter('all');
       (async () => {
         setLoading(true);
         const [sessionsData, settingsData] = await Promise.all([
@@ -494,8 +536,8 @@ export default function StatsScreen() {
 
   const hasSeasonDates = !!(settings?.seasonStart && settings?.seasonEnd);
   const filtered = useMemo(
-    () => filterSessions(sessions, toggle, settings),
-    [sessions, toggle, settings],
+    () => filterSessions(sessions, toggle, settings, typeFilter),
+    [sessions, toggle, settings, typeFilter],
   );
   const metrics = useMemo(() => calcMetrics(filtered), [filtered]);
   const seriesChartPoint = useMemo(
@@ -544,26 +586,24 @@ export default function StatsScreen() {
     return arr;
   }, [leaveStats.leaves, leaveSort]);
 
-  // Goal deltas — memoized so they don't recalculate on every render
+  // Average goal delta — memoized. "+X.X vs target" / "-X.X vs target" / "On target".
   const avgGoalDelta = useMemo(() => {
     const target = settings.targetAverage;
     if (target == null || !metrics) return null;
     const diff = metrics.avg - target;
     if (Math.abs(diff) <= 0.5) return { text: 'On target', color: '#00CEC9' };
-    if (diff > 0) return { text: `+${diff.toFixed(1)} above target`, color: '#30D158' };
-    return { text: `${diff.toFixed(1)} below target`, color: '#FF453A' };
+    if (diff > 0) return { text: `+${diff.toFixed(1)} vs target`, color: '#30D158' };
+    return { text: `${diff.toFixed(1)} vs target`, color: '#FF453A' };
   }, [metrics, settings.targetAverage]);
 
-  const seriesGoalDelta = useMemo(() => {
-    const target = settings.targetSeries;
-    if (target == null || !metrics) return null;
-    const diff = metrics.highSeries - target;
-    if (diff === 0) return { text: 'On target', color: '#00CEC9' };
-    if (diff > 0) return { text: `+${diff} above target`, color: '#30D158' };
-    return { text: `${diff} below target`, color: '#FF453A' };
-  }, [metrics, settings.targetSeries]);
-
   useEffect(() => { setShowAllLeaves(false); }, [filtered]);
+
+  const emptyTitle =
+    typeFilter === 'all' ? 'No sessions yet' : `No ${TYPE_FULL_LABEL[typeFilter]} sessions`;
+  const emptySubtitle =
+    typeFilter === 'all'
+      ? 'Log your first session to see stats here.'
+      : 'Nothing matches this filter yet.';
 
   return (
     <>
@@ -572,30 +612,53 @@ export default function StatsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Season Toggle */}
-        <View style={styles.toggleSection}>
-          <View style={styles.toggleContainer}>
+        {/* Controls row — season segmented + type pills share one line */}
+        <View style={styles.controlsRow}>
+          <View style={styles.segmented}>
             <ScalePressable
-              style={[styles.toggleBtn, toggle === 'season' && styles.toggleBtnActive]}
-              onPress={() => setToggle('season')}
+              style={[styles.segBtn, toggle === 'season' && styles.segBtnActive]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setToggle('season');
+              }}
             >
-              <Text style={[styles.toggleText, toggle === 'season' && styles.toggleTextActive]}>
-                Current Season
-              </Text>
+              <Text style={[styles.segText, toggle === 'season' && styles.segTextActive]}>Season</Text>
             </ScalePressable>
             <ScalePressable
-              style={[styles.toggleBtn, toggle === 'alltime' && styles.toggleBtnActive]}
-              onPress={() => setToggle('alltime')}
+              style={[styles.segBtn, toggle === 'alltime' && styles.segBtnActive]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setToggle('alltime');
+              }}
             >
-              <Text style={[styles.toggleText, toggle === 'alltime' && styles.toggleTextActive]}>
-                All-Time
-              </Text>
+              <Text style={[styles.segText, toggle === 'alltime' && styles.segTextActive]}>All</Text>
             </ScalePressable>
           </View>
-          {toggle === 'season' && !hasSeasonDates && (
-            <Text style={styles.noSeasonHint}>No season dates set — showing all sessions</Text>
-          )}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.pillsScroll}
+            contentContainerStyle={styles.pillsContent}
+          >
+            {TYPE_PILLS.map(p => (
+              <ScalePressable
+                key={p.key}
+                style={[styles.pill, typeFilter === p.key && styles.pillActive]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setTypeFilter(p.key);
+                }}
+              >
+                <Text style={[styles.pillText, typeFilter === p.key && styles.pillTextActive]}>
+                  {p.label}
+                </Text>
+              </ScalePressable>
+            ))}
+          </ScrollView>
         </View>
+        {toggle === 'season' && !hasSeasonDates && (
+          <Text style={styles.noSeasonHint}>No season dates set — showing all sessions</Text>
+        )}
 
         {loading ? (
           <View style={styles.centered}>
@@ -604,147 +667,97 @@ export default function StatsScreen() {
         ) : !metrics ? (
           <View style={styles.centered}>
             <IconSymbol name="chart.bar.fill" size={52} color="#48484A" />
-            <Text style={styles.emptyTitle}>No sessions yet</Text>
-            <Text style={styles.emptySubtitle}>Log your first session to see stats here.</Text>
+            <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+            <Text style={styles.emptySubtitle}>{emptySubtitle}</Text>
           </View>
         ) : (
           <>
-            {/* Overall Average — hero */}
-            <View style={styles.heroCard}>
-              <Text style={styles.heroLabel}>Overall Average</Text>
-              <Text style={[styles.heroNumber, { color: avgColor(metrics.avg) }]}>
-                {metrics.avg.toFixed(1)}
-              </Text>
-              {avgGoalDelta && (
-                <Text style={[styles.heroGoalDelta, { color: avgGoalDelta.color }]}>
-                  {avgGoalDelta.text}
+            {/* Hero strip — Average (left ~58%) + High Game / High Series stack (right ~42%) */}
+            <View style={styles.heroRow}>
+              <View style={styles.heroAvgCard}>
+                <Text style={styles.heroAvgLabel}>Average</Text>
+                <Text style={[styles.heroAvgNumber, { color: avgColor(metrics.avg) }]}>
+                  {metrics.avg.toFixed(1)}
                 </Text>
-              )}
-              <Text style={styles.heroMeta}>
-                {metrics.gameCount} games · {metrics.sessionCount} sessions
-              </Text>
-            </View>
-
-            {/* High Game + High Series */}
-            <View style={styles.row2}>
-              <View style={[styles.card, styles.flex1]}>
-                <Text style={styles.cardLabel}>High Game</Text>
-                <Text style={styles.cardNumber}>{metrics.highGame}</Text>
-              </View>
-              <View style={[styles.card, styles.flex1]}>
-                <Text style={styles.cardLabel}>High Series</Text>
-                <Text style={styles.cardNumber}>{metrics.highSeries}</Text>
-                {seriesGoalDelta && (
-                  <Text style={[styles.cardGoalDelta, { color: seriesGoalDelta.color }]}>
-                    {seriesGoalDelta.text}
+                {avgGoalDelta && (
+                  <Text style={[styles.heroDelta, { color: avgGoalDelta.color }]}>
+                    {avgGoalDelta.text}
                   </Text>
                 )}
+                <Text style={styles.heroMeta}>
+                  {metrics.gameCount} games · {metrics.sessionCount} sessions
+                </Text>
+              </View>
+              <View style={styles.heroSideCol}>
+                <View style={styles.slimCard}>
+                  <Text style={styles.slimLabel}>High Game</Text>
+                  <Text style={styles.slimValue}>{metrics.highGame}</Text>
+                </View>
+                <View style={styles.slimCard}>
+                  <Text style={styles.slimLabel}>High Series</Text>
+                  <Text style={styles.slimValue}>{metrics.highSeries}</Text>
+                </View>
               </View>
             </View>
 
-            {/* Strike % + Spare % + Opens/Game */}
-            {metrics.frameStats ? (
-              <View style={styles.row3}>
-                <View style={[styles.card, styles.flex1]}>
-                  <Text style={styles.cardLabel}>Strike %</Text>
-                  <Text style={styles.cardNumber}>
-                    {metrics.frameStats.strikeRate.toFixed(1)}%
-                  </Text>
-                </View>
-                <View style={[styles.card, styles.flex1]}>
-                  <Text style={styles.cardLabel}>Spare %</Text>
-                  <Text style={styles.cardNumber}>
-                    {metrics.frameStats.spareRate.toFixed(1)}%
-                  </Text>
-                </View>
-                <View style={[styles.card, styles.flex1]}>
-                  <Text style={styles.cardLabel}>Opens/Game</Text>
-                  <Text style={styles.cardNumber}>
-                    {metrics.frameStats.opensPerGame.toFixed(1)}
-                  </Text>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.row3}>
-                {NA_LABELS.map(label => (
-                  <View key={label} style={[styles.card, styles.flex1, styles.naCard]}>
-                    <Text style={styles.cardLabel}>{label}</Text>
-                    <IconSymbol name="lock.fill" size={18} color="#48484A" />
-                    <Text style={styles.naText}>Log frames to unlock.</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* First Ball Avg + Bounce-Back % + Doubles % — white values, no thresholds yet */}
-            <View style={styles.row3}>
-              <StatCell
-                label="First Ball Avg"
+            {/* STRIKING group */}
+            <Text style={styles.groupEyebrow}>Striking</Text>
+            <View style={styles.gridRow}>
+              <GridCell
+                label="FIRST BALL"
                 value={advancedStats.firstBallAvg != null ? advancedStats.firstBallAvg.toFixed(1) : null}
               />
-              <StatCell
-                label="Bounce-Back %"
-                value={advancedStats.bounceBackPct != null ? `${Math.round(advancedStats.bounceBackPct)}%` : null}
+              <GridCell
+                label="STRIKE"
+                value={metrics.frameStats ? `${metrics.frameStats.strikeRate.toFixed(1)}%` : null}
               />
-              <StatCell
-                label="Doubles %"
+              <GridCell
+                label="DOUBLES"
                 value={advancedStats.doublesPct != null ? `${Math.round(advancedStats.doublesPct)}%` : null}
               />
+              <GridCell label="CLEAN">
+                {advancedStats.gamesWithFrames === 0 ? undefined : (
+                  <Text style={styles.gridCellValue}>
+                    {advancedStats.cleanGames}
+                    <Text style={styles.cleanDenom}>/{advancedStats.gamesWithFrames}</Text>
+                  </Text>
+                )}
+              </GridCell>
             </View>
 
-            {/* Makeable Spare % + Clean Games */}
-            <View style={styles.row2}>
-              {/* Makeable Spare % — pin-data gated, splits excluded from denominator */}
-              {!leaveStats.hasPinData ? (
-                <View style={[styles.card, styles.flex1, styles.naCard]}>
-                  <Text style={styles.cardLabel}>Makeable Spare %</Text>
-                  <IconSymbol name="lock.fill" size={18} color="#48484A" />
-                  <Text style={styles.naText}>Log frames with pin tracking to unlock.</Text>
-                </View>
-              ) : (
-                <View style={[styles.card, styles.flex1]}>
-                  <Text style={styles.cardLabel}>Makeable Spare %</Text>
-                  <Text
-                    style={[
-                      styles.cardNumber,
-                      {
-                        color:
-                          leaveStats.makeableSparePct != null
-                            ? conversionColor(leaveStats.makeableSparePct)
-                            : '#FFFFFF',
-                      },
-                    ]}
-                  >
-                    {leaveStats.makeableSparePct != null
+            {/* SPARES & RECOVERY group */}
+            <Text style={styles.groupEyebrow}>Spares &amp; Recovery</Text>
+            <View style={styles.gridRow}>
+              <GridCell
+                label="SPARE"
+                value={metrics.frameStats ? `${metrics.frameStats.spareRate.toFixed(1)}%` : null}
+              />
+              <GridCell
+                label="MAKEABLE"
+                value={
+                  !leaveStats.hasPinData
+                    ? null
+                    : leaveStats.makeableSparePct != null
                       ? `${Math.round(leaveStats.makeableSparePct)}%`
-                      : '—'}
-                  </Text>
-                  <Text style={styles.makeableSub}>
-                    {leaveStats.makeableSparePct != null
-                      ? `Splits excluded · ${leaveStats.makeableCount} makeable`
-                      : 'No makeable leaves yet'}
-                  </Text>
-                </View>
-              )}
-
-              {/* Clean Games — games with zero open frames; white value only */}
-              {advancedStats.gamesWithFrames === 0 ? (
-                <View style={[styles.card, styles.flex1, styles.naCard]}>
-                  <Text style={styles.cardLabel}>Clean Games</Text>
-                  <IconSymbol name="lock.fill" size={18} color="#48484A" />
-                  <Text style={styles.naText}>Log frames to unlock.</Text>
-                </View>
-              ) : (
-                <View style={[styles.card, styles.flex1]}>
-                  <Text style={styles.cardLabel}>Clean Games</Text>
-                  <Text style={styles.cardNumber}>
-                    {advancedStats.cleanGames} of {advancedStats.gamesWithFrames}
-                  </Text>
-                </View>
-              )}
+                      : '—'
+                }
+                color={
+                  leaveStats.hasPinData && leaveStats.makeableSparePct != null
+                    ? conversionColor(leaveStats.makeableSparePct)
+                    : undefined
+                }
+              />
+              <GridCell
+                label="OPENS/G"
+                value={metrics.frameStats ? metrics.frameStats.opensPerGame.toFixed(1) : null}
+              />
+              <GridCell
+                label="BOUNCE-BK"
+                value={advancedStats.bounceBackPct != null ? `${Math.round(advancedStats.bounceBackPct)}%` : null}
+              />
             </View>
 
-            {/* Series Trend Chart */}
+            {/* Series Trend Chart — compact */}
             <View style={styles.chartCard}>
               <Text style={styles.chartTitle}>Series Trend</Text>
               {seriesChartPoint ? (
@@ -754,7 +767,7 @@ export default function StatsScreen() {
                     datasets: [{ data: seriesChartPoint.data, strokeWidth: 2 }],
                   }}
                   width={chartWidth}
-                  height={180}
+                  height={100}
                   chartConfig={CHART_CONFIG}
                   bezier
                   withInnerLines
@@ -768,7 +781,41 @@ export default function StatsScreen() {
               )}
             </View>
 
-            {/* Game-by-Game Trend Chart */}
+            {/* Score Distribution — moved above the fold; empty ranges hidden */}
+            {(() => {
+              const nonEmpty = histogram.filter(b => b.count > 0);
+              const maxCount = nonEmpty.reduce((m, b) => Math.max(m, b.count), 0);
+              if (nonEmpty.length === 0) {
+                return (
+                  <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
+                    <Text style={styles.cardLabel}>Score Distribution</Text>
+                    <IconSymbol name="lock.fill" size={18} color="#48484A" />
+                    <Text style={styles.naText}>No game scores in range to display.</Text>
+                  </View>
+                );
+              }
+              return (
+                <View style={styles.histCard}>
+                  <Text style={styles.histTitle}>Score Distribution</Text>
+                  {nonEmpty.map(bucket => {
+                    const barPct = maxCount > 0 ? bucket.count / maxCount : 0;
+                    return (
+                      <View key={bucket.label} style={styles.histRow}>
+                        <Text style={styles.histLabel}>{bucket.label}</Text>
+                        <View style={styles.histBarTrack}>
+                          <View
+                            style={[styles.histBar, { width: `${Math.max(barPct * 100, 4)}%` }]}
+                          />
+                        </View>
+                        <Text style={styles.histCount}>{bucket.count}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })()}
+
+            {/* Game-by-Game Trend Chart — below the fold, compact */}
             <View style={styles.chartCard}>
               <Text style={styles.chartTitle}>Game-by-Game Trend</Text>
               {gameChartPoint ? (
@@ -778,7 +825,7 @@ export default function StatsScreen() {
                     datasets: [{ data: gameChartPoint.data, strokeWidth: 2 }],
                   }}
                   width={chartWidth}
-                  height={180}
+                  height={100}
                   chartConfig={CHART_CONFIG}
                   bezier
                   withDots={false}
@@ -793,45 +840,6 @@ export default function StatsScreen() {
                 </View>
               )}
             </View>
-
-            {/* Score Distribution */}
-            {(() => {
-              const histTotal = histogram.reduce((s, b) => s + b.count, 0);
-              const maxCount = histogram.reduce((m, b) => Math.max(m, b.count), 0);
-              if (histTotal === 0) {
-                return (
-                  <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
-                    <Text style={styles.cardLabel}>Score Distribution</Text>
-                    <IconSymbol name="lock.fill" size={18} color="#48484A" />
-                    <Text style={styles.naText}>No game scores in range to display.</Text>
-                  </View>
-                );
-              }
-              return (
-                <View style={styles.histCard}>
-                  <Text style={styles.histTitle}>Score Distribution</Text>
-                  {histogram.map(bucket => {
-                    const barPct = maxCount > 0 ? bucket.count / maxCount : 0;
-                    return (
-                      <View key={bucket.label} style={styles.histRow}>
-                        <Text style={styles.histLabel}>{bucket.label}</Text>
-                        <View style={styles.histBarTrack}>
-                          <View
-                            style={[
-                              styles.histBar,
-                              { width: barPct > 0 ? `${Math.max(barPct * 100, 2)}%` : 0 },
-                            ]}
-                          />
-                        </View>
-                        <Text style={styles.histCount}>
-                          {bucket.count > 0 ? bucket.count : ''}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              );
-            })()}
 
             {/* By Ball */}
             {ballStats.length === 0 ? (
@@ -959,39 +967,76 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 40,
   },
-  // Toggle
-  toggleSection: {
-    marginBottom: 20,
+
+  // --- Controls row: season segmented + type pills ---
+  controlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
   },
-  toggleContainer: {
+  segmented: {
     flexDirection: 'row',
     backgroundColor: '#1C1C1E',
-    borderRadius: 10,
+    borderRadius: 9,
     padding: 3,
+    flexShrink: 0,
+    marginRight: 8,
   },
-  toggleBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 8,
+  segBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 7,
     alignItems: 'center',
   },
-  toggleBtnActive: {
+  segBtnActive: {
     backgroundColor: '#00CEC9',
   },
-  toggleText: {
-    fontSize: 14,
+  segText: {
+    fontSize: 12.5,
     fontWeight: '600',
     color: '#8E8E93',
   },
-  toggleTextActive: {
+  segTextActive: {
     color: '#000000',
+  },
+  pillsScroll: {
+    flex: 1,
+  },
+  pillsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingRight: 2,
+  },
+  pill: {
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: '#1C1C1E',
+    borderWidth: 1,
+    borderColor: '#38383A',
+  },
+  pillActive: {
+    backgroundColor: 'rgba(0, 206, 201, 0.16)',
+    borderColor: '#00CEC9',
+  },
+  pillText: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: '#8E8E93',
+  },
+  pillTextActive: {
+    color: '#00CEC9',
+    fontWeight: '600',
   },
   noSeasonHint: {
     color: '#8E8E93',
     fontSize: 12,
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: -4,
+    marginBottom: 10,
   },
+
   // States
   centered: {
     alignItems: 'center',
@@ -1009,62 +1054,131 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: 'center',
   },
-  // Hero
-  heroCard: {
+
+  // --- Hero strip ---
+  heroRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  heroAvgCard: {
+    flex: 58,
     backgroundColor: '#1C1C1E',
     borderRadius: 13,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
   },
-  heroLabel: {
-    color: '#8E8E93',
-    fontSize: 13,
+  heroAvgLabel: {
+    fontSize: 10,
     fontWeight: '500',
+    letterSpacing: 1.2,
+    color: '#8E8E93',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
+    marginBottom: 2,
   },
-  heroNumber: {
-    fontSize: 64,
-    fontWeight: '700',
-    lineHeight: 72,
+  heroAvgNumber: {
+    fontSize: 40,
+    fontWeight: '200',
+    lineHeight: 46,
+  },
+  heroDelta: {
+    fontSize: 11.5,
+    fontWeight: '500',
+    marginTop: 3,
   },
   heroMeta: {
-    color: '#8E8E93',
-    fontSize: 13,
-    marginTop: 6,
-  },
-  heroGoalDelta: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  cardGoalDelta: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '400',
+    color: '#8E8E93',
+    marginTop: 3,
+  },
+  heroSideCol: {
+    flex: 42,
+    gap: 8,
+  },
+  slimCard: {
+    flex: 1,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 13,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  slimLabel: {
+    fontSize: 9.5,
+    fontWeight: '500',
+    letterSpacing: 0.4,
+    color: '#8E8E93',
+    textTransform: 'uppercase',
+    flexShrink: 1,
+  },
+  slimValue: {
+    fontSize: 19,
+    fontWeight: '300',
+    color: '#FFFFFF',
+    marginLeft: 6,
+  },
+
+  // --- Group eyebrow + 4-across grid ---
+  groupEyebrow: {
+    fontSize: 9,
+    fontWeight: '500',
+    letterSpacing: 1.4,
+    color: '#48484A',
+    textTransform: 'uppercase',
+    marginBottom: 6,
+    marginLeft: 2,
     marginTop: 2,
   },
-  // Metric cards
-  row2: {
+  gridRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 6,
     marginBottom: 12,
   },
-  row3: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
+  gridCell: {
+    flex: 1,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    minHeight: 58,
   },
+  gridCellLabel: {
+    fontSize: 9,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+    color: '#8E8E93',
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+  gridCellValue: {
+    fontSize: 16,
+    fontWeight: '300',
+    color: '#FFFFFF',
+  },
+  gridCellValueColored: {
+    fontSize: 16,
+    fontWeight: '400',
+  },
+  cleanDenom: {
+    fontSize: 11,
+    fontWeight: '300',
+    color: '#8E8E93',
+  },
+
+  // Full-width NA / locked card (Score Distribution, By Ball, By Game, Leaves)
   card: {
     backgroundColor: '#1C1C1E',
     borderRadius: 13,
     padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  flex1: {
-    flex: 1,
   },
   cardLabel: {
     color: '#8E8E93',
@@ -1075,12 +1189,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
-  cardNumber: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  // NA state
   naCard: {
     gap: 6,
     paddingVertical: 18,
@@ -1091,14 +1199,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 15,
   },
+
   // Charts
   chartCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 13,
     marginBottom: 12,
     overflow: 'hidden',
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   chartTitle: {
     color: '#8E8E93',
@@ -1107,13 +1216,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     paddingHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   chart: {
     borderRadius: 0,
   },
   chartEmpty: {
-    height: 100,
+    height: 80,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
@@ -1123,12 +1232,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
+
   // Gear button
   gearButton: {
     marginRight: 16,
   },
 
-  // --- Common Leaves section ---
+  // --- Leaves / list-card sections ---
   leavesCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 13,
@@ -1151,7 +1261,7 @@ const styles = StyleSheet.create({
   leaveListRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 9,
   },
   leaveListRowBorder: {
     borderTopWidth: 0.5,
@@ -1184,16 +1294,17 @@ const styles = StyleSheet.create({
   },
   leaveName: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13.5,
+    fontWeight: '500',
   },
   leaveCount: {
     color: '#8E8E93',
-    fontSize: 12,
+    fontSize: 10.5,
+    fontWeight: '400',
   },
   leaveConvPct: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '400',
     minWidth: 46,
     textAlign: 'right',
   },
@@ -1204,7 +1315,7 @@ const styles = StyleSheet.create({
   splitBadge: {
     marginLeft: 6,
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '600',
     letterSpacing: 0.5,
     color: '#00CEC9',
     borderWidth: 1,
@@ -1214,20 +1325,14 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     overflow: 'hidden',
   },
-  makeableSub: {
-    color: '#8E8E93',
-    fontSize: 11,
-    textAlign: 'center',
-    marginTop: 4,
-  },
 
   // --- Score Distribution ---
   histCard: {
     backgroundColor: '#1C1C1E',
     borderRadius: 13,
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingTop: 14,
+    paddingBottom: 10,
     marginBottom: 12,
   },
   histTitle: {
@@ -1236,45 +1341,45 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   histRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 7,
+    marginBottom: 6,
   },
   histLabel: {
     color: '#8E8E93',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '500',
-    width: 66,
+    width: 58,
   },
   histBarTrack: {
     flex: 1,
-    height: 14,
+    height: 9,
     backgroundColor: '#2C2C2E',
-    borderRadius: 7,
+    borderRadius: 5,
     overflow: 'hidden',
     marginHorizontal: 8,
   },
   histBar: {
-    height: 14,
+    height: 9,
     backgroundColor: '#00CEC9',
-    borderRadius: 7,
+    borderRadius: 5,
   },
   histCount: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-    width: 24,
+    fontSize: 11,
+    fontWeight: '400',
+    width: 22,
     textAlign: 'right',
   },
 
-  // --- By Ball ---
+  // --- By Ball / By Game Number list rows ---
   ballStatRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 11,
+    paddingVertical: 9,
   },
   ballStatInfo: {
     flex: 1,
@@ -1282,16 +1387,17 @@ const styles = StyleSheet.create({
   },
   ballStatName: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 13.5,
+    fontWeight: '500',
   },
   ballStatCount: {
     color: '#8E8E93',
-    fontSize: 12,
+    fontSize: 10.5,
+    fontWeight: '400',
   },
   ballStatAvg: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '400',
   },
 
   allLeavesToggle: {
