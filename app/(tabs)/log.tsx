@@ -942,7 +942,7 @@ const styles = StyleSheet.create({
   // Section label
   sectionLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#8E8E93',
     letterSpacing: 0.8,
     marginBottom: 8,
@@ -958,7 +958,7 @@ const styles = StyleSheet.create({
   },
   gameLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#8E8E93',
     letterSpacing: 0.8,
     marginBottom: 12,
@@ -971,7 +971,7 @@ const styles = StyleSheet.create({
   },
   scoreInput: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: '300',
     color: '#FFFFFF',
     textAlign: 'right',
     minWidth: 90,
@@ -1045,7 +1045,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 8,
   },
-  submitText: { fontSize: 17, fontWeight: '700', color: '#000000' },
+  submitText: { fontSize: 17, fontWeight: '600', color: '#000000' },
 
   // Bottom spacer
   bottomSpacer: { height: 40 },
@@ -1119,7 +1119,7 @@ const styles = StyleSheet.create({
     paddingBottom: 48,
     gap: 12,
   },
-  resumeTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
+  resumeTitle: { fontSize: 20, fontWeight: '600', color: '#FFFFFF', textAlign: 'center' },
   resumeSubtitle: { fontSize: 15, color: '#8E8E93', textAlign: 'center', marginBottom: 8 },
   resumeButton: {
     backgroundColor: '#00CEC9',
@@ -1127,7 +1127,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     alignItems: 'center',
   },
-  resumeButtonText: { fontSize: 17, fontWeight: '700', color: '#000000' },
+  resumeButtonText: { fontSize: 17, fontWeight: '600', color: '#000000' },
   discardButton: {
     borderRadius: 13,
     paddingVertical: 15,

@@ -273,24 +273,24 @@ const sc = StyleSheet.create({
     overflow: 'hidden',
   },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  date: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
+  date: { fontSize: 15, fontWeight: '500', color: '#FFFFFF' },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  badgeText: { fontSize: 11, fontWeight: '700' },
+  badgeText: { fontSize: 11, fontWeight: '600' },
   tournRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   tournName: { fontSize: 13, color: '#FFFFFF', fontWeight: '500' },
   madeCutBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 },
-  madeCutText: { fontSize: 10, fontWeight: '700', color: '#FFFFFF' },
+  madeCutText: { fontSize: 10, fontWeight: '600', color: '#FFFFFF' },
   placement: { fontSize: 12, color: '#8E8E93' },
   gamesRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 14 },
   gameItem: { alignItems: 'center', gap: 3 },
-  gameScore: { fontSize: 28, fontWeight: '700' },
+  gameScore: { fontSize: 28, fontWeight: '400' },
   gameBall: { fontSize: 10, color: '#8E8E93', textAlign: 'center' },
   seriesRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'flex-end', gap: 6 },
-  seriesScore: { fontSize: 22, fontWeight: '700' },
+  seriesScore: { fontSize: 22, fontWeight: '400' },
   seriesLabel: { fontSize: 11, color: '#8E8E93' },
   framesSection: { gap: 6 },
   gameFrameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  gameFrameLabel: { fontSize: 10, fontWeight: '700', color: '#8E8E93', width: 16 },
+  gameFrameLabel: { fontSize: 10, fontWeight: '500', color: '#8E8E93', width: 16 },
   statsRow: {
     flexDirection: 'row',
     backgroundColor: '#2C2C2E',
@@ -298,7 +298,7 @@ const sc = StyleSheet.create({
     paddingVertical: 10,
   },
   statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
+  statValue: { fontSize: 17, fontWeight: '300', color: '#FFFFFF' },
   statLabel: { fontSize: 10, color: '#8E8E93', marginTop: 2 },
   statDivider: { width: 1, backgroundColor: '#38383A', marginVertical: 4 },
   watermark: { fontSize: 10, color: '#00CEC9', textAlign: 'right', opacity: 0.6 },
@@ -841,7 +841,7 @@ const styles = StyleSheet.create({
   cardDate: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   typeBadge: {
     alignSelf: 'flex-start',
@@ -863,11 +863,11 @@ const styles = StyleSheet.create({
   },
   gameScore: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   seriesTotal: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '400',
   },
 
   // Expanded
@@ -898,7 +898,7 @@ const styles = StyleSheet.create({
   },
   gameExpandScore: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   gameBall: {
     color: '#8E8E93',
@@ -928,7 +928,7 @@ const styles = StyleSheet.create({
   statValue: {
     color: '#FFFFFF',
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '300',
   },
   statLabel: {
     color: '#8E8E93',
@@ -948,7 +948,7 @@ const styles = StyleSheet.create({
   tournamentName: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   tournamentMeta: {
     flexDirection: 'row',

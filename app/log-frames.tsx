@@ -925,14 +925,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   stripItemCurrent: { backgroundColor: '#1C1C1E' },
-  stripNum: { fontSize: 10, fontWeight: '600', color: '#48484A', letterSpacing: 0.3 },
+  stripNum: { fontSize: 10, fontWeight: '500', color: '#48484A', letterSpacing: 0.3 },
   stripNumCurrent: { color: '#00CEC9' },
   stripThrows: { flexDirection: 'row', gap: 2, alignItems: 'center' },
   stripThrowBox: { minWidth: 13, alignItems: 'center' },
-  stripThrowText: { fontSize: 13, fontWeight: '600', color: '#48484A' },
+  stripThrowText: { fontSize: 13, fontWeight: '500', color: '#48484A' },
   stripThrowTextActive: { color: '#FFFFFF' },
   strikeText: { color: '#00CEC9' },
-  stripScore: { fontSize: 11, fontWeight: '600', color: '#8E8E93' },
+  stripScore: { fontSize: 11, fontWeight: '500', color: '#8E8E93' },
   stripScoreActive: { color: '#FFFFFF' },
 
   // Total row
@@ -949,10 +949,10 @@ const styles = StyleSheet.create({
   },
   totalRight: { alignItems: 'flex-end' },
   totalLabel: { fontSize: 13, color: '#8E8E93', fontWeight: '500' },
-  totalValue: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
+  totalValue: { fontSize: 22, fontWeight: '300', color: '#FFFFFF' },
   totalValueFinal: { color: '#00CEC9' },
-  maxLabel: { fontSize: 11, fontWeight: '600', color: '#8E8E93', letterSpacing: 0.5, textAlign: 'right' },
-  seriesText: { fontSize: 12, fontWeight: '600', color: '#8E8E93', letterSpacing: 0.8, marginTop: 2 },
+  maxLabel: { fontSize: 11, fontWeight: '500', color: '#8E8E93', letterSpacing: 0.5, textAlign: 'right' },
+  seriesText: { fontSize: 12, fontWeight: '500', color: '#8E8E93', letterSpacing: 0.8, marginTop: 2 },
 
   // Strike streak badge
   streakBadge: {
@@ -964,7 +964,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 2,
   },
-  streakText: { fontSize: 13, fontWeight: '700', color: '#FFD60A' },
+  streakText: { fontSize: 13, fontWeight: '600', color: '#FFD60A' },
 
   // Card area
   cardArea: {
@@ -976,14 +976,14 @@ const styles = StyleSheet.create({
 
   // Active frame card
   activeCard: { alignItems: 'center', gap: 20, width: '100%' },
-  activeFrameLabel: { fontSize: 11, fontWeight: '700', color: '#8E8E93', letterSpacing: 1.5 },
+  activeFrameLabel: { fontSize: 11, fontWeight: '500', color: '#8E8E93', letterSpacing: 1.5 },
   activeSlotsRow: { flexDirection: 'row', gap: 16 },
   activeSlot: {
     width: 80, height: 80, borderRadius: 14,
     backgroundColor: '#2C2C2E', alignItems: 'center', justifyContent: 'center',
   },
   activeSlotFilled: { backgroundColor: '#1C1C1E' },
-  activeSlotText: { fontSize: 40, fontWeight: '700', color: '#FFFFFF' },
+  activeSlotText: { fontSize: 40, fontWeight: '200', color: '#FFFFFF' },
   activeSlotEmpty: { color: '#38383A' },
   activeStrikeText: { color: '#00CEC9', fontSize: 44 },
 
@@ -1012,7 +1012,7 @@ const styles = StyleSheet.create({
   // Complete card
   completeCard: { alignItems: 'center', gap: 8 },
   completeTitle: { fontSize: 15, color: '#8E8E93', fontWeight: '500', letterSpacing: 0.5 },
-  completeFinalScore: { fontSize: 80, fontWeight: '800', color: '#00CEC9' },
+  completeFinalScore: { fontSize: 80, fontWeight: '200', color: '#00CEC9' },
   completeLabel: { fontSize: 13, color: '#48484A', fontWeight: '500' },
   doneButton: {
     marginTop: 16,
@@ -1021,7 +1021,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 48,
   },
-  doneButtonText: { fontSize: 17, fontWeight: '700', color: '#000000' },
+  doneButtonText: { fontSize: 17, fontWeight: '600', color: '#000000' },
 
   // Per-throw note bar (Live mode)
   throwNoteBar: {
@@ -1077,7 +1077,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   chipDisabled: { backgroundColor: '#1C1C1E' },
-  chipText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+  chipText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
   chipTextDisabled: { color: '#38383A' },
 
   // Input mode toggle (Pins / Quick)

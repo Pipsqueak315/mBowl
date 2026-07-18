@@ -712,7 +712,7 @@ const styles = StyleSheet.create({
   },
   gameLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '500',
     color: '#8E8E93',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
@@ -728,7 +728,7 @@ const styles = StyleSheet.create({
   },
   scoreInput: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '300',
     color: '#00CEC9',
     textAlign: 'right',
     minWidth: 60,

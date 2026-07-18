@@ -657,7 +657,7 @@ const s = StyleSheet.create({
   },
   toggleTextActive: {
     color: '#000000',
-    fontWeight: '700',
+    fontWeight: '600',
   },
 
   // Scroll
@@ -673,7 +673,7 @@ const s = StyleSheet.create({
   // Section label
   sectionLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#8E8E93',
     letterSpacing: 0.8,
     marginBottom: 8,
@@ -705,7 +705,7 @@ const s = StyleSheet.create({
   },
   directionLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
     flexShrink: 0,
     maxWidth: 90,
   },
@@ -733,7 +733,7 @@ const s = StyleSheet.create({
   },
   badgeOutlineText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#00CEC9',
   },
 
@@ -754,7 +754,7 @@ const s = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#8E8E93',
     letterSpacing: 0.6,
     marginBottom: 5,

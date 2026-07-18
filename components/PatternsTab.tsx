@@ -426,7 +426,7 @@ const s = StyleSheet.create({
   },
   pillTextActive: {
     color: '#000000',
-    fontWeight: '700',
+    fontWeight: '600',
   },
 
   // Scroll
@@ -456,7 +456,7 @@ const s = StyleSheet.create({
   // Pattern name
   patternName: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '500',
     color: '#FFFFFF',
     marginBottom: 10,
   },
@@ -475,7 +475,7 @@ const s = StyleSheet.create({
   },
   typeBadgeText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   metaText: {
     fontSize: 13,
@@ -504,7 +504,7 @@ const s = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#8E8E93',
     letterSpacing: 0.6,
     marginBottom: 5,

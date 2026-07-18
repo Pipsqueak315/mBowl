@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
   // Section
   sectionLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#8E8E93',
     letterSpacing: 0.8,
     marginBottom: 8,
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
   },
   saveBtnText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#000000',
   },
   // Ball roster list
@@ -684,7 +684,7 @@ const styles = StyleSheet.create({
   },
   goalInput: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: '300',
     color: '#00CEC9',
     textAlign: 'right',
     minWidth: 60,

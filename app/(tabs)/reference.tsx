@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
   // ---- Section label ----
   sectionLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#8E8E93',
     letterSpacing: 0.8,
     marginBottom: 8,
@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
   // ---- Position rows ----
   scenarioName: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#FFFFFF',
     marginBottom: 14,
   },
@@ -732,7 +732,7 @@ const styles = StyleSheet.create({
   },
   subFieldLabel: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#8E8E93',
     letterSpacing: 0.6,
     marginBottom: 6,
@@ -768,7 +768,7 @@ const styles = StyleSheet.create({
   },
   shotClockHeaderText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#8E8E93',
     letterSpacing: 0.6,
   },
@@ -783,7 +783,7 @@ const styles = StyleSheet.create({
   },
   shotClockFrameText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#00CEC9',
   },
   shotClockRoleText: {
@@ -816,13 +816,13 @@ const styles = StyleSheet.create({
   },
   cueNumText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#000000',
   },
   cueLabelInput: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#FFFFFF',
     padding: 0,
     minHeight: 22,
@@ -859,7 +859,7 @@ const styles = StyleSheet.create({
   // ---- Notes cards ----
   notesCardLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#8E8E93',
     marginBottom: 10,
   },

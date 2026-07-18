@@ -109,10 +109,10 @@ const compactStyles: FrameStyles = StyleSheet.create({
   },
   frameBoxWide: { width: 38 },
   frameThrows: { flexDirection: 'row', gap: 1, flexWrap: 'wrap', justifyContent: 'center' },
-  frameThrowChip: { fontSize: 9, fontWeight: '600', color: '#FFFFFF' },
+  frameThrowChip: { fontSize: 9, fontWeight: '500', color: '#FFFFFF' },
   strikeChip: { color: '#00CEC9' },
   frameNumberRow: { marginTop: 1 },
-  frameNumberText: { fontSize: 7, color: '#48484A', fontWeight: '600' },
+  frameNumberText: { fontSize: 7, color: '#48484A', fontWeight: '500' },
   miniDeck: { gap: 1 },
   miniRow: { flexDirection: 'row', justifyContent: 'center', gap: 1 },
   miniPin: { width: 4, height: 4, borderRadius: 2 },
@@ -152,7 +152,7 @@ const fullStyles: FrameStyles = StyleSheet.create({
   frameThrowChip: {
     color: '#FFFFFF',
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   strikeChip: {
     color: '#00CEC9',

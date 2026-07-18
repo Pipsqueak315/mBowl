@@ -602,7 +602,7 @@ const s = StyleSheet.create({
   },
   pillTextActive: {
     color: '#000000',
-    fontWeight: '700',
+    fontWeight: '600',
   },
 
   // Scroll
@@ -637,7 +637,7 @@ const s = StyleSheet.create({
   cardName: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#FFFFFF',
   },
   cardNameDim: {
@@ -677,7 +677,7 @@ const s = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#8E8E93',
     letterSpacing: 0.6,
     marginBottom: 5,
@@ -699,12 +699,12 @@ const s = StyleSheet.create({
   },
   myDataCount: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#8E8E93',
   },
   myDataConv: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '400',
     minWidth: 40,
     textAlign: 'right',
   },

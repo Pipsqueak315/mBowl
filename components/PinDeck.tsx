@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
 
   pinLabel: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '500',
   },
   pinLabelStanding: {
     color: '#000000',
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   },
   confirmBtnText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#000000',
   },
 });
