@@ -68,6 +68,33 @@ function makeGame(): Game {
   return { id: String(Date.now() + Math.random()), score: '', ball: '', notes: '' };
 }
 
+// Does this draft hold anything a user would want restored? Date and week are
+// auto-initialised on mount/reset, so they are NOT content — a form carrying
+// only those is the empty skeleton. The auto-save effect uses this to refuse
+// persisting an empty draft, which is the single guard behind S5 and S6:
+//   S5 — post-submit resetForm() must not recreate a phantom empty draft.
+//   S6 — mount setWeek() must not overwrite the real persisted draft (still in
+//        pendingDraft memory) with the empty form while Resume is pending.
+// Returning false here makes auto-save SKIP (never writeDraft(null)), so an
+// existing persisted draft is preserved, not deleted.
+function draftHasContent(d: DraftData): boolean {
+  if (d.opponent?.trim()) return true;
+  if (d.sessionNotes?.trim()) return true;
+  if (d.tournamentName?.trim()) return true;
+  if (d.tournamentFormat?.trim()) return true;
+  if (d.tournamentPattern?.trim()) return true;
+  if (d.placement?.trim()) return true;
+  if (d.madeCut && d.madeCut !== 'N/A') return true;
+  if (d.sessionType && d.sessionType !== 'league') return true;
+  for (const g of d.games ?? []) {
+    if (g.score) return true;
+    if (g.ball) return true;
+    if (g.notes?.trim()) return true;
+    if (g.frames && g.frames.length > 0) return true;
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -353,7 +380,10 @@ export default function LogScreen() {
     };
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
     draftSaveTimer.current = setTimeout(() => {
-      writeDraft(draft);
+      // Only persist a draft the user has actually put content into. Skipping an
+      // empty form here (rather than writing it, or clearing to null) is the one
+      // guard that fixes both S5 and S6 — see draftHasContent above.
+      if (draftHasContent(draft)) writeDraft(draft);
     }, 400);
     return () => {
       if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);

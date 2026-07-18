@@ -13,7 +13,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import SettingsContent from '@/components/SettingsContent';
 import { LineChart } from 'react-native-chart-kit';
 import { readSessions, readSettings } from '@/src/storage';
-import type { GameEntry, Session, Settings } from '@/src/types';
+import type { GameEntry, Session, Settings, ThrowEntry } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import { computeLeaveStats } from '@/src/leaveUtils';
@@ -282,8 +282,11 @@ function buildBallStats(sessions: Session[]): BallStat[] {
 }
 
 // --- Game-by-Game Performance ---
+// Games 1–3 stay as individual rows; games 4 and beyond collapse into one
+// "Game 4+" bucket (aggregate average, combined count). key 4 == the bucket.
 interface GamePositionStat {
-  position: number;
+  key: number;
+  label: string;
   avg: number;
   count: number;
 }
@@ -293,18 +296,150 @@ function buildGameByGameStats(sessions: Session[]): GamePositionStat[] {
   for (const s of sessions) {
     for (const g of s.games) {
       if (g.score == null) continue;
-      const pos = g.game;
-      if (!map[pos]) map[pos] = { sum: 0, count: 0 };
-      map[pos].sum += g.score as number;
-      map[pos].count++;
+      const key = g.game >= 4 ? 4 : g.game;
+      if (!map[key]) map[key] = { sum: 0, count: 0 };
+      map[key].sum += g.score as number;
+      map[key].count++;
     }
   }
   return Object.entries(map)
-    .map(([pos, { sum, count }]) => ({ position: parseInt(pos, 10), avg: sum / count, count }))
-    .sort((a, b) => a.position - b.position);
+    .map(([k, { sum, count }]) => {
+      const key = parseInt(k, 10);
+      return { key, label: key >= 4 ? 'Game 4+' : `Game ${key}`, avg: sum / count, count };
+    })
+    .sort((a, b) => a.key - b.key);
 }
 
+// --- Advanced frame-derived stats (all read-time, no persistence) ---
+interface AdvancedStats {
+  firstBallAvg: number | null;   // mean pins on throw 1 across frames with throw data
+  bounceBackPct: number | null;  // of frames after an open, % that scored a mark
+  doublesPct: number | null;     // of strike balls with a successor, % followed by a strike
+  cleanGames: number;            // games with zero open frames (N)
+  gamesWithFrames: number;       // games that have frame data (M)
+}
+
+// Pins knocked down on the first throw of a frame, or null if unreadable.
+// '—' (em dash, U+2014) is the gutter/miss token used throughout the app and by
+// the scorer (log-frames.tsx pinsForThrow) — it must count as 0, not be skipped.
+function firstBallPins(t: string): number | null {
+  if (t === 'X') return 10;
+  if (t === '—' || t === '-') return 0;
+  const n = parseInt(t, 10);
+  return isNaN(n) ? null : n;
+}
+
+const frameIsStrike = (f: ThrowEntry): boolean => f.throws[0] === 'X';
+const frameIsSpare = (f: ThrowEntry): boolean => f.throws[1] === '/';
+const frameIsMark = (f: ThrowEntry): boolean => frameIsStrike(f) || frameIsSpare(f);
+// A completed non-mark frame: first ball not a strike, second ball present and
+// not a spare. Works for the 10th frame too ('9','-' is open; '9','/' is not).
+const frameIsOpen = (f: ThrowEntry): boolean =>
+  f.throws[0] !== 'X' && f.throws[1] != null && f.throws[1] !== '/';
+
+function calcAdvancedStats(sessions: Session[]): AdvancedStats {
+  let firstBallTotal = 0, firstBallCount = 0;
+  let bounceOpp = 0, bounceHit = 0;
+  let doubleOpp = 0, doubleHit = 0;
+  let cleanGames = 0, gamesWithFrames = 0;
+
+  for (const s of sessions) {
+    for (const g of s.games) {
+      if (!Array.isArray(g.frames) || g.frames.length === 0) continue;
+      const frames = g.frames;
+      gamesWithFrames++;
+
+      // First ball average — every frame's first throw, including the 10th.
+      for (const f of frames) {
+        if (!f || !Array.isArray(f.throws) || f.throws.length === 0) continue;
+        const pins = firstBallPins(f.throws[0]);
+        if (pins != null) { firstBallTotal += pins; firstBallCount++; }
+      }
+
+      // Clean game — no open frame anywhere in the game.
+      let hasOpen = false;
+      for (const f of frames) {
+        if (f && frameIsOpen(f)) { hasOpen = true; break; }
+      }
+      if (!hasOpen) cleanGames++;
+
+      // Bounce-back — frame following an open frame that scored a mark.
+      // Anchors are frames 1–9 (they must have a following frame in the game);
+      // pairs never cross the game boundary.
+      for (let i = 0; i < frames.length - 1 && i < 9; i++) {
+        const f = frames[i];
+        const next = frames[i + 1];
+        if (!f || !next) continue;
+        if (frameIsOpen(f)) {
+          bounceOpp++;
+          if (frameIsMark(next)) bounceHit++;
+        }
+      }
+
+      // Doubles — consecutive strikes across the game's flat ball sequence.
+      // Building the sequence (not comparing frame[i]/frame[i+1]) is what makes
+      // the 10th frame's multiple strikes count correctly (X X X → two doubles),
+      // while a strike with no successor ball is never counted.
+      const balls: string[] = [];
+      for (let i = 0; i < frames.length && i < 9; i++) {
+        const t = frames[i]?.throws ?? [];
+        if (t[0] === 'X') {
+          balls.push('X');
+        } else {
+          if (t[0] != null) balls.push(t[0]);
+          if (t[1] != null) balls.push(t[1]);
+        }
+      }
+      if (frames[9] && Array.isArray(frames[9].throws)) {
+        for (const t of frames[9].throws.slice(0, 3)) balls.push(t);
+      }
+      for (let k = 0; k < balls.length - 1; k++) {
+        if (balls[k] === 'X') {
+          doubleOpp++;
+          if (balls[k + 1] === 'X') doubleHit++;
+        }
+      }
+    }
+  }
+
+  return {
+    firstBallAvg: firstBallCount > 0 ? firstBallTotal / firstBallCount : null,
+    bounceBackPct: bounceOpp > 0 ? (bounceHit / bounceOpp) * 100 : null,
+    doublesPct: doubleOpp > 0 ? (doubleHit / doubleOpp) * 100 : null,
+    cleanGames,
+    gamesWithFrames,
+  };
+}
+
+// --- Leaves sort ---
+const LEAVE_SORTS = [
+  { key: 'frequency', label: 'Frequency' },
+  { key: 'opportunity', label: 'Opportunity' },
+  { key: 'conv', label: 'Conv %' },
+] as const;
+type LeaveSort = (typeof LEAVE_SORTS)[number]['key'];
+
 const NA_LABELS = ['Strike %', 'Spare %', 'Opens/Game'] as const;
+
+// Small stat cell matching the Strike%/Spare%/Opens row exactly. White value,
+// no colour thresholds; null value renders the shared "Log frames to unlock" N/A.
+function StatCell({ label, value }: { label: string; value: string | null }) {
+  if (value == null) {
+    return (
+      <View style={[styles.card, styles.flex1, styles.naCard]}>
+        <Text style={styles.cardLabel}>{label}</Text>
+        <IconSymbol name="lock.fill" size={18} color="#48484A" />
+        <Text style={styles.naText}>Log frames to unlock.</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.card, styles.flex1]}>
+      <Text style={styles.cardLabel}>{label}</Text>
+      <Text style={styles.cardNumber}>{value}</Text>
+    </View>
+  );
+}
 
 // --- Component ---
 export default function StatsScreen() {
@@ -314,6 +449,7 @@ export default function StatsScreen() {
   const [settings, setSettings] = useState<Settings>({});
   const [loading, setLoading] = useState(true);
   const [showAllLeaves, setShowAllLeaves] = useState(false);
+  const [leaveSort, setLeaveSort] = useState<LeaveSort>('frequency');
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
   // Chart fills the card edge-to-edge; card sits inside 16px scroll padding each side
@@ -336,6 +472,8 @@ export default function StatsScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      // Leaves sort has no persisted preference — reset to Frequency each visit.
+      setLeaveSort('frequency');
       (async () => {
         setLoading(true);
         const [sessionsData, settingsData] = await Promise.all([
@@ -386,6 +524,25 @@ export default function StatsScreen() {
   const histogram = useMemo<HistBucket[]>(() => buildHistogram(filtered), [filtered]);
   const ballStats = useMemo<BallStat[]>(() => buildBallStats(filtered), [filtered]);
   const gameByGameStats = useMemo<GamePositionStat[]>(() => buildGameByGameStats(filtered), [filtered]);
+  const advancedStats = useMemo<AdvancedStats>(() => calcAdvancedStats(filtered), [filtered]);
+
+  // Leaves sorted by the active toggle. Opportunity = count × (1 − conversion
+  // rate) = the raw number of missed makeable chances. No persisted preference.
+  const sortedLeaves = useMemo<LeaveEntry[]>(() => {
+    const arr = [...leaveStats.leaves];
+    if (leaveSort === 'opportunity') {
+      arr.sort((a, b) => {
+        const oa = a.count * (1 - a.conversionPct / 100);
+        const ob = b.count * (1 - b.conversionPct / 100);
+        return ob - oa || b.count - a.count;
+      });
+    } else if (leaveSort === 'conv') {
+      arr.sort((a, b) => b.conversionPct - a.conversionPct || b.count - a.count);
+    } else {
+      arr.sort((a, b) => b.count - a.count);
+    }
+    return arr;
+  }, [leaveStats.leaves, leaveSort]);
 
   // Goal deltas — memoized so they don't recalculate on every render
   const avgGoalDelta = useMemo(() => {
@@ -519,38 +676,73 @@ export default function StatsScreen() {
               </View>
             )}
 
-            {/* Makeable Spare % — pin-data gated, splits excluded from denominator */}
-            {!leaveStats.hasPinData ? (
-              <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
-                <Text style={styles.cardLabel}>Makeable Spare %</Text>
-                <IconSymbol name="lock.fill" size={18} color="#48484A" />
-                <Text style={styles.naText}>Log frames with pin tracking to unlock.</Text>
-              </View>
-            ) : (
-              <View style={[styles.card, styles.makeableCard]}>
-                <Text style={styles.cardLabel}>Makeable Spare %</Text>
-                <Text
-                  style={[
-                    styles.cardNumber,
-                    {
-                      color:
-                        leaveStats.makeableSparePct != null
-                          ? conversionColor(leaveStats.makeableSparePct)
-                          : '#FFFFFF',
-                    },
-                  ]}
-                >
-                  {leaveStats.makeableSparePct != null
-                    ? `${Math.round(leaveStats.makeableSparePct)}%`
-                    : '—'}
-                </Text>
-                <Text style={styles.makeableSub}>
-                  {leaveStats.makeableSparePct != null
-                    ? `Splits excluded · ${leaveStats.makeableCount} makeable`
-                    : 'No makeable leaves yet'}
-                </Text>
-              </View>
-            )}
+            {/* First Ball Avg + Bounce-Back % + Doubles % — white values, no thresholds yet */}
+            <View style={styles.row3}>
+              <StatCell
+                label="First Ball Avg"
+                value={advancedStats.firstBallAvg != null ? advancedStats.firstBallAvg.toFixed(1) : null}
+              />
+              <StatCell
+                label="Bounce-Back %"
+                value={advancedStats.bounceBackPct != null ? `${Math.round(advancedStats.bounceBackPct)}%` : null}
+              />
+              <StatCell
+                label="Doubles %"
+                value={advancedStats.doublesPct != null ? `${Math.round(advancedStats.doublesPct)}%` : null}
+              />
+            </View>
+
+            {/* Makeable Spare % + Clean Games */}
+            <View style={styles.row2}>
+              {/* Makeable Spare % — pin-data gated, splits excluded from denominator */}
+              {!leaveStats.hasPinData ? (
+                <View style={[styles.card, styles.flex1, styles.naCard]}>
+                  <Text style={styles.cardLabel}>Makeable Spare %</Text>
+                  <IconSymbol name="lock.fill" size={18} color="#48484A" />
+                  <Text style={styles.naText}>Log frames with pin tracking to unlock.</Text>
+                </View>
+              ) : (
+                <View style={[styles.card, styles.flex1]}>
+                  <Text style={styles.cardLabel}>Makeable Spare %</Text>
+                  <Text
+                    style={[
+                      styles.cardNumber,
+                      {
+                        color:
+                          leaveStats.makeableSparePct != null
+                            ? conversionColor(leaveStats.makeableSparePct)
+                            : '#FFFFFF',
+                      },
+                    ]}
+                  >
+                    {leaveStats.makeableSparePct != null
+                      ? `${Math.round(leaveStats.makeableSparePct)}%`
+                      : '—'}
+                  </Text>
+                  <Text style={styles.makeableSub}>
+                    {leaveStats.makeableSparePct != null
+                      ? `Splits excluded · ${leaveStats.makeableCount} makeable`
+                      : 'No makeable leaves yet'}
+                  </Text>
+                </View>
+              )}
+
+              {/* Clean Games — games with zero open frames; white value only */}
+              {advancedStats.gamesWithFrames === 0 ? (
+                <View style={[styles.card, styles.flex1, styles.naCard]}>
+                  <Text style={styles.cardLabel}>Clean Games</Text>
+                  <IconSymbol name="lock.fill" size={18} color="#48484A" />
+                  <Text style={styles.naText}>Log frames to unlock.</Text>
+                </View>
+              ) : (
+                <View style={[styles.card, styles.flex1]}>
+                  <Text style={styles.cardLabel}>Clean Games</Text>
+                  <Text style={styles.cardNumber}>
+                    {advancedStats.cleanGames} of {advancedStats.gamesWithFrames}
+                  </Text>
+                </View>
+              )}
+            </View>
 
             {/* Series Trend Chart */}
             <View style={styles.chartCard}>
@@ -679,11 +871,11 @@ export default function StatsScreen() {
                 <Text style={styles.leavesTitle}>By Game Number</Text>
                 {gameByGameStats.map((gs, i) => (
                   <View
-                    key={gs.position}
+                    key={gs.key}
                     style={[styles.ballStatRow, i > 0 && styles.leaveListRowBorder]}
                   >
                     <View style={styles.ballStatInfo}>
-                      <Text style={styles.ballStatName}>Game {gs.position}</Text>
+                      <Text style={styles.ballStatName}>{gs.label}</Text>
                       <Text style={styles.ballStatCount}>{gs.count} game{gs.count !== 1 ? 's' : ''}</Text>
                     </View>
                     <Text style={[styles.ballStatAvg, { color: avgColor(gs.avg) }]}>
@@ -694,45 +886,49 @@ export default function StatsScreen() {
               </View>
             )}
 
-            {/* Common Leaves */}
+            {/* Leaves — single merged card: sort toggle, top 6, Show All expander */}
             {!leaveStats.hasPinData ? (
               <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
-                <Text style={styles.cardLabel}>Common Leaves</Text>
+                <Text style={styles.cardLabel}>Leaves</Text>
                 <IconSymbol name="lock.fill" size={18} color="#48484A" />
                 <Text style={styles.naText}>Log frames with pin tracking to unlock.</Text>
               </View>
             ) : leaveStats.leaves.length === 0 ? (
               <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
-                <Text style={styles.cardLabel}>Common Leaves</Text>
+                <Text style={styles.cardLabel}>Leaves</Text>
                 <Text style={styles.naText}>No leaves recorded — all strikes!</Text>
               </View>
             ) : (
               <View style={styles.leavesCard}>
-                <Text style={styles.leavesTitle}>Common Leaves</Text>
-                {leaveStats.leaves.slice(0, 10).map((leave, i) => (
+                <Text style={styles.leavesTitle}>Leaves</Text>
+                <View style={styles.sortRow}>
+                  {LEAVE_SORTS.map(s => (
+                    <TouchableOpacity
+                      key={s.key}
+                      style={[styles.sortChip, leaveSort === s.key && styles.sortChipActive]}
+                      onPress={() => setLeaveSort(s.key)}
+                    >
+                      <Text
+                        style={[styles.sortChipText, leaveSort === s.key && styles.sortChipTextActive]}
+                      >
+                        {s.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {(showAllLeaves ? sortedLeaves : sortedLeaves.slice(0, 6)).map((leave, i) => (
                   <LeaveRow key={leave.pins.join('-')} leave={leave} showBorder={i > 0} />
                 ))}
-              </View>
-            )}
-
-            {/* All Tracked Leaves — only when more than 10 total (otherwise identical to Common Leaves) */}
-            {leaveStats.hasPinData && leaveStats.leaves.length > 10 && (
-              <View style={styles.leavesCard}>
-                <View style={styles.allLeavesHeader}>
-                  <Text style={styles.leavesTitle}>All Tracked Leaves</Text>
+                {sortedLeaves.length > 6 && (
                   <TouchableOpacity
                     onPress={() => setShowAllLeaves(v => !v)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={styles.showAllRow}
                   >
                     <Text style={styles.allLeavesToggle}>
-                      {showAllLeaves ? 'Show Less' : 'Show All'}
+                      {showAllLeaves ? 'Show Less' : `Show All (${sortedLeaves.length})`}
                     </Text>
                   </TouchableOpacity>
-                </View>
-                {(showAllLeaves ? leaveStats.leaves : leaveStats.leaves.slice(0, 10)).map(
-                  (leave, i) => (
-                    <LeaveRow key={leave.pins.join('-')} leave={leave} showBorder={i > 0} />
-                  )
                 )}
               </View>
             )}
@@ -1018,9 +1214,6 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     overflow: 'hidden',
   },
-  makeableCard: {
-    marginBottom: 12,
-  },
   makeableSub: {
     color: '#8E8E93',
     fontSize: 11,
@@ -1101,16 +1294,45 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // --- All Tracked Leaves ---
-  allLeavesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
   allLeavesToggle: {
     color: '#00CEC9',
     fontSize: 13,
+    fontWeight: '600',
+  },
+  showAllRow: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 4,
+    borderTopWidth: 0.5,
+    borderTopColor: '#38383A',
+    marginTop: 2,
+  },
+
+  // --- Leaves sort toggle ---
+  sortRow: {
+    flexDirection: 'row',
+    backgroundColor: '#2C2C2E',
+    borderRadius: 8,
+    padding: 2,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  sortChip: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  sortChipActive: {
+    backgroundColor: '#1C1C1E',
+  },
+  sortChipText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#8E8E93',
+  },
+  sortChipTextActive: {
+    color: '#FFFFFF',
     fontWeight: '600',
   },
 });

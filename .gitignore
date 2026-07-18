@@ -48,3 +48,6 @@ mBowl-backup.json
 
 # IPA build output
 *.ipa
+
+# Claude Code local settings (per-machine)
+.claude/settings.local.json
