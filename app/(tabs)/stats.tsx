@@ -18,6 +18,8 @@ import type { Session, Settings, ThrowEntry } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import { computeLeaveStats } from '@/src/leaveUtils';
+import { filterSessions, ALL_TIME, type SeasonSelection, type TypeFilter } from '@/src/sessionFilter';
+import { getSeasons, currentSeason, resolveSeasonRanges } from '@/src/seasons';
 
 // --- Types ---
 interface FrameStats {
@@ -39,11 +41,6 @@ interface ChartPoint {
   labels: string[];
   data: number[];
 }
-
-type ToggleMode = 'season' | 'alltime';
-
-// Session-type filter (Phase 22). 'all' + the four Session['type'] values.
-type TypeFilter = 'all' | Session['type'];
 
 interface LeaveEntry {
   pins: number[];
@@ -158,26 +155,13 @@ function formatDateLabel(date: string): string {
   return parseInt(p[1]) + '/' + parseInt(p[2]);
 }
 
-// Filter by the season window (when in season mode with dates set) AND by the
-// selected session type. AND logic: a session must satisfy both to survive.
-// This is the single choke point — every downstream memo reads `filtered`, so
-// the type filter propagates through the entire tab from here.
-function filterSessions(
-  sessions: Session[],
-  mode: ToggleMode,
-  settings: Settings,
-  typeFilter: TypeFilter,
-): Session[] {
-  let result = sessions;
-  if (mode === 'season' && settings?.seasonStart && settings?.seasonEnd) {
-    result = result.filter(
-      s => s.date >= settings.seasonStart! && s.date <= settings.seasonEnd!,
-    );
-  }
-  if (typeFilter !== 'all') {
-    result = result.filter(s => s.type === typeFilter);
-  }
-  return result;
+// Local today as YYYY-MM-DD, for resolving the current season.
+function todayISO(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function calcMetrics(sessions: Session[]): Metrics | null {
@@ -440,6 +424,87 @@ function calcAdvancedStats(sessions: Session[]): AdvancedStats {
   };
 }
 
+// --- Season comparison (Phase 24 Part 3) ---
+// One aggregate over a filtered session set, reusing the existing metric
+// functions verbatim — no new metric logic. `gamesWithFrames` / `totalGames`
+// drive both the coverage readout and the sample-size delta gate.
+interface SeasonMetricSet {
+  avg: number | null;
+  firstBallAvg: number | null;
+  strikePct: number | null;
+  doublesPct: number | null;
+  cleanPct: number | null;
+  sparePct: number | null;
+  makeablePct: number | null;
+  opensPerGame: number | null;
+  bounceBackPct: number | null;
+  gamesWithFrames: number;
+  totalGames: number;
+}
+
+type MetricKey = Exclude<keyof SeasonMetricSet, 'gamesWithFrames' | 'totalGames'>;
+
+function computeSeasonMetrics(sessions: Session[]): SeasonMetricSet {
+  const m = calcMetrics(sessions);
+  const adv = calcAdvancedStats(sessions);
+  const leaves = computeLeaveStats(sessions) as { makeableSparePct: number | null };
+  const totalGames = sessions.reduce(
+    (n, s) => n + s.games.filter(g => g.score != null).length,
+    0,
+  );
+  return {
+    avg: m ? m.avg : null,
+    firstBallAvg: adv.firstBallAvg,
+    strikePct: m?.frameStats ? m.frameStats.strikeRate : null,
+    doublesPct: adv.doublesPct,
+    cleanPct: adv.gamesWithFrames > 0 ? (adv.cleanGames / adv.gamesWithFrames) * 100 : null,
+    sparePct: m?.frameStats ? m.frameStats.spareRate : null,
+    makeablePct: leaves.makeableSparePct,
+    opensPerGame: m?.frameStats ? m.frameStats.opensPerGame : null,
+    bounceBackPct: adv.bounceBackPct,
+    gamesWithFrames: adv.gamesWithFrames,
+    totalGames,
+  };
+}
+
+// `frame: true` rows are frame/pin-derived — their delta is suppressed unless
+// BOTH seasons have >= MIN_FRAME_GAMES games with frame data. `invert: true`
+// (Opens/G) means lower is better, flipping the delta colour direction.
+const MIN_FRAME_GAMES = 10;
+type CmpFmt = 'pct' | 'avg1' | 'avg2';
+const COMPARE_ROWS: {
+  key: MetricKey;
+  label: string;
+  frame: boolean;
+  fmt: CmpFmt;
+  invert?: boolean;
+}[] = [
+  { key: 'avg', label: 'Average', frame: false, fmt: 'avg1' },
+  { key: 'firstBallAvg', label: 'First Ball', frame: true, fmt: 'avg1' },
+  { key: 'strikePct', label: 'Strike %', frame: true, fmt: 'pct' },
+  { key: 'doublesPct', label: 'Doubles %', frame: true, fmt: 'pct' },
+  { key: 'cleanPct', label: 'Clean %', frame: true, fmt: 'pct' },
+  { key: 'sparePct', label: 'Spare %', frame: true, fmt: 'pct' },
+  { key: 'makeablePct', label: 'Makeable %', frame: true, fmt: 'pct' },
+  { key: 'opensPerGame', label: 'Opens/G', frame: true, fmt: 'avg2', invert: true },
+  { key: 'bounceBackPct', label: 'Bounce-Back %', frame: true, fmt: 'pct' },
+];
+
+function fmtMetric(v: number | null, fmt: CmpFmt): string {
+  if (v == null) return '—';
+  if (fmt === 'pct') return `${Math.round(v)}%`;
+  if (fmt === 'avg2') return v.toFixed(2);
+  return v.toFixed(1);
+}
+
+// Signed delta rounded to the row's display precision, so colour and text agree
+// (a raw delta that rounds to 0 must read as neutral "0", not a coloured arrow).
+function deltaValue(d: number, fmt: CmpFmt): number {
+  if (fmt === 'pct') return Math.round(d);
+  if (fmt === 'avg2') return Number(d.toFixed(2));
+  return Number(d.toFixed(1));
+}
+
 // --- Leaves sort ---
 const LEAVE_SORTS = [
   { key: 'frequency', label: 'Frequency' },
@@ -484,7 +549,9 @@ function GridCell({
 // --- Component ---
 export default function StatsScreen() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [toggle, setToggle] = useState<ToggleMode>('season');
+  // Season selection is not persisted — reset to the current season on each
+  // focus (see focus effect). ALL_TIME is a safe pre-load default.
+  const [seasonSel, setSeasonSel] = useState<SeasonSelection>(ALL_TIME);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [settings, setSettings] = useState<Settings>({});
@@ -513,7 +580,9 @@ export default function StatsScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      // Neither the leaves sort nor the type filter is persisted — reset both each visit.
+      // Leaves sort, type filter, and season selection are all non-persistent —
+      // reset each visit. The season default (current season) needs the loaded
+      // settings, so it is set after the read completes.
       setLeaveSort('frequency');
       setTypeFilter('all');
       (async () => {
@@ -525,6 +594,8 @@ export default function StatsScreen() {
         if (active) {
           setSessions(sessionsData);
           setSettings(settingsData);
+          const cur = currentSeason(getSeasons(settingsData), todayISO());
+          setSeasonSel(cur ? cur.id : ALL_TIME);
           setLoading(false);
         }
       })();
@@ -534,10 +605,20 @@ export default function StatsScreen() {
     }, []),
   );
 
-  const hasSeasonDates = !!(settings?.seasonStart && settings?.seasonEnd);
+  const seasons = useMemo(() => getSeasons(settings), [settings]);
+  // Season pills: most-recent season first (leftmost = the default selection),
+  // then All-Time. Uses each season's `short` label.
+  const seasonPills = useMemo(() => {
+    const pills = resolveSeasonRanges(seasons)
+      .slice()
+      .reverse()
+      .map(r => ({ key: r.id, label: r.short }));
+    pills.push({ key: ALL_TIME, label: 'All-Time' });
+    return pills;
+  }, [seasons]);
   const filtered = useMemo(
-    () => filterSessions(sessions, toggle, settings, typeFilter),
-    [sessions, toggle, settings, typeFilter],
+    () => filterSessions(sessions, seasonSel, seasons, typeFilter),
+    [sessions, seasonSel, seasons, typeFilter],
   );
   const metrics = useMemo(() => calcMetrics(filtered), [filtered]);
   const seriesChartPoint = useMemo(
@@ -567,6 +648,23 @@ export default function StatsScreen() {
   const ballStats = useMemo<BallStat[]>(() => buildBallStats(filtered), [filtered]);
   const gameByGameStats = useMemo<GamePositionStat[]>(() => buildGameByGameStats(filtered), [filtered]);
   const advancedStats = useMemo<AdvancedStats>(() => calcAdvancedStats(filtered), [filtered]);
+
+  // Season comparison: the selected season (A) vs its immediately preceding
+  // season (B). Reuses filterSessions + computeSeasonMetrics, honouring the
+  // active type filter so the A column matches the cards above. Hidden when
+  // All-Time is selected or the selected season has no predecessor.
+  const comparison = useMemo(() => {
+    if (seasonSel === ALL_TIME) return null;
+    const ranges = resolveSeasonRanges(seasons); // ascending by start
+    const idx = ranges.findIndex(r => r.id === seasonSel);
+    if (idx <= 0) return null; // not found, or earliest season (no predecessor)
+    const cur = ranges[idx];
+    const prev = ranges[idx - 1];
+    return {
+      a: { season: cur, m: computeSeasonMetrics(filterSessions(sessions, cur.id, seasons, typeFilter)) },
+      b: { season: prev, m: computeSeasonMetrics(filterSessions(sessions, prev.id, seasons, typeFilter)) },
+    };
+  }, [seasonSel, seasons, sessions, typeFilter]);
 
   // Leaves sorted by the active toggle. Opportunity = count × (1 − conversion
   // rate) = the raw number of missed makeable chances. No persisted preference.
@@ -612,28 +710,32 @@ export default function StatsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Controls row — season segmented + type pills share one line */}
+        {/* Season selector — each season by short label, plus All-Time */}
+        <View style={[styles.controlsRow, styles.seasonSelectorRow]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.pillsScroll}
+            contentContainerStyle={styles.pillsContent}
+          >
+            {seasonPills.map(p => (
+              <ScalePressable
+                key={p.key}
+                style={[styles.pill, seasonSel === p.key && styles.pillActive]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSeasonSel(p.key);
+                }}
+              >
+                <Text style={[styles.pillText, seasonSel === p.key && styles.pillTextActive]}>
+                  {p.label}
+                </Text>
+              </ScalePressable>
+            ))}
+          </ScrollView>
+        </View>
+        {/* Type filter pills */}
         <View style={styles.controlsRow}>
-          <View style={styles.segmented}>
-            <ScalePressable
-              style={[styles.segBtn, toggle === 'season' && styles.segBtnActive]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setToggle('season');
-              }}
-            >
-              <Text style={[styles.segText, toggle === 'season' && styles.segTextActive]}>Season</Text>
-            </ScalePressable>
-            <ScalePressable
-              style={[styles.segBtn, toggle === 'alltime' && styles.segBtnActive]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setToggle('alltime');
-              }}
-            >
-              <Text style={[styles.segText, toggle === 'alltime' && styles.segTextActive]}>All</Text>
-            </ScalePressable>
-          </View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -656,9 +758,6 @@ export default function StatsScreen() {
             ))}
           </ScrollView>
         </View>
-        {toggle === 'season' && !hasSeasonDates && (
-          <Text style={styles.noSeasonHint}>No season dates set — showing all sessions</Text>
-        )}
 
         {loading ? (
           <View style={styles.centered}>
@@ -940,6 +1039,60 @@ export default function StatsScreen() {
                 )}
               </View>
             )}
+
+            {/* Season Comparison — selected season vs its predecessor */}
+            {comparison && (
+              <View style={styles.leavesCard}>
+                <Text style={styles.leavesTitle}>Season Comparison</Text>
+                <View style={styles.cmpHeaderRow}>
+                  <Text style={styles.cmpLabelCell}> </Text>
+                  <Text style={[styles.cmpValCell, styles.cmpHeaderText]}>
+                    {comparison.a.season.short}
+                  </Text>
+                  <Text style={[styles.cmpValCell, styles.cmpHeaderText]}>
+                    {comparison.b.season.short}
+                  </Text>
+                  <Text style={[styles.cmpDeltaCell, styles.cmpHeaderText]}>Δ</Text>
+                </View>
+                <View style={styles.cmpCoverageRow}>
+                  <Text style={styles.cmpLabelCell}> </Text>
+                  <Text style={[styles.cmpValCell, styles.cmpCoverageText]}>
+                    {comparison.a.m.gamesWithFrames}/{comparison.a.m.totalGames} fr
+                  </Text>
+                  <Text style={[styles.cmpValCell, styles.cmpCoverageText]}>
+                    {comparison.b.m.gamesWithFrames}/{comparison.b.m.totalGames} fr
+                  </Text>
+                  <Text style={styles.cmpDeltaCell}> </Text>
+                </View>
+                {COMPARE_ROWS.map((row, i) => {
+                  const av = comparison.a.m[row.key];
+                  const bv = comparison.b.m[row.key];
+                  const enoughFrames =
+                    comparison.a.m.gamesWithFrames >= MIN_FRAME_GAMES &&
+                    comparison.b.m.gamesWithFrames >= MIN_FRAME_GAMES;
+                  const showDelta = av != null && bv != null && (!row.frame || enoughFrames);
+                  let deltaText = '—';
+                  let deltaColor = '#48484A';
+                  if (showDelta) {
+                    const dv = deltaValue((av as number) - (bv as number), row.fmt);
+                    const mag = Math.abs(dv);
+                    const body =
+                      row.fmt === 'pct' ? String(mag) : row.fmt === 'avg2' ? mag.toFixed(2) : mag.toFixed(1);
+                    deltaText = dv > 0 ? `+${body}` : dv < 0 ? `−${body}` : body;
+                    deltaColor =
+                      dv === 0 ? '#8E8E93' : (row.invert ? dv < 0 : dv > 0) ? '#30D158' : '#FF453A';
+                  }
+                  return (
+                    <View key={row.key} style={[styles.cmpRow, i > 0 && styles.leaveListRowBorder]}>
+                      <Text style={styles.cmpLabelCell}>{row.label}</Text>
+                      <Text style={styles.cmpValCell}>{fmtMetric(av, row.fmt)}</Text>
+                      <Text style={styles.cmpValCell}>{fmtMetric(bv, row.fmt)}</Text>
+                      <Text style={[styles.cmpDeltaCell, { color: deltaColor }]}>{deltaText}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </>
         )}
       </ScrollView>
@@ -968,36 +1121,14 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
-  // --- Controls row: season segmented + type pills ---
+  // --- Controls rows: season selector + type pills ---
   controlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 14,
   },
-  segmented: {
-    flexDirection: 'row',
-    backgroundColor: '#1C1C1E',
-    borderRadius: 9,
-    padding: 3,
-    flexShrink: 0,
-    marginRight: 8,
-  },
-  segBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 7,
-    alignItems: 'center',
-  },
-  segBtnActive: {
-    backgroundColor: '#00CEC9',
-  },
-  segText: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: '#8E8E93',
-  },
-  segTextActive: {
-    color: '#000000',
+  seasonSelectorRow: {
+    marginBottom: 8,
   },
   pillsScroll: {
     flex: 1,
@@ -1028,13 +1159,6 @@ const styles = StyleSheet.create({
   pillTextActive: {
     color: '#00CEC9',
     fontWeight: '600',
-  },
-  noSeasonHint: {
-    color: '#8E8E93',
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: -4,
-    marginBottom: 10,
   },
 
   // States
@@ -1266,6 +1390,55 @@ const styles = StyleSheet.create({
   leaveListRowBorder: {
     borderTopWidth: 0.5,
     borderTopColor: '#38383A',
+  },
+
+  // Season comparison table
+  cmpHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingBottom: 4,
+  },
+  cmpCoverageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#38383A',
+  },
+  cmpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  cmpLabelCell: {
+    flex: 1.5,
+    color: '#FFFFFF',
+    fontSize: 14,
+  },
+  cmpValCell: {
+    flex: 1,
+    textAlign: 'right',
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontVariant: ['tabular-nums'],
+  },
+  cmpDeltaCell: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#48484A',
+    fontVariant: ['tabular-nums'],
+  },
+  cmpHeaderText: {
+    color: '#00CEC9',
+    fontSize: 12.5,
+    fontWeight: '600',
+  },
+  cmpCoverageText: {
+    color: '#8E8E93',
+    fontSize: 11,
+    fontWeight: '400',
   },
 
   // Mini pin diagram inside leave rows

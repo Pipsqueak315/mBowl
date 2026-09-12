@@ -52,11 +52,29 @@ export type Ball = {
   active: boolean;
 };
 
+/**
+ * A bowling season. Phase 24: seasons are first-class. Only `start` is stored —
+ * a season's end is DERIVED as (next season's start − 1 day); the most recent
+ * season is open-ended. This gapless model means no session can fall outside a
+ * season and there is no end-date field to keep in sync. See src/seasons.ts.
+ */
+export type Season = {
+  id: string;     // stable, e.g. "winners-2025"
+  label: string;  // "Bob's Saturday Winners 2025"
+  short: string;  // "Winners 25" — for pills
+  start: string;  // "YYYY-MM-DD"
+};
+
 export type Settings = {
   seasonStart?: string | null;
   seasonEnd?: string | null;
   targetAverage?: number | null;
   targetSeries?: number | null;
+  // Phase 24, additive. Absent on legacy blobs — synthesized read-time from
+  // DEFAULT_SEASONS by getSeasons(). seasonStart/seasonEnd are left in place and
+  // remain the source of truth for week auto-suggest (log.tsx). Never
+  // persisted on read: mbowl_settings_v1 has no shadow key.
+  seasons?: Season[];
 };
 
 /** Shape of the in-progress log form persisted as a draft */

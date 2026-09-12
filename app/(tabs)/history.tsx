@@ -22,15 +22,20 @@ import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import { readSessions, writeSessions } from '@/src/storage';
+import { readSessions, writeSessions, readSettings } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
 import { FRAME_RESULT_KEY } from '@/app/log-frames';
-import type { ThrowEntry, GameEntry, Session } from '@/src/types';
+import type { ThrowEntry, GameEntry, Session, Settings } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import { FrameGrid } from '@/components/FrameGrid';
+import { filterSessions, ALL_TIME, type SeasonSelection, type TypeFilter } from '@/src/sessionFilter';
+import { getSeasons, currentSeason, resolveSeasonRanges, seasonForDate } from '@/src/seasons';
 
-type FilterType = 'all' | 'league' | 'makeup' | 'practice' | 'tournament';
+// History's session-type filter is the shared TypeFilter. The season selector
+// is wired in Part 4; until then History calls filterSessions with ALL_TIME —
+// type-only, identical to the pre-Part-0 inline filter.
+type FilterType = TypeFilter;
 
 const FILTERS: { key: FilterType; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -51,6 +56,15 @@ const EMPTY_LABELS: Record<FilterType, string> = {
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00');
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Local today as YYYY-MM-DD, for resolving the current season.
+function todayISO(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function sessionAvg(games: GameEntry[]): number {
@@ -308,10 +322,12 @@ function SessionCard({
   session,
   onDelete,
   onEdit,
+  seasonShort,
 }: {
   session: Session;
   onDelete: (id: number | string) => void;
   onEdit: (session: Session) => void;
+  seasonShort?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -404,6 +420,7 @@ function SessionCard({
                 {typeLabel(session.type)}
               </Text>
             </View>
+            {seasonShort ? <Text style={styles.cardSeason}>{seasonShort}</Text> : null}
           </View>
 
           <View style={styles.cardRight}>
@@ -527,6 +544,10 @@ function SessionCard({
 export default function HistoryScreen() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [settings, setSettings] = useState<Settings>({});
+  // Season selection — non-persistent, reset to the current season each focus,
+  // matching Stats and the type filter.
+  const [seasonSel, setSeasonSel] = useState<SeasonSelection>(ALL_TIME);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -581,10 +602,13 @@ export default function HistoryScreen() {
       let active = true;
       const load = async () => {
         setLoaded(false);
-        const raw = await readSessions();
+        const [raw, settingsData] = await Promise.all([readSessions(), readSettings()]);
         if (!active) return;
         raw.sort((a, b) => b.date.localeCompare(a.date));
         setSessions(raw);
+        setSettings(settingsData);
+        const cur = currentSeason(getSeasons(settingsData), todayISO());
+        setSeasonSel(cur ? cur.id : ALL_TIME);
         setLoaded(true);
 
         // Only act when WE sent the user to the frame editor. The Log tab consumes
@@ -678,13 +702,56 @@ export default function HistoryScreen() {
     setEditModalOpen(false);
   }, []);
 
-  const filtered =
-    filter === 'all' ? sessions : sessions.filter((s) => s.type === filter);
+  const seasons = getSeasons(settings);
+  // Season pills: most-recent season first, then All-Time (matches Stats).
+  const seasonPills = [...resolveSeasonRanges(seasons)]
+    .reverse()
+    .map(r => ({ key: r.id, label: r.short }));
+  seasonPills.push({ key: ALL_TIME, label: 'All-Time' });
+  const seasonShortById: Record<string, string> = {};
+  for (const s of seasons) seasonShortById[s.id] = s.short;
+  const seasonShortForDate = (date: string): string | undefined => {
+    const id = seasonForDate(date, seasons);
+    return id ? seasonShortById[id] : undefined;
+  };
+
+  const filtered = filterSessions(sessions, seasonSel, seasons, filter);
 
   return (
     <>
       <View style={styles.container}>
-        {/* Filter pills */}
+        {/* Season selector — each season by short label, plus All-Time */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.seasonBar}
+          contentContainerStyle={styles.filterBarContent}
+        >
+          {seasonPills.map((p) => (
+            <ScalePressable
+              key={p.key}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setSeasonSel(p.key);
+              }}
+              style={[
+                styles.filterPill,
+                seasonSel === p.key && styles.filterPillActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.filterPillText,
+                  seasonSel === p.key && styles.filterPillTextActive,
+                ]}
+              >
+                {p.label}
+              </Text>
+            </ScalePressable>
+          ))}
+        </ScrollView>
+
+        {/* Type filter pills */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -730,7 +797,12 @@ export default function HistoryScreen() {
             data={filtered}
             keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
-              <SessionCard session={item} onDelete={handleDelete} onEdit={handleEdit} />
+              <SessionCard
+                session={item}
+                onDelete={handleDelete}
+                onEdit={handleEdit}
+                seasonShort={seasonShortForDate(item.date)}
+              />
             )}
             contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 16 }]}
             showsVerticalScrollIndicator={false}
@@ -772,9 +844,15 @@ const styles = StyleSheet.create({
   },
 
   // Filter bar
-  filterBar: {
+  seasonBar: {
     flexGrow: 0,
     paddingTop: 12,
+  },
+  filterBar: {
+    // Second bar (type filter) — sits directly under the season bar, so no top
+    // padding of its own; the season bar's content paddingBottom is the gap.
+    flexGrow: 0,
+    paddingTop: 0,
   },
   filterBarContent: {
     paddingHorizontal: 16,
@@ -842,6 +920,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '500',
+  },
+  cardSeason: {
+    color: '#8E8E93',
+    fontSize: 11,
+    fontWeight: '400',
   },
   typeBadge: {
     alignSelf: 'flex-start',

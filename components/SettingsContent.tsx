@@ -17,7 +17,8 @@ import * as Haptics from 'expo-haptics';
 import { readSettings, writeSettings, readBalls, writeBalls } from '@/src/storage';
 import { writeBackup, restoreBackup } from '@/src/backup';
 import ScalePressable from '@/components/ScalePressable';
-import type { Settings, Ball } from '@/src/types';
+import type { Settings, Ball, Season } from '@/src/types';
+import { getSeasons, resolveSeasonRanges } from '@/src/seasons';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -68,6 +69,12 @@ export default function SettingsContent({ onClose }: Props) {
   const [newBallName, setNewBallName] = useState('');
   const [newBallStrength, setNewBallStrength] = useState(3);
 
+  // Season editor: a single draft panel drives both add and edit. `isNew`
+  // distinguishes an append from an in-place replace. Delete is edit-only.
+  const [seasonDraft, setSeasonDraft] = useState<Season | null>(null);
+  const [seasonDraftIsNew, setSeasonDraftIsNew] = useState(false);
+  const [showSeasonStartPicker, setShowSeasonStartPicker] = useState(false);
+
   // Load settings + balls on mount
   useEffect(() => {
     let active = true;
@@ -109,6 +116,12 @@ export default function SettingsContent({ onClose }: Props) {
     if (!iso) return 'Not set';
     const d = new Date(iso + 'T12:00:00');
     return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  }
+
+  function formatDateShort(iso?: string | null): string {
+    if (!iso) return '—';
+    const d = new Date(iso + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   function toISODate(d: Date): string {
@@ -162,8 +175,160 @@ export default function SettingsContent({ onClose }: Props) {
   }
 
   // ---------------------------------------------------------------------------
+  // Season actions — a season save is an EXPLICIT persist. When settings.seasons
+  // was absent (synthesized from defaults), the first save here materializes the
+  // full list. seasonStart/seasonEnd are never touched.
+  // ---------------------------------------------------------------------------
+
+  function slugify(label: string, existingIds: string[]): string {
+    const base =
+      label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') ||
+      `season-${Date.now()}`;
+    let id = base;
+    let n = 2;
+    while (existingIds.includes(id)) id = `${base}-${n++}`;
+    return id;
+  }
+
+  function openAddSeason() {
+    setSeasonDraftIsNew(true);
+    setShowSeasonStartPicker(false);
+    setSeasonDraft({ id: '', label: '', short: '', start: toISODate(new Date()) });
+  }
+
+  function openEditSeason(season: Season) {
+    setSeasonDraftIsNew(false);
+    setShowSeasonStartPicker(false);
+    setSeasonDraft({ ...season });
+  }
+
+  function closeSeasonEditor() {
+    setSeasonDraft(null);
+    setShowSeasonStartPicker(false);
+  }
+
+  function saveSeasonDraft() {
+    if (!seasonDraft) return;
+    const label = seasonDraft.label.trim();
+    if (!label || !seasonDraft.start) return;
+    const short = seasonDraft.short.trim() || label;
+
+    const current = getSeasons(settings);
+    let updated: Season[];
+    if (seasonDraftIsNew) {
+      const id = slugify(label, current.map(s => s.id));
+      updated = [...current, { id, label, short, start: seasonDraft.start }];
+    } else {
+      updated = current.map(s =>
+        s.id === seasonDraft.id ? { ...s, label, short, start: seasonDraft.start } : s,
+      );
+    }
+    updated.sort((a, b) => a.start.localeCompare(b.start));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    saveSettingsData({ ...settings, seasons: updated });
+    closeSeasonEditor();
+  }
+
+  function deleteSeasonDraft() {
+    if (!seasonDraft || seasonDraftIsNew) return;
+    const current = getSeasons(settings);
+    if (current.length <= 1) {
+      Alert.alert('Cannot Delete', 'At least one season must remain.');
+      return;
+    }
+    Alert.alert(
+      'Delete Season?',
+      `"${seasonDraft.label}" will be removed. Sessions are never deleted — they will fall into the adjacent season.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            const updated = current.filter(s => s.id !== seasonDraft.id);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            saveSettingsData({ ...settings, seasons: updated });
+            closeSeasonEditor();
+          },
+        },
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
+
+  const resolvedSeasons = resolveSeasonRanges(getSeasons(settings));
+
+  function renderSeasonEditor() {
+    if (!seasonDraft) return null;
+    return (
+      <View style={styles.seasonEditor}>
+        <TextInput
+          style={styles.addBallInput}
+          value={seasonDraft.label}
+          onChangeText={t => setSeasonDraft(d => (d ? { ...d, label: t } : d))}
+          placeholder="Season name"
+          placeholderTextColor="#48484A"
+          returnKeyType="done"
+          autoFocus
+        />
+        <TextInput
+          style={styles.addBallInput}
+          value={seasonDraft.short}
+          onChangeText={t => setSeasonDraft(d => (d ? { ...d, short: t } : d))}
+          placeholder="Short label (for pills, e.g. Winners 25)"
+          placeholderTextColor="#48484A"
+          returnKeyType="done"
+          maxLength={16}
+        />
+        <TouchableOpacity
+          style={styles.fieldRow}
+          onPress={() => setShowSeasonStartPicker(v => !v)}
+        >
+          <Text style={styles.fieldLabel}>Start Date</Text>
+          <Text style={seasonDraft.start ? styles.valueSet : styles.valueDim}>
+            {formatDateDisplay(seasonDraft.start)}
+          </Text>
+        </TouchableOpacity>
+        {showSeasonStartPicker && (
+          <View style={styles.pickerWrap}>
+            <TouchableOpacity
+              style={styles.pickerDoneRow}
+              onPress={() => setShowSeasonStartPicker(false)}
+            >
+              <Text style={styles.pickerDoneText}>Done</Text>
+            </TouchableOpacity>
+            <DateTimePicker
+              value={parseDate(seasonDraft.start)}
+              mode="date"
+              display="spinner"
+              onChange={(_e, d) => {
+                if (d) setSeasonDraft(prev => (prev ? { ...prev, start: toISODate(d) } : prev));
+              }}
+              textColor="#FFFFFF"
+              style={styles.datePicker}
+            />
+          </View>
+        )}
+        <View style={styles.seasonEditorButtons}>
+          <ScalePressable
+            style={[styles.saveBtn, styles.seasonSaveBtn, !seasonDraft.label.trim() && styles.saveBtnDisabled]}
+            onPress={saveSeasonDraft}
+            disabled={!seasonDraft.label.trim()}
+          >
+            <Text style={styles.saveBtnText}>{seasonDraftIsNew ? 'Add Season' : 'Save'}</Text>
+          </ScalePressable>
+          {!seasonDraftIsNew && (
+            <ScalePressable style={styles.seasonDeleteBtn} onPress={deleteSeasonDraft}>
+              <Text style={styles.seasonDeleteText}>Delete</Text>
+            </ScalePressable>
+          )}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -265,6 +430,49 @@ export default function SettingsContent({ onClose }: Props) {
               />
             </View>
           )}
+        </View>
+
+        {/* ----------------------------------------------------------------
+            Seasons (Phase 24) — gapless. Only start is stored; each end is
+            derived as the next start minus a day. Adding a season is how a
+            season rolls over.
+        ---------------------------------------------------------------- */}
+        <View style={styles.sectionRow}>
+          <Text style={styles.sectionLabel}>SEASONS</Text>
+          <TouchableOpacity
+            onPress={() =>
+              seasonDraft && seasonDraftIsNew ? closeSeasonEditor() : openAddSeason()
+            }
+          >
+            <Text style={styles.addLink}>
+              {seasonDraft && seasonDraftIsNew ? 'Cancel' : '+ Add Season'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {seasonDraft && seasonDraftIsNew && (
+          <View style={styles.card}>{renderSeasonEditor()}</View>
+        )}
+
+        <View style={styles.card}>
+          {resolvedSeasons.map((s, index) => (
+            <View key={s.id}>
+              {index > 0 && <View style={styles.separator} />}
+              {seasonDraft && !seasonDraftIsNew && seasonDraft.id === s.id ? (
+                renderSeasonEditor()
+              ) : (
+                <TouchableOpacity style={styles.seasonRow} onPress={() => openEditSeason(s)}>
+                  <View style={styles.seasonRowText}>
+                    <Text style={styles.seasonLabel}>{s.label}</Text>
+                    <Text style={styles.seasonRange}>
+                      {formatDateShort(s.start)} → {s.end ? formatDateShort(s.end) : 'open'}
+                    </Text>
+                  </View>
+                  <Text style={styles.seasonShort}>{s.short}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
         </View>
 
         {/* ----------------------------------------------------------------
@@ -689,6 +897,56 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     minWidth: 60,
     padding: 0,
+  },
+
+  // Seasons
+  seasonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 12,
+  },
+  seasonRowText: {
+    flex: 1,
+  },
+  seasonLabel: {
+    fontSize: 15,
+    color: '#FFFFFF',
+    fontWeight: '500',
+  },
+  seasonRange: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 2,
+  },
+  seasonShort: {
+    fontSize: 13,
+    color: '#00CEC9',
+    fontWeight: '500',
+  },
+  seasonEditor: {
+    paddingVertical: 4,
+  },
+  seasonEditorButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  seasonSaveBtn: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  seasonDeleteBtn: {
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2C2C2E',
+  },
+  seasonDeleteText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FF453A',
   },
 
   // Restore from backup
