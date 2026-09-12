@@ -46,6 +46,9 @@ app-example
 # mBowl auto-export
 mBowl-backup.json
 
+# Phase 24 verification data — real session export, device-private, never committed
+docs/phase24-data.json
+
 # IPA build output
 *.ipa
 

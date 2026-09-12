@@ -61,7 +61,7 @@ B1's free-nav narrowed the completion guard to `allComplete && currentFrame===9`
 
 ---
 
-## ⚪ NICE — 14 (all DEFER)
+## ⚪ NICE — 15 (all DEFER)  ·  *N15 added Phase 24*
 
 | ID | Location | Note |
 |---|---|---|
@@ -79,6 +79,7 @@ B1's free-nav narrowed the completion guard to `allComplete && currentFrame===9`
 | N12 | `PocketDiagnosticsTab.tsx:241` | Unreachable `if (!sessions)` branch |
 | N13 | `stats.tsx:116` | SPLIT badge in a non-wrapping row — long split name can squeeze |
 | N14 | `leaveUtils.js:218` | `makeableConverted` returned but read by no consumer |
+| N15 | `stats.tsx:104` (`conversionColor`) | *(added Phase 24)* One band (green ≥80 / orange ≥60) is shared between **aggregate Makeable %** and **per-leave conversion rows** — two metrics with very different natural distributions, so a single band can't be well-calibrated for both. Should be split into two bands. Left untouched in Phase 24 (Part 6 colored only the seven previously-uncolored cells). |
 
 ---
 

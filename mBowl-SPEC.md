@@ -541,6 +541,10 @@ Native iOS modal sheet from gear icon on any tab.
 | 3 | "Stats layout: Hero avg → High game/series → Strike/Spare/Opens → Charts" (:500) — 5 blocks | **Stats carries more.** Also: Leave Stats (Common Leaves + All Tracked Leaves), Score Distribution histogram, By Ball, By Game Number, and **Makeable Spare %** | Phases 13, 15B, 19, 20 |
 | 4 | "Historical data: **17** sessions seeded on first launch" (:522) | **18** sessions, ids **1001–1018**. Verified by count, not by comment — `seeds.js`'s own header also said 17 and has been corrected | Phase 2 (drift caught in Phase 20) |
 | 5 | "App icon: **Deferred to Phase 12**" (:521) | **Shipped** (`6d55680`) | post-Phase 19 |
+| 6 | "Season Definition: Season Start Date + Season End Date … Current Season = sessions where date falls within the window" (:199–204) · "Stats timeframe: Current Season / All-Time toggle" (:502) | **Multi-season, gapless model.** Seasons are first-class: an additive `seasons` array in `mbowl_settings_v1`, each `{ id, label, short, start }`. Membership is **derived at read time from `session.date`** (nothing written onto sessions). Only `start` is stored — a season's end is `(next start − 1 day)`, the most recent season is open-ended, so no session can fall outside a season. `seasonStart`/`seasonEnd` are **left untouched** and still drive week auto-suggest only. The binary Current/All-Time toggle became a **season selector** (each season by short label + All-Time) on both Stats and History; selection is non-persistent, default = the season containing today. Helpers in `src/seasons.ts` (`resolveSeasonRanges` / `seasonForDate` / `currentSeason`). Season CRUD in Settings. | Phase 24 Parts 1–2, 4 |
+| 7 | *(not in spec)* | **Season comparison view.** Stats gained a Season Comparison card (below the fold): the selected season vs its immediately preceding season, 9 metrics (Average, First Ball, Strike %, Doubles %, Clean %, Spare %, Makeable %, Opens/G, Bounce-Back %) with direction-coloured deltas (Opens/G inverted). Reuses existing metric functions over two filtered sets. Frame-data coverage (`N of M games`) shown; frame-derived deltas suppressed when either side has < 10 games with frame data. | Phase 24 Part 3 |
+| 8 | *(not in spec)* | **`filterSessions` extracted to `src/sessionFilter.ts`**, shared by Stats and History (single implementation; no divergent copies — cf. audit S16). Signature evolved from a binary season/all-time mode to a season-id selection. | Phase 24 Part 0 |
+| 9 | "Score Color Thresholds" defines only three sets — game vs session avg, series, overall average (:87–90) | **PENDING (Phase 24 Part 6).** Color bands to be added to the seven currently-white stat cells: First Ball, Strike %, Doubles %, Clean %, Spare %, Opens/G, Bounce-Back %, with a ≥10-frame-game sample-size gate. Makeable's existing band (`conversionColor`, green ≥80 / orange ≥60) stays as-is. **Blocked on post-league-session data — complete after the real reconciliation.** | Phase 24 Part 6 (pending) |
 
 ### Notes on #1 and #3
 
@@ -559,3 +563,13 @@ Not a spec conflict, but a **bowling decision** recorded here so it is not relit
 - **No `NEVER_SPLIT` override exists, and none should be added.**
 - Rationale: classifying them makeable would pad the Makeable Spare % denominator with genuinely hard converts, making the metric lie about spare-shooting ability — the only thing it exists to measure.
 - `leaveUtils.isSplit()` is the **single source of truth**, derived at read time from `pinsStanding` and never persisted.
+
+### Note on #6 — why the season model is gapless and read-time (Phase 24)
+
+The original spec modelled "season" as one `[seasonStart, seasonEnd]` window. With three real seasons of data that couldn't address them individually, and an inclusive end date created ambiguity at the boundary. The Phase 24 model stores **only each season's start** and derives the end as the next season's start minus a day, leaving the newest season open-ended. Consequences:
+
+- **No session can fall outside a season**, and there is **no end-date field to keep in sync**.
+- Season membership is **derived at read time from `session.date`** — same instinct as `isSplit()` and `calcAdvancedStats()`: retroactively correct by construction, cannot drift, nothing persisted onto session records.
+- `mbowl_settings_v1` has **no shadow key**, so the `seasons` array is additive and the read-time migration (synthesizing the three seasons when absent) **never persists on read** — the first write happens only when the user saves in Settings.
+
+This is why the early-September 2026 tournament lands in **Jubilee 2026** (whose derived window is 2026-05-30 → 2026-09-11), not in a gap: the next season, Winners 2026, does not begin until 2026-09-12.
