@@ -101,8 +101,11 @@ function calcMetrics(sessions) {
   const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
   const highGame = Math.max(...scores);
   let highSeries = 0;
+  // Part 6b: 3-game sessions only (mirrors threeGameSeriesTotal in stats.tsx).
   for (const s of sessions) {
-    const total = s.games.filter(g => g.score != null).reduce((sum, g) => sum + g.score, 0);
+    const scored = s.games.filter(g => g.score != null);
+    if (scored.length !== 3) continue;
+    const total = scored.reduce((sum, g) => sum + g.score, 0);
     if (total > highSeries) highSeries = total;
   }
   const gamesWithFrames = allGames.filter(g => Array.isArray(g.frames) && g.frames.length > 0);
