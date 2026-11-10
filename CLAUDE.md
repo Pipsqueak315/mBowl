@@ -192,7 +192,7 @@ mBowl/
 │   ├── gen-assets.js        — icon/splash asset generation
 │   ├── phase24-verify.mjs   — Phase 24 season/metric harness (--data <file>, --seeds)
 │   ├── checks/              — npm run check + backup-check
-│   ├── mac-build.sh         — the whole Mac build in one command (prebuild → xcodebuild → .ipa → iCloud/GitHub)
+│   ├── mac-build.sh         — Mac build helper: setup + open Xcode, then `package` → .ipa → iCloud/GitHub (signing stays in Xcode)
 │   └── ship-ota.mjs         — npm run ship:ota — the only hand-run OTA path
 ├── .claude/                 — hooks, skills (/feature /ship /audit /backup-check), reviewer agent
 └── .github/workflows/       — ci.yml (every push) + ota.yml (manual only)

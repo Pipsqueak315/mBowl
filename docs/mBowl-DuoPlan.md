@@ -261,6 +261,8 @@ Bowl on the Duo cover screen, or on the old phone if anything is off. Log in Ful
 **Build route (decided Nov 10): the Mac.** One Mac trip, learned properly. Because every native change needs a new build — and a new build means a Mac trip — everything native that we might want for the next several months gets batched into this one build (27.0).
 
 **27.0 — Mac trip checklist (decide before the trip).**
+**iOS 27 facts (Expo SDK 58 + Duo guides, checked Nov 10):** iPhone apps are resizable and orientation locks are only a preference (`lockAsync` may be refused), so v2 will appear in landscape regardless — layouts must survive it. The Duo's side rail needs an 84pt left/right safe-area inset on every screen. Native tabs moved to `expo-router/native-tabs` (`preferredPlacement`). SDK 58 headers are transparent Liquid Glass by default.
+
 Must-haves (already part of this phase):
 - SDK 54 → 58 upgrade, native tabs, splash fix (27.2, 27.4, 27.5).
 - App version 1.0.0 → 2.0.0. The update channel is keyed to the app version, so this is what keeps SDK 58 updates off the old phone (27.7).
@@ -272,6 +274,7 @@ Add-ons (cheap to add now, each saves a future Mac trip) — **decided Nov 10:**
 | M2 | `expo-document-picker` → "Restore from file…" | Pick any backup (iCloud, Downloads, AirDrop) instead of the rename-into-the-mBowl-folder routine. Makes every future phone move and upgrade one tap. The button itself can ship over the air later. | ✅ **Yes** |
 | M3 | `expo-keep-awake` in Log Frames | Screen stays on while you log a live game. May already be in the build as part of Expo; add it explicitly so it's guaranteed. | ✅ **Yes** |
 | M4 | New app icon | Cut on Oct 23. Icons are native, so this is the last cheap chance until the next Mac trip. | ✅ **No — keep the current icon.** But the splash must show it (27.5). |
+| M6 | `@expo/ui` (ArrangementView) | Expo's fold-aware two-pane layout: splits along the fold when open, one column when closed, avoids the fold when half-open. Native, so it must be in this build; the Phase 28 page pairs can then use it over the air instead of hand-written fold math. (Found Nov 10 in Expo's "Supporting iPhone Duo" guide.) | **Recommended — in the Phase 27 prompt; strike it if not wanted** |
 | M5 | Fold-state module (open/closed detection) | Phase 28 layouts work off screen width, so it isn't needed. Unfolding mid-game still works without it: iOS hands the app a wider screen, the layout switches to two pages, and the frames you've entered stay put (same as rotating — no restart). The module would only add things like hinge angle or a half-folded "tabletop" mode. The 28.6 fold/unfold test confirms frames survive. | ✅ **Skip** |
 
 Also on this trip: N6 (`prebuild --clean` in REBUILD.md) and N11 (orphaned splash asset) from the NICE list; REBUILD.md rewritten for Xcode 27.1 as you go; the new IPA attached to a GitHub Release so reinstalls never need the Mac.
@@ -306,7 +309,7 @@ The target bar placement is in the Design spec ("Native iOS bars"). Two things t
 
 **27.5 — Splash fix.** The splash screen shows the **current app icon** (decided Nov 10: icon stays, splash catches up to it). Clean up the orphaned `splash-icon.png` (N11) at the same time.
 
-**27.6 — Build on the Mac (bare minimum, decided Nov 10).** One Terminal command runs `scripts/mac-build.sh`: `npm ci` → `prebuild --clean` + CocoaPods → unsigned `xcodebuild archive` with Xcode 27.1 → `mBowl-2.0.0.ipa` → iCloud Drive / GitHub Release. Claude Code isn't on the Mac; errors go to Claude in the iOS app, and Claude updates REBUILD.md afterwards. Then install on the Duo with iloader from the PC. (An Expo cloud build was considered and set aside Nov 10 — you want to learn the Mac process. It stays available if the Mac is ever unavailable.)
+**27.6 — Build on the Mac (bare minimum, known-good signing — decided Nov 10).** `scripts/mac-build.sh` does the setup (`npm ci` → `prebuild --clean` + CocoaPods → opens Xcode); Xcode 27.1 signs with the Personal Team and Product → Archive, exactly like previous builds; `scripts/mac-build.sh package` turns the archive into `mBowl-2.0.0.ipa` → iCloud Drive / GitHub Release. Claude Code isn't on the Mac; errors go to Claude in the iOS app, and Claude updates REBUILD.md afterwards. Then install on the Duo with iloader from the PC. (An Expo cloud build was considered and set aside Nov 10 — you want to learn the Mac process. It stays available if the Mac is ever unavailable.)
 
 **27.7 — OTA runtime version.**
 The SDK bump changes the OTA runtime. The old phone stays on the old runtime and stops receiving new OTA updates. That's fine; it's the backup. Confirm the Duo build receives OTA updates on the new runtime, and that the automatic update job (`ota.yml`) publishes to it.

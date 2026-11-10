@@ -26,7 +26,7 @@ Rule change Marcus approved: the 3-day native freeze is waived for the **Duo onl
 |---|---|---|
 | **Tue night** | Marcus, PC | Push: run the commands below. Check the Mac's macOS can run **Xcode 27.1** and, if possible, start the Xcode download (10+ GB -- the slow part). |
 | **Tue night -> Wed AM** | Claude Code on the **PC** (npm works there; it does NOT work in cloud sessions) | Paste prompt "Phase 27 part 1" below: pull `master` (phase26 + phase26a already merged by Claude, Nov 10), branch `phase27`, SDK 54->58 one step at a time with `npm run check` each step, version 2.0.0, M1-M3 add-ons, native tabs, splash. Push `phase27`. |
-| **Wed** | Marcus on the **Mac** -- **bare minimum: paste one Terminal command** (below) | `scripts/mac-build.sh` does the whole Mac part: preflight -> `npm ci` -> `prebuild --clean` + CocoaPods -> unsigned `xcodebuild archive` -> `mBowl-2.0.0.ipa` -> copies it to iCloud Drive / GitHub Release. Claude Code is NOT on the Mac (decided Nov 10) -- if anything fails, paste the error to Claude in the iOS app. Claude updates REBUILD.md afterwards. |
+| **Wed** | Marcus on the **Mac** -- bare minimum, **known-good Xcode + Apple ID signing** (decided Nov 10) | Terminal: one setup command runs `scripts/mac-build.sh` (preflight, `npm ci`, `prebuild --clean`, CocoaPods, opens Xcode and prints the checklist). Xcode: sign with your Personal Team, Product -> Archive (same as every previous build). Terminal: `bash scripts/mac-build.sh package` turns the archive into `mBowl-2.0.0.ipa` and copies it to iCloud Drive (+ GitHub Release). No Claude Code on the Mac; errors go to Claude in the iOS app. |
 | **Wed night** | Marcus, PC + Duo | iloader: install v2 on the **Duo** (skip installing the old build there). Move data with plan 25.2 using the Oct 10 backup; restore BEFORE ever closing the app. Export from the Duo and run `npm run backup-check` -- must read 40 sessions / 125 games / 174.1. |
 | **Thu-Fri** | Claude (cloud or PC) + Marcus checking on the Duo | Phase 28 over the air to the 2.0.0 runtime only (`npm run ship:ota`), **in this priority order, each shipped only after Marcus checks it**: (1) Log Frames on the cover screen (league-critical), (2) Stats, (3) History, (4) open-screen page pairs + Live game button, (5) v2 visual pass. Whatever isn't verified waits. |
 | **Fri 8pm** | Marcus | **Go/no-go.** Duo bowls Saturday only if: counts match the backup; a full practice game logs end to end in Pins mode on the cover screen (then delete it); Export Backup works. Otherwise bowl on the old phone. |
@@ -38,10 +38,10 @@ Rule change Marcus approved: the 3-day native freeze is waived for the **Duo onl
 |---|---|---|
 | **Claude from the phone** (Claude.ai project session, linked to the PC) | Write code on branches; typecheck + `npm run check` against the PC's node_modules through the link; drop branches into the PC repo; update docs + project; read backups (`backup-check`); Phase 28 layout code once `phase27` exists. **With the Claude GitHub App installed:** push branches + open PRs. **With `EXPO_TOKEN` in GitHub:** ship OTA by running the OTA workflow after your "ship it". | npm installs (no package access), the SDK upgrade, anything on the Mac, iloader, seeing the phone screen. |
 | **Claude Code on the PC** | Everything above plus npm installs, the SDK 54->58 upgrade, git push, `npm run ship:ota`. Runs "Phase 27 part 1" end to end on its own. | iloader, the Mac, looking at the phone. |
-| **The Mac (no Claude Code there)** | Runs `scripts/mac-build.sh` -- everything Mac-only in one command. | Anything else: debugging goes to Claude in the iOS app (paste the error), REBUILD.md and the GitHub Release are done by Claude afterwards. |
-| **Marcus only** | (1) One-time: install the Claude GitHub App + add the `EXPO_TOKEN` secret (~10 min, unlocks Claude doing pushes + ships from the phone). (2) Start the PC Claude Code session with the paste prompt. (3) Mac: paste one Terminal command; only if it stops, run the one fix command it prints (Xcode first-launch, Node, or CocoaPods) and re-run. (4) iloader install on the Duo (phone plugged into the PC). (5) Phone-side data move (AirDrop, Files, Restore) + Settings goals. (6) Check each screen on the Duo, say "ship it", Friday go/no-go. | -- |
+| **The Mac (no Claude Code there)** | `scripts/mac-build.sh` automates the typing before and after the Xcode clicks. | Anything else: debugging goes to Claude in the iOS app (paste the error), REBUILD.md and the GitHub Release are done by Claude afterwards. |
+| **Marcus only** | (1) One-time: install the Claude GitHub App + add the `EXPO_TOKEN` secret (~10 min, unlocks Claude doing pushes + ships from the phone). (2) Start the PC Claude Code session with the paste prompt. (3) Mac: paste the setup command, do the Xcode signing + Product -> Archive clicks it lists, run the package command. (4) iloader install on the Duo (phone plugged into the PC). (5) Phone-side data move (AirDrop, Files, Restore) + Settings goals. (6) Check each screen on the Duo, say "ship it", Friday go/no-go. | -- |
 
-**DONE Nov 10, 12:11 (Claude, via the PC link):** docs committed on `master` as `08323d7` and pushed; both branches pushed; CRLF noise discarded; PC working tree clean. `EXPO_TOKEN` secret added and verified (signs in as pipsqueak315). Xcode 27.1 / macOS check done by Marcus. **12:25: Claude also merged `phase26` + `phase26a` into `master` (nothing shipped), bumped the GitHub check tools to v5, and added `scripts/mac-build.sh` (Mac day = one Terminal command).** **Remaining tonight: only the "Phase 27 part 1" prompt on the PC.** The commands below are kept for reference only -- do not re-run them.
+**DONE Nov 10, 12:11 (Claude, via the PC link):** docs committed on `master` as `08323d7` and pushed; both branches pushed; CRLF noise discarded; PC working tree clean. `EXPO_TOKEN` secret added and verified (signs in as pipsqueak315). Xcode 27.1 / macOS check done by Marcus. **12:25: Claude also merged `phase26` + `phase26a` into `master` (nothing shipped), bumped the GitHub check tools to v5, and added `scripts/mac-build.sh` (Mac day = setup command -> Xcode sign + Archive -> package command; known-good Apple ID signing, decided 12:24).** **Remaining tonight: only the "Phase 27 part 1" prompt on the PC.** The commands below are kept for reference only -- do not re-run them.
 
 **Tonight's push (PowerShell, one line at a time):**
 ```
@@ -58,29 +58,45 @@ git push -u origin phase26a
 ```
 Phase 27 sprint, part 1 (PC). Read CLAUDE.md, mBowl-SessionBrief-REV24.md (SPRINT section), and docs/mBowl-DuoPlan.md Phase 27 + 27.0.
 Do NOT run eas update or npm run ship:ota. Nothing goes to the 1.0.0 runtime this week.
-1. git checkout master, git pull (Claude already merged phase26 + phase26a and added scripts/mac-build.sh). Run npm ci, then npm run check (must be green).
+1. git checkout master, git pull (Claude already merged phase26 + phase26a and added scripts/mac-build.sh). npm ci, then npm run check (must be green).
 2. Create branch phase27 from master.
-3. Upgrade Expo SDK 54 -> 55 -> 56 -> 57 -> 58, one step at a time: read Expo's upgrade notes for that SDK, then
-   npx expo install expo@^<N>.0.0 and npx expo install --fix. Run npm run check after each step and commit each step.
+3. Upgrade Expo SDK 54 -> 55 -> 56 -> 57 -> 58, one step at a time. For each: read Expo's "how to upgrade to SDK <N>"
+   notes, run npx expo install expo@^<N>.0.0 --fix, then npx expo-doctor@latest, then npm run check. Commit each step.
    If a step fails twice, stop and report.
-4. app.json: version 2.0.0, ios.buildNumber 2, orientation "default". Add expo-screen-orientation (lock to portrait at
-   startup in app/_layout.tsx; Phase 28 unlocks it over the air), expo-document-picker (dependency only for now),
-   expo-keep-awake (keep the screen on while app/log-frames.tsx is open).
-5. Native tabs (plan 27.4): first confirm the Expo Router native-tabs API on SDK 58. If unclear or broken, keep the
-   current JS tab bar and report -- don't let this block the build.
-6. Splash (27.5): show the current app icon; delete the orphaned assets/images/splash-icon.png (N11).
-7. npm run check green, then push phase27 and report: done / blocked / anything I must check on the Mac.
+   SDK 58 changes to handle (Expo's upgrade guide): strict TypeScript API by default (refs use instance types such as
+   ViewInstance; no react-native/Libraries deep imports); InteractionManager, the Modal "animated" prop and StatusBar
+   backgroundColor/translucent are removed; ImageBackground is deprecated; iOS 26+ headers are transparent Liquid Glass
+   with content underneath by default -- keep content readable (dark theme) and report what changed visually.
+4. app.json: version 2.0.0, ios.buildNumber "2", orientation "default". Add these (npx expo install):
+   - expo-screen-orientation: request portrait at startup in app/_layout.tsx. iOS 27 treats locks as a preference and
+     may ignore them, so every screen must also survive landscape -- report any that clearly break.
+   - expo-keep-awake: keep the screen on while app/log-frames.tsx is open.
+   - expo-document-picker: dependency only (the "Restore from file..." button comes later over the air).
+   - @expo/ui: dependency only (its ArrangementView is the fold-aware two-page layout for Phase 28).
+5. Native tabs (27.4): switch app/(tabs)/_layout.tsx to NativeTabs from 'expo-router/native-tabs'
+   (preferredPlacement 'automatic'); keep the 4 tabs, SF Symbols, teal tint. If the API blocks you, keep the JS
+   tab bar and report -- don't let it block the build.
+6. Safe areas: the Duo's side rail needs an 84pt left/right inset. Make every screen use react-native-safe-area-context
+   insets on BOTH left and right (absolute elements: insets.right + 16, not 16). Don't add a fixed tab-bar height
+   to insets.bottom on NativeTabs screens.
+7. Splash (27.5): show the current app icon; delete the orphaned assets/images/splash-icon.png (N11).
+8. npm run check green, push phase27, and confirm CI passes on GitHub. Report: done / blocked / anything I need
+   to know before the Mac tomorrow.
 ```
 
-**Mac day -- paste into Terminal (one block; the Mac's zsh supports `&&`):**
+**Mac day -- known-good Xcode flow, bare minimum (the Mac's zsh supports `&&`):**
+1. Terminal -- setup (clones the code, installs, generates the iOS project, opens Xcode, prints the checklist):
 ```
 cd ~ && rm -rf mbowl-build && git clone https://github.com/Pipsqueak315/mbowl.git mbowl-build && cd mbowl-build && git checkout phase27 && bash scripts/mac-build.sh
 ```
+2. Xcode -- the same clicks as every previous build (the script prints them): Settings -> Accounts -> your Apple ID (first time only); mBowl target -> Signing & Capabilities -> Automatically manage signing, Team "Marcus Castro (Personal Team)", bundle ID com.marcus.mbowl; delete Push Notifications if listed; device "Any iOS Device (arm64)"; Product -> Archive.
+3. Terminal -- package and hand off:
+```
+bash scripts/mac-build.sh package
+```
 - The repo is private: if `git clone` asks to sign in, run `gh auth login` first (or use a GitHub personal access token as the password).
-- It prints each step as it goes (the script's header explains every step -- that's the learning part).
-- If it stops, it prints the one fix command (e.g. `sudo xcodebuild -runFirstLaunch`, Node, or CocoaPods). Run it and paste the block again.
-- If the unsigned archive fails, send Claude the last lines it prints. The fallback is REBUILD.md's Xcode GUI flow (add Apple ID -> Product -> Archive).
-- Done = `build/mBowl-2.0.0.ipa`, copied to iCloud Drive -> mBowl Builds (and to GitHub Releases if the GitHub CLI is signed in).
+- If the setup stops, it prints the one fix (e.g. `sudo xcodebuild -runFirstLaunch`, Node, CocoaPods) -- run it and paste the setup again.
+- Done = `build/mBowl-2.0.0.ipa`, copied to iCloud Drive -> mBowl Builds (and to a GitHub Release if `gh` is signed in). Errors: paste the last lines to Claude in the iOS app.
 
 **OTA classification (phase26 by itself):** everything on `phase26` is pure JS/TS -- no native module, no `app.json` change, no new storage key (`KEYS.FRAME_RESULT` keeps the old string). `expo-sharing` is already in the binary (History share).
 
