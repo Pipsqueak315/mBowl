@@ -1,0 +1,22 @@
+# Throwaway: confirms the EXPO_TOKEN secret exists and signs in to Expo. Deleted after one run.
+name: Verify EXPO_TOKEN
+on:
+  push:
+    branches: [verify-expo-token]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Secret present?
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then echo "::error::EXPO_TOKEN secret is missing"; exit 1; fi
+          echo "EXPO_TOKEN is set (${#EXPO_TOKEN} characters)"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Sign in to Expo with it
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx --yes eas-cli@latest whoami
