@@ -63,6 +63,8 @@ B1's free-nav narrowed the completion guard to `allComplete && currentFrame===9`
 
 ## ⚪ NICE — 15 (all DEFER)  ·  *N15 added Phase 24*
 
+> **Status (Nov 10, 2026 — Phase 26.4, decided by Marcus):** done on branch `phase26`: **N2, N4, N6, N7, N10, N12, N14, N15** (N3 shipped Phase 23). Moved: **N1, N9, N13 → Phase 28**; **N11 → Phase 27** (splash). Cut: **N5, N8**. N7 note: `app/_layout.tsx` recovers *from* the shadow keys on launch, so this was a real stale-data risk after a fresh-install restore, not just hygiene.
+
 | ID | Location | Note |
 |---|---|---|
 | N1 | `history.tsx:556` | Share uses a text label, not an `ActivityIndicator` spinner |

@@ -155,7 +155,10 @@ export async function restoreBackup(): Promise<{ success: boolean; error?: strin
       return { success: false, error: 'Backup file has invalid reference data — restore cancelled.' };
     }
 
-    // Atomic: write all keys or none. N7: the shadow keys are written too —
+    // One multiSet batch for every key. NOT guaranteed atomic on iOS — the native
+    // module writes pair by pair, so a mid-batch failure (e.g. disk full) can
+    // leave some keys written; that is why every shape check runs first.
+    // N7: the shadow keys are written too —
     // app/_layout.tsx recovers from them on launch when the primary reads back
     // empty, so a stale shadow (e.g. the 18 seeds on a fresh install) could
     // otherwise "recover" the wrong data right after a restore.
