@@ -2,13 +2,13 @@
   "expo": {
     "name": "mBowl",
     "slug": "mbowl",
-    "version": "1.0.0",
-    "orientation": "portrait",
+    "version": "2.0.0",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0C0C0C"
+      "backgroundColor": "#000000"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -20,7 +20,7 @@
       "icon": "./assets/images/icon.png",
       "supportsTablet": false,
       "bundleIdentifier": "com.marcus.mbowl",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "UIFileSharingEnabled": true,
         "LSSupportsOpeningDocumentsInPlace": true
@@ -32,7 +32,13 @@
     "plugins": [
       "expo-router",
       "@react-native-community/datetimepicker",
-      ["expo-notifications", { "icon": "./assets/images/icon.png", "color": "#00CEC9" }]
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#00CEC9"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -49,7 +55,9 @@
     },
     "updates": {
       "url": "https://u.expo.dev/68d5550e-d0d4-4b52-ad26-2a3258a51233",
-      "requestHeaders": { "expo-channel-name": "production" }
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
     }
   }
 }
