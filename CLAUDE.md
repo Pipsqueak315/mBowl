@@ -3,6 +3,7 @@
 **Full spec:** `mBowl-SPEC.md` in this project folder. Read it before writing any code.
 **Session state:** `mBowl-SessionBrief-REV24.md` — check this for current phase and notes.
 **Duo roadmap + design spec:** `docs/mBowl-DuoPlan.md` (v1.6) — Phases 25–28. Read the brief's START HERE section first.
+**Phase 28 (v2 redesign):** build to `docs/mBowl-Phase28-BuildSpec.md` — decisions D1–D8 are locked; v2 tokens in `src/v2/`, shared controls in `components/v2/` (branch `phase28`).
 **Status (Nov 10):** `phase26` + `phase26a` are merged into `master` (not shipped to any phone yet). v2 sprint in progress — see REV24 SPRINT. Run `npm run check` before calling anything done.
 
 ---

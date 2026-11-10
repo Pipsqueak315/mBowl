@@ -1,6 +1,6 @@
 # mBowl -- Session Brief REV24
 **Full spec lives in:** mBowl-SPEC.md -- read it before writing any code.
-**Duo roadmap + locked design spec:** `docs/mBowl-DuoPlan.md` (v1.6) -- Phases 25-28.
+**Duo roadmap + locked design spec:** `docs/mBowl-DuoPlan.md` (v1.6) -- Phases 25-28. **Phase 28 build spec (execution-ready):** `docs/mBowl-Phase28-BuildSpec.md`.
 **Last updated:** November 10, 2026
 
 ---
@@ -28,7 +28,7 @@ Rule change Marcus approved: the 3-day native freeze is waived for the **Duo onl
 | **Tue night -> Wed AM** | Claude Code on the **PC** (npm works there; it does NOT work in cloud sessions) | Paste prompt "Phase 27 part 1" below: pull `master` (phase26 + phase26a already merged by Claude, Nov 10), branch `phase27`, SDK 54->58 one step at a time with `npm run check` each step, version 2.0.0, M1-M3 add-ons, native tabs, splash. Push `phase27`. |
 | **Wed** | Marcus on the **Mac** -- bare minimum, **known-good Xcode + Apple ID signing** (decided Nov 10) | Terminal: one setup command runs `scripts/mac-build.sh` (preflight, `npm ci`, `prebuild --clean`, CocoaPods, opens Xcode and prints the checklist). Xcode: sign with your Personal Team, Product -> Archive (same as every previous build). Terminal: `bash scripts/mac-build.sh package` turns the archive into `mBowl-2.0.0.ipa` and copies it to iCloud Drive (+ GitHub Release). No Claude Code on the Mac; errors go to Claude in the iOS app. |
 | **Wed night** | Marcus, PC + Duo | iloader: install v2 on the **Duo** (skip installing the old build there). Move data with plan 25.2 using the Oct 10 backup; restore BEFORE ever closing the app. Export from the Duo and run `npm run backup-check` -- must read 40 sessions / 125 games / 174.1. |
-| **Thu-Fri** | Claude (cloud or PC) + Marcus checking on the Duo | Phase 28 over the air to the 2.0.0 runtime only (`npm run ship:ota`), **in this priority order, each shipped only after Marcus checks it**: (1) Log Frames on the cover screen (league-critical), (2) Stats, (3) History, (4) open-screen page pairs + Live game button, (5) v2 visual pass. Whatever isn't verified waits. |
+| **Thu-Fri** | Claude from the iOS app (code, CI, OTA after "ship it") + Marcus checking on the Duo | **Execute `docs/mBowl-Phase28-BuildSpec.md`** -- every decision is locked (D1-D8). Rebase `phase28` (WP0 done Nov 10: theme, layout classes, segmented control, season menu) onto `phase27`, then WP1 pins/scorecard -> WP2 Log Frames -> WP3 Log -> WP4 Stats -> WP5 History -> WP6 open-screen pairs -> WP7 Live game button. Each WP: CI green -> Marcus 2-min check -> OTA to 2.0.0 only. Cut line: WP6-WP7 slip first. |
 | **Fri 8pm** | Marcus | **Go/no-go.** Duo bowls Saturday only if: counts match the backup; a full practice game logs end to end in Pins mode on the cover screen (then delete it); Export Backup works. Otherwise bowl on the old phone. |
 | **Sat** | Marcus | League on the winner. If the old phone was used: after league, Export on the old phone -> Restore on the Duo (Duo must have logged nothing new). Set Target Average 190 / Series 570 on whichever phone is used. |
 

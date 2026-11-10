@@ -325,7 +325,7 @@ Same bundle ID, so the data stays. Take a fresh backup copy first anyway, then v
 
 ## Phase 28 — Split pages + v2 visual design (OTA)
 
-**Goal:** the open screen shows two full pages side by side, and the whole app moves to the v2 look. The spec is in the Design spec section below.
+**Goal:** the open screen shows two full pages side by side, and the whole app moves to the v2 look. The spec is in the Design spec section below. **Execution plan with every decision locked (Nov 10): `docs/mBowl-Phase28-BuildSpec.md`** — Saturday scope = cover + open screen + Live game button; Reference/Settings after league.
 
 **28.1 — One layout per tab that adapts to its width.** Log, Log Frames, Stats, and History each get one layout that works at any width. A half of the open screen (~372–455pt wide) is about the width of the cover screen (382pt), so the open screen just shows two pages at once. No layouts specific to the inner screen. The one exception is the wide-but-short cover landscape (~560×430pt), which gets the arrangements in "Closed (cover screen) layouts".
 
@@ -437,7 +437,7 @@ The mockups use Inter as a stand-in for SF Pro, with sample numbers. **Build to 
 | 1 | ~~Inner-screen layout~~ **Resolved Oct 23:** split pages (see Design spec) | — |
 | 2 | ~~Export format~~ **Resolved Nov 10:** JSON only for now; CSV optional later | — |
 | 3 | ~~Tab bar~~ **Resolved Oct 23:** native tabs, to match Apple | — |
-| 4 | SF Pro or SF Pro Rounded for big numbers (both are system fonts) | 28.4 |
+| 4 | ~~Big-number font~~ **Resolved Nov 10:** SF Pro (not Rounded) | — |
 
 ---
 
