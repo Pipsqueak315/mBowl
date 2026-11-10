@@ -306,7 +306,7 @@ The target bar placement is in the Design spec ("Native iOS bars"). Two things t
 
 **27.5 — Splash fix.** The splash screen shows the **current app icon** (decided Nov 10: icon stays, splash catches up to it). Clean up the orphaned `splash-icon.png` (N11) at the same time.
 
-**27.6 — Build on the Mac.** Xcode 27.1, REBUILD.md flow with `prebuild --clean`, then install on the Duo with iloader from the PC. (An Expo cloud build was considered and set aside Nov 10 — you want to learn the Mac process. It stays available if the Mac is ever unavailable.)
+**27.6 — Build on the Mac (bare minimum, decided Nov 10).** One Terminal command runs `scripts/mac-build.sh`: `npm ci` → `prebuild --clean` + CocoaPods → unsigned `xcodebuild archive` with Xcode 27.1 → `mBowl-2.0.0.ipa` → iCloud Drive / GitHub Release. Claude Code isn't on the Mac; errors go to Claude in the iOS app, and Claude updates REBUILD.md afterwards. Then install on the Duo with iloader from the PC. (An Expo cloud build was considered and set aside Nov 10 — you want to learn the Mac process. It stays available if the Mac is ever unavailable.)
 
 **27.7 — OTA runtime version.**
 The SDK bump changes the OTA runtime. The old phone stays on the old runtime and stops receiving new OTA updates. That's fine; it's the backup. Confirm the Duo build receives OTA updates on the new runtime, and that the automatic update job (`ota.yml`) publishes to it.

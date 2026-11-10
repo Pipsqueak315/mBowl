@@ -3,7 +3,7 @@
 **Full spec:** `mBowl-SPEC.md` in this project folder. Read it before writing any code.
 **Session state:** `mBowl-SessionBrief-REV24.md` — check this for current phase and notes.
 **Duo roadmap + design spec:** `docs/mBowl-DuoPlan.md` (v1.6) — Phases 25–28. Read the brief's START HERE section first.
-**Work in flight (Nov 10):** branches `phase26` (app changes, not merged/shipped) and `phase26a` (automation). Notes below marked *(phase26)* / *(phase26a)* describe those branches, not `master`.
+**Status (Nov 10):** `phase26` + `phase26a` are merged into `master` (not shipped to any phone yet). v2 sprint in progress — see REV24 SPRINT. Run `npm run check` before calling anything done.
 
 ---
 
@@ -93,14 +93,15 @@ All keys live in the exported `KEYS` object in `src/storage.ts`. **Never write a
 | `SETTINGS` | `mbowl_settings_v1` | Season dates + preferences + goals |
 | `DRAFT` | `mbowl_draft_v1` | In-progress Log tab draft (includes frame + pin data) |
 | `SEEDED_FLAG` | `mbowl_seeded_v1` | `'true'` once seeding has been decided — seeds run at most once, ever |
+| `FRAME_RESULT` | `mbowl_frame_result` | Transient log-frames → caller hand-off (see below) |
 
 Write strategy: full replace on every save, delete, or edit.
 
-`REFERENCE` and `SETTINGS` have **no shadow key** — a bad write to either is permanent. This is why `restoreBackup` shape-checks every value before writing anything.
+`REFERENCE` and `SETTINGS` have **no shadow key** — a bad write to either is permanent. This is why `restoreBackup` shape-checks every value before writing anything, and (N7) writes the shadow keys alongside the primaries — `app/_layout.tsx` recovers from the shadows on launch.
 
 **Reading (Phase 20):** `readSessions()` returns a plain array and is for **display-only** callers. Anything that **writes** based on what it read must use `readSessionsResult()` / `readBallsResult()`, which return `{ status, value }` where status is `'missing' | 'ok' | 'invalid' | 'error'`. A bare `[]` cannot distinguish "genuinely empty" from "corrupt" or "read failed" — **never act on `[]` alone.** Only `missing` may be seeded over. See `mBowl-SessionBrief-REV21.md` → Fix Session C.
 
-`FRAME_RESULT_KEY` (the log-frames → caller result channel) is exported from `app/log-frames.tsx` and is **not** in `KEYS` on `master`. *(phase26)* N4 moves it into `KEYS` as `KEYS.FRAME_RESULT` with the same string `mbowl_frame_result` — transient hand-off, never backed up. Update this table when `phase26` merges.
+`FRAME_RESULT` (`mbowl_frame_result`) is the log-frames → caller result hand-off: written on Done, consumed + removed by Log / History on focus. Transient, never backed up. Moved into `KEYS` in Phase 26 (N4).
 
 ---
 
@@ -134,8 +135,8 @@ bad:       #FF453A
 - Game vs session average: +5 or better -> green · within 5 -> orange · below -> red
 - Series: > 550 -> green · >= 500 -> orange · below -> red
 - Overall average: >= 180 -> green · >= 166 -> orange · below -> red
-- *(phase26)* Seven Stats grid cells: goal-based bands (green = 190-average level) in `CELL_BANDS`, stats.tsx — table in REV24. No color below 10 games with frame data.
-- *(phase26)* Makeable % (aggregate): green >= 80 · orange >= 60 — locked. Split leaves: green >= 40 · orange >= 15 · else grey (never red).
+- Seven Stats grid cells: goal-based bands (green = 190-average level) in `CELL_BANDS`, stats.tsx — table in REV24. No color below 10 games with frame data.
+- Makeable % (aggregate): green >= 80 · orange >= 60 — locked. Split leaves: green >= 40 · orange >= 15 · else grey (never red).
 
 ---
 
@@ -182,7 +183,7 @@ mBowl/
 │   ├── seasons.ts           — gapless multi-season model (Phase 24)
 │   ├── sessionFilter.ts     — filterSessions, shared by Stats + History (Phase 24)
 │   ├── types.ts             — canonical shared types (do not redefine locally)
-│   ├── backup.ts            — writeBackup / restoreBackup (+ exportBackup on phase26) (mBowl-backup.json)
+│   ├── backup.ts            — writeBackup / restoreBackup + exportBackup (mBowl-backup.json)
 │   ├── notifications.ts     — SideStore cert reminder (6-day repeating, iOS only)
 │   ├── seeds.js             — 18 historical sessions (ids 1001–1018)
 │   ├── balls.js             — 9-ball roster
@@ -190,10 +191,11 @@ mBowl/
 ├── scripts/
 │   ├── gen-assets.js        — icon/splash asset generation
 │   ├── phase24-verify.mjs   — Phase 24 season/metric harness (--data <file>, --seeds)
-│   ├── checks/              — (phase26a) npm run check + backup-check
-│   └── ship-ota.mjs         — (phase26a) npm run ship:ota — the only hand-run OTA path
-├── .claude/                 — (phase26a) hooks, skills (/feature /ship /audit /backup-check), reviewer agent
-└── .github/workflows/       — (phase26a) ci.yml (every push) + ota.yml (manual only)
+│   ├── checks/              — npm run check + backup-check
+│   ├── mac-build.sh         — the whole Mac build in one command (prebuild → xcodebuild → .ipa → iCloud/GitHub)
+│   └── ship-ota.mjs         — npm run ship:ota — the only hand-run OTA path
+├── .claude/                 — hooks, skills (/feature /ship /audit /backup-check), reviewer agent
+└── .github/workflows/       — ci.yml (every push) + ota.yml (manual only)
 ```
 
 `_archive/` was deleted in Phase 23 (S15). Real-data files (`mBowl-backup.json`, `docs/phase24-data.json`) are gitignored — never commit them.

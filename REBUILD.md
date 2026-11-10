@@ -2,6 +2,8 @@
 
 Step-by-step guide to rebuild the mBowl IPA on Mac and sideload it via iloader on PC. Every command and Xcode setting captured so the process can be repeated from scratch without live help.
 
+> **Fast path (Phase 27, Nov 2026):** `bash scripts/mac-build.sh` from a fresh clone does everything below through "Transfer IPA to PC" in one command, unsigned (iloader signs at install). The manual steps below are the fallback if it fails -- in particular the Xcode GUI signing flow.
+
 ---
 
 ## Prerequisites

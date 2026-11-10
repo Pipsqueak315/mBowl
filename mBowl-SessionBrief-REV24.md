@@ -25,8 +25,8 @@ Rule change Marcus approved: the 3-day native freeze is waived for the **Duo onl
 | When | Who / where | What |
 |---|---|---|
 | **Tue night** | Marcus, PC | Push: run the commands below. Check the Mac's macOS can run **Xcode 27.1** and, if possible, start the Xcode download (10+ GB -- the slow part). |
-| **Tue night -> Wed AM** | Claude Code on the **PC** (npm works there; it does NOT work in cloud sessions) | Paste prompt "Phase 27 part 1" below: merge phase26 + phase26a to master, branch `phase27`, SDK 54->58 one step at a time with `npm run check` each step, version 2.0.0, M1-M3 add-ons, native tabs, splash. Push `phase27`. |
-| **Wed** | Marcus + Claude Code on the **Mac** | REBUILD.md flow on `phase27`: `npm ci` -> `npx expo prebuild --platform ios --clean` -> Xcode 27.1 build -> IPA to a GitHub Release (v2.0.0). Update REBUILD.md for Xcode 27.1 as you go. |
+| **Tue night -> Wed AM** | Claude Code on the **PC** (npm works there; it does NOT work in cloud sessions) | Paste prompt "Phase 27 part 1" below: pull `master` (phase26 + phase26a already merged by Claude, Nov 10), branch `phase27`, SDK 54->58 one step at a time with `npm run check` each step, version 2.0.0, M1-M3 add-ons, native tabs, splash. Push `phase27`. |
+| **Wed** | Marcus on the **Mac** -- **bare minimum: paste one Terminal command** (below) | `scripts/mac-build.sh` does the whole Mac part: preflight -> `npm ci` -> `prebuild --clean` + CocoaPods -> unsigned `xcodebuild archive` -> `mBowl-2.0.0.ipa` -> copies it to iCloud Drive / GitHub Release. Claude Code is NOT on the Mac (decided Nov 10) -- if anything fails, paste the error to Claude in the iOS app. Claude updates REBUILD.md afterwards. |
 | **Wed night** | Marcus, PC + Duo | iloader: install v2 on the **Duo** (skip installing the old build there). Move data with plan 25.2 using the Oct 10 backup; restore BEFORE ever closing the app. Export from the Duo and run `npm run backup-check` -- must read 40 sessions / 125 games / 174.1. |
 | **Thu-Fri** | Claude (cloud or PC) + Marcus checking on the Duo | Phase 28 over the air to the 2.0.0 runtime only (`npm run ship:ota`), **in this priority order, each shipped only after Marcus checks it**: (1) Log Frames on the cover screen (league-critical), (2) Stats, (3) History, (4) open-screen page pairs + Live game button, (5) v2 visual pass. Whatever isn't verified waits. |
 | **Fri 8pm** | Marcus | **Go/no-go.** Duo bowls Saturday only if: counts match the backup; a full practice game logs end to end in Pins mode on the cover screen (then delete it); Export Backup works. Otherwise bowl on the old phone. |
@@ -38,10 +38,10 @@ Rule change Marcus approved: the 3-day native freeze is waived for the **Duo onl
 |---|---|---|
 | **Claude from the phone** (Claude.ai project session, linked to the PC) | Write code on branches; typecheck + `npm run check` against the PC's node_modules through the link; drop branches into the PC repo; update docs + project; read backups (`backup-check`); Phase 28 layout code once `phase27` exists. **With the Claude GitHub App installed:** push branches + open PRs. **With `EXPO_TOKEN` in GitHub:** ship OTA by running the OTA workflow after your "ship it". | npm installs (no package access), the SDK upgrade, anything on the Mac, iloader, seeing the phone screen. |
 | **Claude Code on the PC** | Everything above plus npm installs, the SDK 54->58 upgrade, git push, `npm run ship:ota`. Runs "Phase 27 part 1" end to end on its own. | iloader, the Mac, looking at the phone. |
-| **Claude Code on the Mac** | prebuild, CocoaPods, the command-line Xcode build + IPA, the GitHub Release, rewriting REBUILD.md. | Installing Xcode / macOS updates; Xcode sign-in prompts. |
-| **Marcus only** | (1) One-time: install the Claude GitHub App + add the `EXPO_TOKEN` secret (~10 min, unlocks Claude doing pushes + ships from the phone). (2) Start the PC and Mac Claude Code sessions with the paste prompts. (3) Mac: be there, install Xcode 27.1, click any Xcode/Apple ID prompts. (4) iloader install on the Duo (phone plugged into the PC). (5) Phone-side data move (AirDrop, Files, Restore) + Settings goals. (6) Check each screen on the Duo, say "ship it", Friday go/no-go. | -- |
+| **The Mac (no Claude Code there)** | Runs `scripts/mac-build.sh` -- everything Mac-only in one command. | Anything else: debugging goes to Claude in the iOS app (paste the error), REBUILD.md and the GitHub Release are done by Claude afterwards. |
+| **Marcus only** | (1) One-time: install the Claude GitHub App + add the `EXPO_TOKEN` secret (~10 min, unlocks Claude doing pushes + ships from the phone). (2) Start the PC Claude Code session with the paste prompt. (3) Mac: paste one Terminal command; only if it stops, run the one fix command it prints (Xcode first-launch, Node, or CocoaPods) and re-run. (4) iloader install on the Duo (phone plugged into the PC). (5) Phone-side data move (AirDrop, Files, Restore) + Settings goals. (6) Check each screen on the Duo, say "ship it", Friday go/no-go. | -- |
 
-**DONE Nov 10, 12:11 (Claude, via the PC link):** docs committed on `master` as `08323d7` and pushed; both branches pushed; CRLF noise discarded; PC working tree clean. `EXPO_TOKEN` secret added and verified (signs in as pipsqueak315). Xcode 27.1 / macOS check done by Marcus. **Remaining tonight: only the "Phase 27 part 1" prompt on the PC.** The commands below are kept for reference only -- do not re-run them.
+**DONE Nov 10, 12:11 (Claude, via the PC link):** docs committed on `master` as `08323d7` and pushed; both branches pushed; CRLF noise discarded; PC working tree clean. `EXPO_TOKEN` secret added and verified (signs in as pipsqueak315). Xcode 27.1 / macOS check done by Marcus. **12:25: Claude also merged `phase26` + `phase26a` into `master` (nothing shipped), bumped the GitHub check tools to v5, and added `scripts/mac-build.sh` (Mac day = one Terminal command).** **Remaining tonight: only the "Phase 27 part 1" prompt on the PC.** The commands below are kept for reference only -- do not re-run them.
 
 **Tonight's push (PowerShell, one line at a time):**
 ```
@@ -58,7 +58,7 @@ git push -u origin phase26a
 ```
 Phase 27 sprint, part 1 (PC). Read CLAUDE.md, mBowl-SessionBrief-REV24.md (SPRINT section), and docs/mBowl-DuoPlan.md Phase 27 + 27.0.
 Do NOT run eas update or npm run ship:ota. Nothing goes to the 1.0.0 runtime this week.
-1. On master: merge phase26, then phase26a. Run npm ci, then npm run check (must be green). Push master.
+1. git checkout master, git pull (Claude already merged phase26 + phase26a and added scripts/mac-build.sh). Run npm ci, then npm run check (must be green).
 2. Create branch phase27 from master.
 3. Upgrade Expo SDK 54 -> 55 -> 56 -> 57 -> 58, one step at a time: read Expo's upgrade notes for that SDK, then
    npx expo install expo@^<N>.0.0 and npx expo install --fix. Run npm run check after each step and commit each step.
@@ -72,13 +72,15 @@ Do NOT run eas update or npm run ship:ota. Nothing goes to the 1.0.0 runtime thi
 7. npm run check green, then push phase27 and report: done / blocked / anything I must check on the Mac.
 ```
 
-**Paste prompt -- Mac day (Claude Code on the Mac):**
+**Mac day -- paste into Terminal (one block; the Mac's zsh supports `&&`):**
 ```
-Phase 27 sprint, part 2 (Mac). Read CLAUDE.md, mBowl-SessionBrief-REV24.md (SPRINT), REBUILD.md.
-Clone the repo, check out phase27, npm ci, npm run check. Then follow REBUILD.md with npx expo prebuild --platform ios --clean
-and Xcode 27.1 to produce the IPA. Walk me through each step and explain it -- I want to learn this process.
-Update REBUILD.md for Xcode 27.1 / SDK 58 as we go. Attach the IPA to a GitHub Release "v2.0.0". Commit + push REBUILD.md.
+cd ~ && rm -rf mbowl-build && git clone https://github.com/Pipsqueak315/mbowl.git mbowl-build && cd mbowl-build && git checkout phase27 && bash scripts/mac-build.sh
 ```
+- The repo is private: if `git clone` asks to sign in, run `gh auth login` first (or use a GitHub personal access token as the password).
+- It prints each step as it goes (the script's header explains every step -- that's the learning part).
+- If it stops, it prints the one fix command (e.g. `sudo xcodebuild -runFirstLaunch`, Node, or CocoaPods). Run it and paste the block again.
+- If the unsigned archive fails, send Claude the last lines it prints. The fallback is REBUILD.md's Xcode GUI flow (add Apple ID -> Product -> Archive).
+- Done = `build/mBowl-2.0.0.ipa`, copied to iCloud Drive -> mBowl Builds (and to GitHub Releases if the GitHub CLI is signed in).
 
 **OTA classification (phase26 by itself):** everything on `phase26` is pure JS/TS -- no native module, no `app.json` change, no new storage key (`KEYS.FRAME_RESULT` keeps the old string). `expo-sharing` is already in the binary (History share).
 
