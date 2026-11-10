@@ -1,7 +1,9 @@
 # mBowl — Claude Code Instructions
 
 **Full spec:** `mBowl-SPEC.md` in this project folder. Read it before writing any code.
-**Session state:** `mBowl-SessionBrief-REV22.md` — check this for current phase and notes.
+**Session state:** `mBowl-SessionBrief-REV24.md` — check this for current phase and notes.
+**Duo roadmap + design spec:** `docs/mBowl-DuoPlan.md` (v1.6) — Phases 25–28. Read the brief's START HERE section first.
+**Work in flight (Nov 10):** branches `phase26` (app changes, not merged/shipped) and `phase26a` (automation). Notes below marked *(phase26)* / *(phase26a)* describe those branches, not `master`.
 
 ---
 
@@ -13,7 +15,7 @@ A personal iPhone bowling tracker and reference app built in React Native via Ex
 
 ## Current Phase
 
-**Check mBowl-SessionBrief-REV22.md for current phase before starting any session.**
+**Check mBowl-SessionBrief-REV24.md for current phase before starting any session.**
 
 At the top of each session Marcus will tell you which phase he's on. Read the Spec for full context on that phase before writing any code.
 
@@ -96,9 +98,9 @@ Write strategy: full replace on every save, delete, or edit.
 
 `REFERENCE` and `SETTINGS` have **no shadow key** — a bad write to either is permanent. This is why `restoreBackup` shape-checks every value before writing anything.
 
-**Reading (Phase 20):** `readSessions()` returns a plain array and is for **display-only** callers. Anything that **writes** based on what it read must use `readSessionsResult()` / `readBallsResult()`, which return `{ status, value }` where status is `'missing' | 'ok' | 'invalid' | 'error'`. A bare `[]` cannot distinguish "genuinely empty" from "corrupt" or "read failed" — **never act on `[]` alone.** Only `missing` may be seeded over. See `mBowl-SessionBrief-REV22.md` → Fix Session C.
+**Reading (Phase 20):** `readSessions()` returns a plain array and is for **display-only** callers. Anything that **writes** based on what it read must use `readSessionsResult()` / `readBallsResult()`, which return `{ status, value }` where status is `'missing' | 'ok' | 'invalid' | 'error'`. A bare `[]` cannot distinguish "genuinely empty" from "corrupt" or "read failed" — **never act on `[]` alone.** Only `missing` may be seeded over. See `mBowl-SessionBrief-REV21.md` → Fix Session C.
 
-`FRAME_RESULT_KEY` (the log-frames → caller result channel) is exported from `app/log-frames.tsx` and is **not** in `KEYS` (audit N4, deferred).
+`FRAME_RESULT_KEY` (the log-frames → caller result channel) is exported from `app/log-frames.tsx` and is **not** in `KEYS` on `master`. *(phase26)* N4 moves it into `KEYS` as `KEYS.FRAME_RESULT` with the same string `mbowl_frame_result` — transient hand-off, never backed up. Update this table when `phase26` merges.
 
 ---
 
@@ -132,6 +134,8 @@ bad:       #FF453A
 - Game vs session average: +5 or better -> green · within 5 -> orange · below -> red
 - Series: > 550 -> green · >= 500 -> orange · below -> red
 - Overall average: >= 180 -> green · >= 166 -> orange · below -> red
+- *(phase26)* Seven Stats grid cells: goal-based bands (green = 190-average level) in `CELL_BANDS`, stats.tsx — table in REV24. No color below 10 games with frame data.
+- *(phase26)* Makeable % (aggregate): green >= 80 · orange >= 60 — locked. Split leaves: green >= 40 · orange >= 15 · else grey (never red).
 
 ---
 
@@ -168,23 +172,31 @@ mBowl/
 │   ├── PocketDiagnosticsTab.tsx — Reference: Pocket Diagnostics sub-tab
 │   ├── PatternsTab.tsx          — Reference: Patterns sub-tab
 │   ├── PinDeck.tsx              — visual pin deck input component
+│   ├── FrameGrid.tsx            — shared mini-scorecard (compact | full)
 │   ├── haptic-tab.tsx           — tab bar haptic wrapper (active, do not delete)
 │   └── ui/
 │       ├── icon-symbol.ios.tsx  — SF Symbol routing (active, do not delete)
 │       └── icon-symbol.tsx      — TS resolution stub; Metro resolves .ios.tsx at runtime
 ├── src/
 │   ├── storage.ts           — AsyncStorage read/write helpers + KEYS + read states
+│   ├── seasons.ts           — gapless multi-season model (Phase 24)
+│   ├── sessionFilter.ts     — filterSessions, shared by Stats + History (Phase 24)
 │   ├── types.ts             — canonical shared types (do not redefine locally)
-│   ├── backup.ts            — writeBackup / restoreBackup (mBowl-backup.json)
+│   ├── backup.ts            — writeBackup / restoreBackup (+ exportBackup on phase26) (mBowl-backup.json)
 │   ├── notifications.ts     — SideStore cert reminder (6-day repeating, iOS only)
 │   ├── seeds.js             — 18 historical sessions (ids 1001–1018)
 │   ├── balls.js             — 9-ball roster
 │   └── leaveUtils.js        — leave extraction + named leaves + isSplit (single source of truth)
-└── scripts/
-    └── gen-assets.js        — icon/splash asset generation
+├── scripts/
+│   ├── gen-assets.js        — icon/splash asset generation
+│   ├── phase24-verify.mjs   — Phase 24 season/metric harness (--data <file>, --seeds)
+│   ├── checks/              — (phase26a) npm run check + backup-check
+│   └── ship-ota.mjs         — (phase26a) npm run ship:ota — the only hand-run OTA path
+├── .claude/                 — (phase26a) hooks, skills (/feature /ship /audit /backup-check), reviewer agent
+└── .github/workflows/       — (phase26a) ci.yml (every push) + ota.yml (manual only)
 ```
 
-`_archive/` also exists (retired boilerplate). It is still inside the TS graph — `tsconfig.json` includes `**/*.tsx` with no `exclude` (audit S15, deferred).
+`_archive/` was deleted in Phase 23 (S15). Real-data files (`mBowl-backup.json`, `docs/phase24-data.json`) are gitignored — never commit them.
 
 ---
 
