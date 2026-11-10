@@ -713,8 +713,17 @@ export default function LogFramesScreen() {
       score: scores[9],
       frames,
     };
-    await AsyncStorage.setItem(KEYS.FRAME_RESULT, JSON.stringify(result));
-    savedRef.current = true; // Done is a save, not a discard — let it through
+    // Mark the save BEFORE the await, so a swipe-back during the write can't
+    // raise the discard confirm under a screen that is about to close.
+    savedRef.current = true;
+    try {
+      await AsyncStorage.setItem(KEYS.FRAME_RESULT, JSON.stringify(result));
+    } catch (e) {
+      savedRef.current = false;
+      console.error('[log-frames] saving frame result failed', e);
+      Alert.alert('Save Failed', 'Your frames were not saved. Tap Done to try again.');
+      return;
+    }
     navigation.goBack();
   }
 
@@ -722,12 +731,17 @@ export default function LogFramesScreen() {
   // ONE "Discard Frames?" confirm guards every way out: the header Cancel
   // button, the iOS swipe-back gesture (native-stack cancels the native dismiss
   // and routes it here), and any other pop. Done sets savedRef first so it is
-  // never challenged.
+  // never challenged. "Unsaved" means changed since the screen opened — so
+  // backing out of History → Edit Frames without touching anything doesn't
+  // warn about losing data that was never changed.
   // B2 cancel boundary is unchanged: a discard never writes KEYS.FRAME_RESULT,
   // so callers still infer "cancelled" from the key's absence.
   const savedRef = useRef(false);
-  const hasData = frames.some((f) => f.throws.length > 0);
-  usePreventRemove(hasData, ({ data }) => {
+  // Snapshot of the frames as the screen opened (lazy initial state: computed
+  // once, on the first render, from the initial `frames`).
+  const [initialFramesJson] = useState(() => JSON.stringify(frames));
+  const isDirty = useMemo(() => JSON.stringify(frames) !== initialFramesJson, [frames, initialFramesJson]);
+  usePreventRemove(isDirty, ({ data }) => {
     if (savedRef.current) {
       navigation.dispatch(data.action);
       return;

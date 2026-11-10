@@ -58,6 +58,8 @@ function TappableStrengthDots({
 
 export default function SettingsContent({ onClose }: Props) {
   const [settings, setSettings] = useState<Settings>({});
+  // Export in flight — ignores a second tap so two share sheets can't stack.
+  const [exporting, setExporting] = useState(false);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
 
@@ -631,15 +633,24 @@ export default function SettingsContent({ onClose }: Props) {
         <View style={styles.restoreSpacer} />
         <ScalePressable
           style={styles.restoreButton}
+          disabled={exporting}
           onPress={async () => {
+            if (exporting) return;
+            setExporting(true);
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            const result = await exportBackup();
-            if (!result.success) {
-              Alert.alert('Export Failed', result.error ?? 'Unknown error.');
+            try {
+              const result = await exportBackup();
+              if (!result.success) {
+                Alert.alert('Export Failed', result.error ?? 'Unknown error.');
+              }
+            } finally {
+              setExporting(false);
             }
           }}
         >
-          <Text style={styles.exportText}>Export Backup</Text>
+          <Text style={[styles.exportText, exporting && styles.exportTextBusy]}>
+            {exporting ? 'Exporting…' : 'Export Backup'}
+          </Text>
         </ScalePressable>
         <TouchableOpacity
           style={styles.restoreButton}
@@ -982,5 +993,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#00CEC9',
     fontWeight: '500',
+  },
+  exportTextBusy: {
+    color: '#8E8E93',
   },
 });

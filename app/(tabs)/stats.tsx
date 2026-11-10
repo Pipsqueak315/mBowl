@@ -733,7 +733,8 @@ export default function StatsScreen() {
       spare: cell(fs?.spareRate, 1, '%', CELL_BANDS.spare),
       opensPerGame: cell(fs?.opensPerGame, 1, '', CELL_BANDS.opensPerGame),
       bounceBack: cell(advancedStats.bounceBackPct, 0, '%', CELL_BANDS.bounceBack),
-      cleanColor: gated && cleanPct != null ? bandColor(Math.round(cleanPct), CELL_BANDS.clean) : undefined,
+      // Clean shows N/M, not a %, so band on the exact share (19.6% is not 20%).
+      cleanColor: gated && cleanPct != null ? bandColor(cleanPct, CELL_BANDS.clean) : undefined,
     };
   }, [advancedStats, metrics]);
 
