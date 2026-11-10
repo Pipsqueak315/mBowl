@@ -22,9 +22,8 @@ import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import { readSessions, writeSessions, readSettings } from '@/src/storage';
+import { readSessions, writeSessions, readSettings, KEYS } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
-import { FRAME_RESULT_KEY } from '@/app/log-frames';
 import type { ThrowEntry, GameEntry, Session, Settings } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
@@ -616,7 +615,7 @@ export default function HistoryScreen() {
         const pending = pendingFrameEditRef.current;
         if (!pending) return;
 
-        const resultRaw = await AsyncStorage.getItem(FRAME_RESULT_KEY);
+        const resultRaw = await AsyncStorage.getItem(KEYS.FRAME_RESULT);
         if (!active) return; // leave the ref set — a later focus retries cleanly
         pendingFrameEditRef.current = null;
 
@@ -632,7 +631,7 @@ export default function HistoryScreen() {
             score: number;
             frames: ThrowEntry[];
           };
-          await AsyncStorage.removeItem(FRAME_RESULT_KEY);
+          await AsyncStorage.removeItem(KEYS.FRAME_RESULT);
           reopenWith = {
             ...pending.session,
             games: pending.session.games.map((g, i) =>

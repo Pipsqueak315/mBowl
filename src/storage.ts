@@ -10,6 +10,10 @@ export const KEYS: Record<string, string> = {
   SETTINGS:        'mbowl_settings_v1',
   DRAFT:           'mbowl_draft_v1',
   SEEDED_FLAG:     'mbowl_seeded_v1',
+  // log-frames → caller result hand-off (written on Done, consumed + removed
+  // by Log / History on focus). Transient, never backed up. N4: moved in from
+  // app/log-frames.tsx — same string value, so nothing in flight is orphaned.
+  FRAME_RESULT:    'mbowl_frame_result',
 };
 
 // ---------------------------------------------------------------------------

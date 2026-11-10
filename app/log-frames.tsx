@@ -9,7 +9,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,6 +18,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
 import type { FrameData, ThrowEntry } from '@/src/types';
+import { KEYS } from '@/src/storage';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import PinDeck from '@/components/PinDeck';
@@ -37,7 +38,6 @@ type InputMode = 'pins' | 'quick';
 
 const CHIPS: string[] = ['X', '/', '—', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const FRAME_ITEM_W = 52;
-export const FRAME_RESULT_KEY = 'mbowl_frame_result';
 const ALL_UP: boolean[] = Array(10).fill(true);
 
 // ---------------------------------------------------------------------------
@@ -701,24 +701,47 @@ export default function LogFramesScreen() {
       score: scores[9],
       frames,
     };
-    await AsyncStorage.setItem(FRAME_RESULT_KEY, JSON.stringify(result));
+    await AsyncStorage.setItem(KEYS.FRAME_RESULT, JSON.stringify(result));
+    savedRef.current = true; // Done is a save, not a discard — let it through
     navigation.goBack();
   }
 
-  // Use a ref so the Cancel button always calls the latest handleCancel
-  // without needing to re-register the header on every frame change
-  const handleCancelRef = useRef<() => void>(() => {});
-  handleCancelRef.current = () => {
-    const hasData = frames.some((f) => f.throws.length > 0);
-    if (!hasData) { navigation.goBack(); return; }
+  // ---- Leaving the screen (26.3) -------------------------------------------
+  // ONE "Discard Frames?" confirm guards every way out: the header Cancel
+  // button, the iOS swipe-back gesture (native-stack cancels the native dismiss
+  // and routes it here), and any other pop. Done sets savedRef first so it is
+  // never challenged.
+  // B2 cancel boundary is unchanged: a discard never writes KEYS.FRAME_RESULT,
+  // so callers still infer "cancelled" from the key's absence.
+  const savedRef = useRef(false);
+  const hasData = frames.some((f) => f.throws.length > 0);
+  usePreventRemove(hasData, ({ data }) => {
+    if (savedRef.current) {
+      navigation.dispatch(data.action);
+      return;
+    }
     Alert.alert(
       'Discard Frames?',
       'Your frame data will not be saved.',
       [
         { text: 'Keep Editing', style: 'cancel' },
-        { text: 'Discard', style: 'destructive', onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); navigation.goBack(); } },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            navigation.dispatch(data.action);
+          },
+        },
       ]
     );
+  });
+
+  // Header Cancel just asks to leave; usePreventRemove above decides whether
+  // that needs the confirm (frames entered) or can go straight back (empty).
+  const handleCancelRef = useRef<() => void>(() => {});
+  handleCancelRef.current = () => {
+    navigation.goBack();
   };
 
   // Header

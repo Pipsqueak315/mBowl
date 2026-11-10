@@ -19,7 +19,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Swipeable } from 'react-native-gesture-handler';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
-import { FRAME_RESULT_KEY } from '@/app/log-frames';
 import * as Haptics from 'expo-haptics';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -32,6 +31,7 @@ import {
   readDraft,
   writeDraft,
   readSettings,
+  KEYS,
 } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
 import type { ThrowEntry, Ball, DraftData } from '@/src/types';
@@ -292,9 +292,9 @@ export default function LogScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      AsyncStorage.getItem(FRAME_RESULT_KEY).then((raw) => {
+      AsyncStorage.getItem(KEYS.FRAME_RESULT).then((raw) => {
         if (!active || !raw) return;
-        AsyncStorage.removeItem(FRAME_RESULT_KEY);
+        AsyncStorage.removeItem(KEYS.FRAME_RESULT);
         const result = JSON.parse(raw) as {
           gameIndex: number;
           score: number;
