@@ -15,7 +15,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { readSettings, writeSettings, readBalls, writeBalls } from '@/src/storage';
-import { writeBackup, restoreBackup } from '@/src/backup';
+import { writeBackup, restoreBackup, exportBackup } from '@/src/backup';
 import ScalePressable from '@/components/ScalePressable';
 import type { Settings, Ball, Season } from '@/src/types';
 import { getSeasons, resolveSeasonRanges } from '@/src/seasons';
@@ -626,9 +626,21 @@ export default function SettingsContent({ onClose }: Props) {
         )}
 
         {/* ----------------------------------------------------------------
-            Restore from Backup
+            Export Backup (Phase 26.0b) + Restore from Backup
         ---------------------------------------------------------------- */}
         <View style={styles.restoreSpacer} />
+        <ScalePressable
+          style={styles.restoreButton}
+          onPress={async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            const result = await exportBackup();
+            if (!result.success) {
+              Alert.alert('Export Failed', result.error ?? 'Unknown error.');
+            }
+          }}
+        >
+          <Text style={styles.exportText}>Export Backup</Text>
+        </ScalePressable>
         <TouchableOpacity
           style={styles.restoreButton}
           onPress={() => {
@@ -964,6 +976,11 @@ const styles = StyleSheet.create({
   restoreText: {
     fontSize: 15,
     color: '#FF453A',
+    fontWeight: '500',
+  },
+  exportText: {
+    fontSize: 15,
+    color: '#00CEC9',
     fontWeight: '500',
   },
 });

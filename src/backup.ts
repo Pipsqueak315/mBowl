@@ -1,4 +1,5 @@
 import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   readSessionsResult,
@@ -80,6 +81,37 @@ export async function writeBackup(): Promise<void> {
     console.log('[backup] written to', file.uri);
   } catch (e) {
     console.error('[backup] writeBackup failed', e);
+  }
+}
+
+/**
+ * Export (Phase 26.0b): refresh mBowl-backup.json from live data, then hand it
+ * to the iOS share sheet (Save to Files, AirDrop, Mail…). Gets the backup out
+ * of the app sandbox without the Files-app dance.
+ *
+ * writeBackup()'s S9 guards still apply — if the refresh is skipped because a
+ * read failed, the previous on-disk backup is what gets shared, never an empty
+ * one. Uses expo-sharing, already in the binary (History share), so OTA-safe.
+ */
+export async function exportBackup(): Promise<{ success: boolean; error?: string }> {
+  try {
+    await writeBackup();
+    const file = new File(Paths.document, BACKUP_FILENAME);
+    if (!file.exists) {
+      return { success: false, error: 'No backup file could be created.' };
+    }
+    if (!(await Sharing.isAvailableAsync())) {
+      return { success: false, error: 'Sharing is not available on this device.' };
+    }
+    await Sharing.shareAsync(file.uri, {
+      mimeType: 'application/json',
+      UTI: 'public.json',
+      dialogTitle: 'Export mBowl backup',
+    });
+    return { success: true };
+  } catch (e) {
+    console.error('[backup] exportBackup failed', e);
+    return { success: false, error: 'An unexpected error occurred during export.' };
   }
 }
 
