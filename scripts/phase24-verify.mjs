@@ -56,10 +56,13 @@ const anchors = {
 const hasAnchors = Object.values(anchors).some(v => v != null);
 
 // --- Load data --------------------------------------------------------------
-const DATA_PATH = join(ROOT, 'docs', 'phase24-data.json');
+// --data <file> reads any backup/export (used by /backup-check); --seeds forces
+// the 18 seeds even when the real file is present (used by npm run check).
+const DATA_PATH = getArg('data') ?? join(ROOT, 'docs', 'phase24-data.json');
+const forceSeeds = argv.includes('--seeds');
 let sessions;
 let usingReal = false;
-if (existsSync(DATA_PATH)) {
+if (!forceSeeds && existsSync(DATA_PATH)) {
   const raw = JSON.parse(readFileSync(DATA_PATH, 'utf8'));
   sessions = Array.isArray(raw) ? raw : raw.sessions;
   usingReal = true;
