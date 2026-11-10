@@ -155,10 +155,17 @@ export async function restoreBackup(): Promise<{ success: boolean; error?: strin
       return { success: false, error: 'Backup file has invalid reference data — restore cancelled.' };
     }
 
-    // Atomic: write all 4 keys or none
+    // Atomic: write all keys or none. N7: the shadow keys are written too —
+    // app/_layout.tsx recovers from them on launch when the primary reads back
+    // empty, so a stale shadow (e.g. the 18 seeds on a fresh install) could
+    // otherwise "recover" the wrong data right after a restore.
+    const sessionsJson = JSON.stringify(payload.sessions);
+    const ballsJson = JSON.stringify(payload.balls);
     await AsyncStorage.multiSet([
-      [KEYS.SESSIONS, JSON.stringify(payload.sessions)],
-      [KEYS.BALLS, JSON.stringify(payload.balls)],
+      [KEYS.SESSIONS, sessionsJson],
+      [KEYS.SESSIONS_BACKUP, sessionsJson],
+      [KEYS.BALLS, ballsJson],
+      [KEYS.BALLS_BACKUP, ballsJson],
       [KEYS.SETTINGS, JSON.stringify(payload.settings)],
       [KEYS.REFERENCE, JSON.stringify(payload.reference)],
     ]);

@@ -133,14 +133,13 @@ export function isSplit(pinsStanding) {
  *   leaves: Array<{pins: number[], name: string, count: number, converted: number, conversionPct: number, isSplit: boolean}>,
  *   hasPinData: boolean,
  *   makeableSparePct: number | null,
- *   makeableCount: number,
- *   makeableConverted: number
+ *   makeableCount: number
  * }}
  *   leaves: most frequent non-strike leaves, sorted by count descending
  *   hasPinData: true if at least one frame in the data had valid pinsStanding
  *   makeableSparePct: conversion % across non-split (makeable) leaves only,
  *     null when there are no makeable leaves. Splits are excluded entirely.
- *   makeableCount / makeableConverted: the makeable-leave totals behind the %
+ *   makeableCount: the makeable-leave total behind the %
  */
 export function computeLeaveStats(sessions) {
   /** @type {Record<string, { pins: number[], count: number, converted: number, isSplit: boolean }>} */
@@ -216,5 +215,5 @@ export function computeLeaveStats(sessions) {
   const makeableSparePct =
     makeableCount > 0 ? (makeableConverted / makeableCount) * 100 : null;
 
-  return { leaves, hasPinData, makeableSparePct, makeableCount, makeableConverted };
+  return { leaves, hasPinData, makeableSparePct, makeableCount };
 }

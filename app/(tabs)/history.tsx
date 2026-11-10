@@ -451,7 +451,7 @@ function SessionCard({
                 <View style={styles.gameRowHeader}>
                   <Text style={styles.gameLabel}>Game {g.game}</Text>
                   <Text
-                    style={[styles.gameExpandScore, { color: scoreColor(g.score ?? 0, avg) }]}
+                    style={[styles.gameExpandScore, { color: g.score == null ? '#48484A' : scoreColor(g.score, avg) }]}
                   >
                     {g.score ?? '—'}
                   </Text>

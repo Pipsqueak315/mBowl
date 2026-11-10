@@ -45,8 +45,10 @@ npm install
 ## Expo Prebuild
 
 ```
-npx expo prebuild --platform ios
+npx expo prebuild --platform ios --clean
 ```
+
+- `--clean` deletes and regenerates the `ios/` folder, so no leftovers from an older SDK or config survive (audit N6). Always use it — `ios/` is generated and gitignored, nothing hand-edited lives there.
 
 - When prompted for bundle ID, confirm: **com.marcus.mbowl**
 - CocoaPods runs automatically at the end of prebuild
