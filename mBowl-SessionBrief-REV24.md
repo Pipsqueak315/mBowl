@@ -41,7 +41,7 @@ Rule change Marcus approved: the 3-day native freeze is waived for the **Duo onl
 | **The Mac (no Claude Code there)** | `scripts/mac-build.sh` automates the typing before and after the Xcode clicks. | Anything else: debugging goes to Claude in the iOS app (paste the error), REBUILD.md and the GitHub Release are done by Claude afterwards. |
 | **Marcus only** | (1) One-time: install the Claude GitHub App + add the `EXPO_TOKEN` secret (~10 min, unlocks Claude doing pushes + ships from the phone). (2) Start the PC Claude Code session with the paste prompt. (3) Mac: paste the setup command, do the Xcode signing + Product -> Archive clicks it lists, run the package command. (4) iloader install on the Duo (phone plugged into the PC). (5) Phone-side data move (AirDrop, Files, Restore) + Settings goals. (6) Check each screen on the Duo, say "ship it", Friday go/no-go. | -- |
 
-**DONE Nov 10, 12:11 (Claude, via the PC link):** docs committed on `master` as `08323d7` and pushed; both branches pushed; CRLF noise discarded; PC working tree clean. `EXPO_TOKEN` secret added and verified (signs in as pipsqueak315). Xcode 27.1 / macOS check done by Marcus. **12:25: Claude also merged `phase26` + `phase26a` into `master` (nothing shipped), bumped the GitHub check tools to v5, and added `scripts/mac-build.sh` (Mac day = setup command -> Xcode sign + Archive -> package command; known-good Apple ID signing, decided 12:24).** **Remaining tonight: only the "Phase 27 part 1" prompt on the PC.** The commands below are kept for reference only -- do not re-run them.
+**DONE Nov 10, 12:11 (Claude, via the PC link):** docs committed on `master` as `08323d7` and pushed; both branches pushed; CRLF noise discarded; PC working tree clean. `EXPO_TOKEN` secret added and verified (signs in as pipsqueak315). Xcode 27.1 / macOS check done by Marcus. **13:58: Claude also pre-did part of Phase 27 on branch `phase27` (v2.0.0, orientation, new splash from the current icon, N11) and slimmed tonight's prompt to the SDK upgrade + add-ons + native tabs.** **12:25: Claude also merged `phase26` + `phase26a` into `master` (nothing shipped), bumped the GitHub check tools to v5, and added `scripts/mac-build.sh` (Mac day = setup command -> Xcode sign + Archive -> package command; known-good Apple ID signing, decided 12:24).** **Remaining tonight: only the "Phase 27 part 1" prompt on the PC.** The commands below are kept for reference only -- do not re-run them.
 
 **Tonight's push (PowerShell, one line at a time):**
 ```
@@ -58,30 +58,26 @@ git push -u origin phase26a
 ```
 Phase 27 sprint, part 1 (PC). Read CLAUDE.md, mBowl-SessionBrief-REV24.md (SPRINT section), and docs/mBowl-DuoPlan.md Phase 27 + 27.0.
 Do NOT run eas update or npm run ship:ota. Nothing goes to the 1.0.0 runtime this week.
-1. git checkout master, git pull (Claude already merged phase26 + phase26a and added scripts/mac-build.sh). npm ci, then npm run check (must be green).
-2. Create branch phase27 from master.
-3. Upgrade Expo SDK 54 -> 55 -> 56 -> 57 -> 58, one step at a time. For each: read Expo's "how to upgrade to SDK <N>"
+1. git fetch, then git checkout phase27 and git pull. Claude already did (Nov 10, commit on phase27): app.json version
+   2.0.0 / buildNumber 2 / orientation "default", splash from the current icon, removed splash-icon.png (N11).
+   npm ci, then npm run check (must be green).
+2. Upgrade Expo SDK 54 -> 55 -> 56 -> 57 -> 58, one step at a time. For each: read Expo's "how to upgrade to SDK <N>"
    notes, run npx expo install expo@^<N>.0.0 --fix, then npx expo-doctor@latest, then npm run check. Commit each step.
    If a step fails twice, stop and report.
    SDK 58 changes to handle (Expo's upgrade guide): strict TypeScript API by default (refs use instance types such as
    ViewInstance; no react-native/Libraries deep imports); InteractionManager, the Modal "animated" prop and StatusBar
    backgroundColor/translucent are removed; ImageBackground is deprecated; iOS 26+ headers are transparent Liquid Glass
    with content underneath by default -- keep content readable (dark theme) and report what changed visually.
-4. app.json: version 2.0.0, ios.buildNumber "2", orientation "default". Add these (npx expo install):
-   - expo-screen-orientation: request portrait at startup in app/_layout.tsx. iOS 27 treats locks as a preference and
-     may ignore them, so every screen must also survive landscape -- report any that clearly break.
-   - expo-keep-awake: keep the screen on while app/log-frames.tsx is open.
-   - expo-document-picker: dependency only (the "Restore from file..." button comes later over the air).
-   - @expo/ui: dependency only (its ArrangementView is the fold-aware two-page layout for Phase 28).
-5. Native tabs (27.4): switch app/(tabs)/_layout.tsx to NativeTabs from 'expo-router/native-tabs'
-   (preferredPlacement 'automatic'); keep the 4 tabs, SF Symbols, teal tint. If the API blocks you, keep the JS
-   tab bar and report -- don't let it block the build.
-6. Safe areas: the Duo's side rail needs an 84pt left/right inset. Make every screen use react-native-safe-area-context
-   insets on BOTH left and right (absolute elements: insets.right + 16, not 16). Don't add a fixed tab-bar height
-   to insets.bottom on NativeTabs screens.
-7. Splash (27.5): show the current app icon; delete the orphaned assets/images/splash-icon.png (N11).
-8. npm run check green, push phase27, and confirm CI passes on GitHub. Report: done / blocked / anything I need
-   to know before the Mac tomorrow.
+   If expo-doctor flags the splash config, move it to the expo-splash-screen plugin (image ./assets/images/splash.png,
+   backgroundColor #000000) -- the image is already the right one.
+3. Add (npx expo install): expo-screen-orientation (request portrait at startup in app/_layout.tsx -- iOS 27 may ignore
+   it), expo-keep-awake (keep the screen on while app/log-frames.tsx is open), expo-document-picker (dependency only),
+   @expo/ui (dependency only -- ArrangementView for Phase 28).
+4. Native tabs (27.4): switch app/(tabs)/_layout.tsx to NativeTabs from 'expo-router/native-tabs'
+   (preferredPlacement 'automatic'); keep the 4 tabs, SF Symbols, teal tint. If the API blocks you, keep the JS tab bar
+   and report -- don't let it block the build. (Screen-by-screen safe areas for the Duo rail are done in Phase 28.)
+5. npm run check green, push phase27, and confirm CI passes on GitHub. Report: done / blocked / anything I need to know
+   before the Mac tomorrow.
 ```
 
 **Mac day -- known-good Xcode flow, bare minimum (the Mac's zsh supports `&&`):**
