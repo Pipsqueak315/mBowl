@@ -8,8 +8,9 @@ import {
   FlatList,
   Alert,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,6 +19,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
 import type { FrameData, ThrowEntry } from '@/src/types';
+import { KEYS } from '@/src/storage';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import PinDeck from '@/components/PinDeck';
@@ -37,7 +39,9 @@ type InputMode = 'pins' | 'quick';
 
 const CHIPS: string[] = ['X', '/', '—', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const FRAME_ITEM_W = 52;
-export const FRAME_RESULT_KEY = 'mbowl_frame_result';
+// Window heights below this get the compact layout (26.5). The Duo cover screen
+// is 678pt; a standard 6.1" iPhone is 844pt.
+const COMPACT_HEIGHT = 760;
 const ALL_UP: boolean[] = Array(10).fill(true);
 
 // ---------------------------------------------------------------------------
@@ -372,25 +376,28 @@ function ActiveFrameCard({
   frame,
   frameIndex,
   onNoteChange,
+  compact = false,
 }: {
   frame: FrameData;
   frameIndex: number;
   onNoteChange: (note: string) => void;
+  compact?: boolean;
 }) {
   const slotCount = frameIndex === 9 ? 3 : 2;
   const { throws } = frame;
 
   return (
-    <View style={styles.activeCard}>
+    <View style={[styles.activeCard, compact && styles.activeCardCompact]}>
       <Text style={styles.activeFrameLabel}>FRAME {frameIndex + 1}</Text>
       <View style={styles.activeSlotsRow}>
         {Array.from({ length: slotCount }).map((_, i) => {
           const t = throws[i];
           const filled = t !== undefined;
           return (
-            <View key={i} style={[styles.activeSlot, filled && styles.activeSlotFilled]}>
+            <View key={i} style={[styles.activeSlot, compact && styles.activeSlotCompact, filled && styles.activeSlotFilled]}>
               <Text style={[
                 styles.activeSlotText,
+                compact && styles.activeSlotTextCompact,
                 !filled && styles.activeSlotEmpty,
                 t === 'X' && styles.activeStrikeText,
               ]}>
@@ -507,6 +514,11 @@ export default function LogFramesScreen() {
   }>();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  // 26.5: short windows (the Duo's 678pt cover screen, SE-size phones) get a
+  // tighter layout so the pin deck + Confirm never fall off the bottom. Read
+  // live from useWindowDimensions so it re-evaluates on fold / unfold.
+  const { height: windowHeight } = useWindowDimensions();
+  const compact = windowHeight < COMPACT_HEIGHT;
   const stripRef = useRef<FlatList<FrameData>>(null);
 
   const [mode, setMode] = useState<Mode>('post');
@@ -701,24 +713,61 @@ export default function LogFramesScreen() {
       score: scores[9],
       frames,
     };
-    await AsyncStorage.setItem(FRAME_RESULT_KEY, JSON.stringify(result));
+    // Mark the save BEFORE the await, so a swipe-back during the write can't
+    // raise the discard confirm under a screen that is about to close.
+    savedRef.current = true;
+    try {
+      await AsyncStorage.setItem(KEYS.FRAME_RESULT, JSON.stringify(result));
+    } catch (e) {
+      savedRef.current = false;
+      console.error('[log-frames] saving frame result failed', e);
+      Alert.alert('Save Failed', 'Your frames were not saved. Tap Done to try again.');
+      return;
+    }
     navigation.goBack();
   }
 
-  // Use a ref so the Cancel button always calls the latest handleCancel
-  // without needing to re-register the header on every frame change
-  const handleCancelRef = useRef<() => void>(() => {});
-  handleCancelRef.current = () => {
-    const hasData = frames.some((f) => f.throws.length > 0);
-    if (!hasData) { navigation.goBack(); return; }
+  // ---- Leaving the screen (26.3) -------------------------------------------
+  // ONE "Discard Frames?" confirm guards every way out: the header Cancel
+  // button, the iOS swipe-back gesture (native-stack cancels the native dismiss
+  // and routes it here), and any other pop. Done sets savedRef first so it is
+  // never challenged. "Unsaved" means changed since the screen opened — so
+  // backing out of History → Edit Frames without touching anything doesn't
+  // warn about losing data that was never changed.
+  // B2 cancel boundary is unchanged: a discard never writes KEYS.FRAME_RESULT,
+  // so callers still infer "cancelled" from the key's absence.
+  const savedRef = useRef(false);
+  // Snapshot of the frames as the screen opened (lazy initial state: computed
+  // once, on the first render, from the initial `frames`).
+  const [initialFramesJson] = useState(() => JSON.stringify(frames));
+  const isDirty = useMemo(() => JSON.stringify(frames) !== initialFramesJson, [frames, initialFramesJson]);
+  usePreventRemove(isDirty, ({ data }) => {
+    if (savedRef.current) {
+      navigation.dispatch(data.action);
+      return;
+    }
     Alert.alert(
       'Discard Frames?',
       'Your frame data will not be saved.',
       [
         { text: 'Keep Editing', style: 'cancel' },
-        { text: 'Discard', style: 'destructive', onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); navigation.goBack(); } },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            navigation.dispatch(data.action);
+          },
+        },
       ]
     );
+  });
+
+  // Header Cancel just asks to leave; usePreventRemove above decides whether
+  // that needs the confirm (frames entered) or can go straight back (empty).
+  const handleCancelRef = useRef<() => void>(() => {});
+  handleCancelRef.current = () => {
+    navigation.goBack();
   };
 
   // Header
@@ -750,8 +799,10 @@ export default function LogFramesScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Mode + input toggles — stacked normally, side by side when compact */}
+      <View style={compact ? styles.compactToggleRow : undefined}>
       {/* Mode toggle (Post-Game / Live) */}
-      <View style={styles.toggleBar}>
+      <View style={[styles.toggleBar, compact && styles.toggleInRow]}>
         {(['post', 'live'] as Mode[]).map((m) => (
           <ScalePressable
             key={m}
@@ -766,7 +817,7 @@ export default function LogFramesScreen() {
       </View>
 
       {/* Input mode toggle (Pins / Quick) */}
-      <View style={styles.inputModeBar}>
+      <View style={[styles.inputModeBar, compact && styles.toggleInRow]}>
         {(['pins', 'quick'] as InputMode[]).map((m) => (
           <ScalePressable
             key={m}
@@ -778,6 +829,8 @@ export default function LogFramesScreen() {
             </Text>
           </ScalePressable>
         ))}
+      </View>
+
       </View>
 
       {/* Top strip */}
@@ -836,7 +889,7 @@ export default function LogFramesScreen() {
         {(allComplete && currentFrame === 9) ? (
           <View style={styles.completeCard}>
             <Text style={styles.completeTitle}>All Frames Complete</Text>
-            <Text style={styles.completeFinalScore}>{scores[9]}</Text>
+            <Text style={[styles.completeFinalScore, compact && styles.completeFinalScoreCompact]}>{scores[9]}</Text>
             <Text style={styles.completeLabel}>Final Score</Text>
             <ScalePressable style={styles.doneButton} onPress={handleDone}>
               <Text style={styles.doneButtonText}>Done</Text>
@@ -848,6 +901,7 @@ export default function LogFramesScreen() {
             frame={frames[currentFrame]}
             frameIndex={currentFrame}
             onNoteChange={(note) => updateFrameNote(currentFrame, note)}
+            compact={compact}
           />
         )}
       </View>
@@ -884,6 +938,7 @@ export default function LogFramesScreen() {
             isFirstThrow={pinDeckProps.isFirstThrow}
             prevPinsStanding={pinDeckProps.prevPinsStanding}
             onConfirm={(ps, notation) => addThrowWithPins(notation, ps)}
+            compact={compact}
           />
         </View>
       )}
@@ -976,12 +1031,15 @@ const styles = StyleSheet.create({
 
   // Active frame card
   activeCard: { alignItems: 'center', gap: 20, width: '100%' },
+  activeCardCompact: { gap: 10 },
   activeFrameLabel: { fontSize: 11, fontWeight: '500', color: '#8E8E93', letterSpacing: 1.5 },
   activeSlotsRow: { flexDirection: 'row', gap: 16 },
   activeSlot: {
     width: 80, height: 80, borderRadius: 14,
     backgroundColor: '#2C2C2E', alignItems: 'center', justifyContent: 'center',
   },
+  activeSlotCompact: { width: 60, height: 60, borderRadius: 12 },
+  activeSlotTextCompact: { fontSize: 30 },
   activeSlotFilled: { backgroundColor: '#1C1C1E' },
   activeSlotText: { fontSize: 40, fontWeight: '200', color: '#FFFFFF' },
   activeSlotEmpty: { color: '#38383A' },
@@ -1013,6 +1071,7 @@ const styles = StyleSheet.create({
   completeCard: { alignItems: 'center', gap: 8 },
   completeTitle: { fontSize: 15, color: '#8E8E93', fontWeight: '500', letterSpacing: 0.5 },
   completeFinalScore: { fontSize: 80, fontWeight: '200', color: '#00CEC9' },
+  completeFinalScoreCompact: { fontSize: 60 },
   completeLabel: { fontSize: 13, color: '#48484A', fontWeight: '500' },
   doneButton: {
     marginTop: 16,
@@ -1081,6 +1140,15 @@ const styles = StyleSheet.create({
   chipTextDisabled: { color: '#38383A' },
 
   // Input mode toggle (Pins / Quick)
+  compactToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  toggleInRow: { flex: 1, marginHorizontal: 0, marginTop: 0, marginBottom: 0 },
   inputModeBar: {
     flexDirection: 'row',
     backgroundColor: '#000000',

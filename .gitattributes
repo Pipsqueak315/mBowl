@@ -1,0 +1,13 @@
+# Phase 26.0c — keep line endings LF everywhere (repo and Windows working tree).
+# Every tracked text file is already LF; this stops CRLF creeping in from
+# Windows editors / PowerShell Set-Content and keeps diffs clean.
+* text=auto eol=lf
+
+# Binary assets — never touch.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.ttf binary
+*.otf binary

@@ -12,7 +12,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Platform,
-  Dimensions,
 } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -22,9 +21,8 @@ import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import { readSessions, writeSessions, readSettings } from '@/src/storage';
+import { readSessions, writeSessions, readSettings, KEYS } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
-import { FRAME_RESULT_KEY } from '@/app/log-frames';
 import type { ThrowEntry, GameEntry, Session, Settings } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
@@ -178,7 +176,10 @@ function MadeCutBadge({ madeCut }: { madeCut: string | null }) {
 // Share card — rendered off-screen, captured with captureRef
 // ---------------------------------------------------------------------------
 
-const SHARE_CARD_WIDTH = Dimensions.get('window').width;
+// Fixed logical width (26.5): the shared image is the same on every phone and
+// every Duo state. Was Dimensions.get('window') captured once at load — wrong
+// after a fold/unfold, and a 951pt-wide image on the Duo's inner screen.
+const SHARE_CARD_WIDTH = 390;
 
 function ShareCardView({ session }: { session: Session }) {
   const avg = sessionAvg(session.games);
@@ -450,7 +451,7 @@ function SessionCard({
                 <View style={styles.gameRowHeader}>
                   <Text style={styles.gameLabel}>Game {g.game}</Text>
                   <Text
-                    style={[styles.gameExpandScore, { color: scoreColor(g.score ?? 0, avg) }]}
+                    style={[styles.gameExpandScore, { color: g.score == null ? '#48484A' : scoreColor(g.score, avg) }]}
                   >
                     {g.score ?? '—'}
                   </Text>
@@ -616,7 +617,7 @@ export default function HistoryScreen() {
         const pending = pendingFrameEditRef.current;
         if (!pending) return;
 
-        const resultRaw = await AsyncStorage.getItem(FRAME_RESULT_KEY);
+        const resultRaw = await AsyncStorage.getItem(KEYS.FRAME_RESULT);
         if (!active) return; // leave the ref set — a later focus retries cleanly
         pendingFrameEditRef.current = null;
 
@@ -632,7 +633,7 @@ export default function HistoryScreen() {
             score: number;
             frames: ThrowEntry[];
           };
-          await AsyncStorage.removeItem(FRAME_RESULT_KEY);
+          await AsyncStorage.removeItem(KEYS.FRAME_RESULT);
           reopenWith = {
             ...pending.session,
             games: pending.session.games.map((g, i) =>

@@ -238,12 +238,6 @@ export default function PocketDiagnosticsTab({
     let active = true;
     readSessions().then(sessions => {
       if (!active) return;
-      if (!sessions) {
-        setHasPinData(false);
-        setLeaveEntries([]);
-        setLeavesLoading(false);
-        return;
-      }
       const result = computeLeaveStats(sessions) as {
         leaves: LeaveEntry[];
         hasPinData: boolean;

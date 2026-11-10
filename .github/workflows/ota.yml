@@ -1,0 +1,46 @@
+# Phase 26A.6 — send an over-the-air update to the phone, only if every check passes.
+#
+# MANUAL ONLY for now (Actions → OTA → Run workflow) so nothing can publish
+# before Marcus has set up the EXPO_TOKEN secret and done the 26A.8 dry run.
+# When he's ready for "approve = ships", add this trigger alongside dispatch:
+#   push:
+#     branches: [master]
+#
+# Needs the repo secret EXPO_TOKEN (expo.dev → Account settings → Access tokens).
+name: OTA
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Update message (defaults to the last commit subject)'
+        required: false
+
+concurrency:
+  group: ota-production
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: All checks must pass
+        run: npm run check
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Publish to production channel
+        env:
+          INPUT_MESSAGE: ${{ github.event.inputs.message }}
+        run: |
+          MSG="${INPUT_MESSAGE:-$(git log -1 --pretty=%s)}"
+          eas update --branch production --message "$MSG" --non-interactive

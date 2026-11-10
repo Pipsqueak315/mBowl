@@ -56,10 +56,13 @@ const anchors = {
 const hasAnchors = Object.values(anchors).some(v => v != null);
 
 // --- Load data --------------------------------------------------------------
-const DATA_PATH = join(ROOT, 'docs', 'phase24-data.json');
+// --data <file> reads any backup/export (used by /backup-check); --seeds forces
+// the 18 seeds even when the real file is present (used by npm run check).
+const DATA_PATH = getArg('data') ?? join(ROOT, 'docs', 'phase24-data.json');
+const forceSeeds = argv.includes('--seeds');
 let sessions;
 let usingReal = false;
-if (existsSync(DATA_PATH)) {
+if (!forceSeeds && existsSync(DATA_PATH)) {
   const raw = JSON.parse(readFileSync(DATA_PATH, 'utf8'));
   sessions = Array.isArray(raw) ? raw : raw.sessions;
   usingReal = true;
@@ -101,8 +104,11 @@ function calcMetrics(sessions) {
   const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
   const highGame = Math.max(...scores);
   let highSeries = 0;
+  // Part 6b: 3-game sessions only (mirrors threeGameSeriesTotal in stats.tsx).
   for (const s of sessions) {
-    const total = s.games.filter(g => g.score != null).reduce((sum, g) => sum + g.score, 0);
+    const scored = s.games.filter(g => g.score != null);
+    if (scored.length !== 3) continue;
+    const total = scored.reduce((sum, g) => sum + g.score, 0);
     if (total > highSeries) highSeries = total;
   }
   const gamesWithFrames = allGames.filter(g => Array.isArray(g.frames) && g.frames.length > 0);

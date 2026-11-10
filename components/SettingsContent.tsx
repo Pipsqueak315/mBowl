@@ -15,7 +15,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { readSettings, writeSettings, readBalls, writeBalls } from '@/src/storage';
-import { writeBackup, restoreBackup } from '@/src/backup';
+import { writeBackup, restoreBackup, exportBackup } from '@/src/backup';
 import ScalePressable from '@/components/ScalePressable';
 import type { Settings, Ball, Season } from '@/src/types';
 import { getSeasons, resolveSeasonRanges } from '@/src/seasons';
@@ -58,6 +58,8 @@ function TappableStrengthDots({
 
 export default function SettingsContent({ onClose }: Props) {
   const [settings, setSettings] = useState<Settings>({});
+  // Export in flight — ignores a second tap so two share sheets can't stack.
+  const [exporting, setExporting] = useState(false);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
 
@@ -626,9 +628,30 @@ export default function SettingsContent({ onClose }: Props) {
         )}
 
         {/* ----------------------------------------------------------------
-            Restore from Backup
+            Export Backup (Phase 26.0b) + Restore from Backup
         ---------------------------------------------------------------- */}
         <View style={styles.restoreSpacer} />
+        <ScalePressable
+          style={styles.restoreButton}
+          disabled={exporting}
+          onPress={async () => {
+            if (exporting) return;
+            setExporting(true);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            try {
+              const result = await exportBackup();
+              if (!result.success) {
+                Alert.alert('Export Failed', result.error ?? 'Unknown error.');
+              }
+            } finally {
+              setExporting(false);
+            }
+          }}
+        >
+          <Text style={[styles.exportText, exporting && styles.exportTextBusy]}>
+            {exporting ? 'Exporting…' : 'Export Backup'}
+          </Text>
+        </ScalePressable>
         <TouchableOpacity
           style={styles.restoreButton}
           onPress={() => {
@@ -965,5 +988,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#FF453A',
     fontWeight: '500',
+  },
+  exportText: {
+    fontSize: 15,
+    color: '#00CEC9',
+    fontWeight: '500',
+  },
+  exportTextBusy: {
+    color: '#8E8E93',
   },
 });

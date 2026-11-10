@@ -1,4 +1,5 @@
 import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   readSessionsResult,
@@ -83,6 +84,37 @@ export async function writeBackup(): Promise<void> {
   }
 }
 
+/**
+ * Export (Phase 26.0b): refresh mBowl-backup.json from live data, then hand it
+ * to the iOS share sheet (Save to Files, AirDrop, Mail…). Gets the backup out
+ * of the app sandbox without the Files-app dance.
+ *
+ * writeBackup()'s S9 guards still apply — if the refresh is skipped because a
+ * read failed, the previous on-disk backup is what gets shared, never an empty
+ * one. Uses expo-sharing, already in the binary (History share), so OTA-safe.
+ */
+export async function exportBackup(): Promise<{ success: boolean; error?: string }> {
+  try {
+    await writeBackup();
+    const file = new File(Paths.document, BACKUP_FILENAME);
+    if (!file.exists) {
+      return { success: false, error: 'No backup file could be created.' };
+    }
+    if (!(await Sharing.isAvailableAsync())) {
+      return { success: false, error: 'Sharing is not available on this device.' };
+    }
+    await Sharing.shareAsync(file.uri, {
+      mimeType: 'application/json',
+      UTI: 'public.json',
+      dialogTitle: 'Export mBowl backup',
+    });
+    return { success: true };
+  } catch (e) {
+    console.error('[backup] exportBackup failed', e);
+    return { success: false, error: 'An unexpected error occurred during export.' };
+  }
+}
+
 export async function restoreBackup(): Promise<{ success: boolean; error?: string }> {
   try {
     const file = new File(Paths.document, BACKUP_FILENAME);
@@ -123,10 +155,20 @@ export async function restoreBackup(): Promise<{ success: boolean; error?: strin
       return { success: false, error: 'Backup file has invalid reference data — restore cancelled.' };
     }
 
-    // Atomic: write all 4 keys or none
+    // One multiSet batch for every key. NOT guaranteed atomic on iOS — the native
+    // module writes pair by pair, so a mid-batch failure (e.g. disk full) can
+    // leave some keys written; that is why every shape check runs first.
+    // N7: the shadow keys are written too —
+    // app/_layout.tsx recovers from them on launch when the primary reads back
+    // empty, so a stale shadow (e.g. the 18 seeds on a fresh install) could
+    // otherwise "recover" the wrong data right after a restore.
+    const sessionsJson = JSON.stringify(payload.sessions);
+    const ballsJson = JSON.stringify(payload.balls);
     await AsyncStorage.multiSet([
-      [KEYS.SESSIONS, JSON.stringify(payload.sessions)],
-      [KEYS.BALLS, JSON.stringify(payload.balls)],
+      [KEYS.SESSIONS, sessionsJson],
+      [KEYS.SESSIONS_BACKUP, sessionsJson],
+      [KEYS.BALLS, ballsJson],
+      [KEYS.BALLS_BACKUP, ballsJson],
       [KEYS.SETTINGS, JSON.stringify(payload.settings)],
       [KEYS.REFERENCE, JSON.stringify(payload.reference)],
     ]);

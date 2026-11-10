@@ -101,7 +101,25 @@ const TYPE_FULL_LABEL: Record<Exclude<TypeFilter, 'all'>, string> = {
 // --- Leave stats helpers ---
 const LEAVE_PIN_ROWS: number[][] = [[6, 7, 8, 9], [3, 4, 5], [1, 2], [0]];
 
-function conversionColor(pct: number): string {
+// N15 (Phase 26.1): the one shared conversionColor is split by metric.
+// Aggregate Makeable % — band LOCKED at green ≥80 / orange ≥60 (Phase 24).
+function makeableColor(pct: number): string {
+  if (pct >= 80) return '#30D158';
+  if (pct >= 60) return '#FF9F0A';
+  return '#FF453A';
+}
+
+// Per-leave conversion rows. Non-split leaves keep the 80/60 band. Splits get
+// their own scale: most are low-percentage by nature (real export: 9/44 = 20%
+// across all splits; Big 4 0/7), so a miss reads dim grey, never red — red
+// should flag a makeable spare you're leaving, not a 4-6-7-10.
+// `isSplit` comes from leaveUtils (single source of truth) — nothing derived here.
+function leaveConversionColor(pct: number, isSplit: boolean): string {
+  if (isSplit) {
+    if (pct >= 40) return '#30D158';
+    if (pct >= 15) return '#FF9F0A';
+    return '#8E8E93';
+  }
   if (pct >= 80) return '#30D158';
   if (pct >= 60) return '#FF9F0A';
   return '#FF453A';
@@ -136,7 +154,7 @@ function LeaveRow({ leave, showBorder }: { leave: LeaveEntry; showBorder: boolea
         </View>
         <Text style={styles.leaveCount}>× {leave.count}</Text>
       </View>
-      <Text style={[styles.leaveConvPct, { color: conversionColor(leave.conversionPct) }]}>
+      <Text style={[styles.leaveConvPct, { color: leaveConversionColor(leave.conversionPct, leave.isSplit) }]}>
         {Math.round(leave.conversionPct)}%
       </Text>
     </View>
@@ -164,6 +182,15 @@ function todayISO(): string {
   return `${y}-${m}-${day}`;
 }
 
+// Series total for a session with exactly three scored games, else null.
+// Shared by High Series and the Series Trend chart so both use one rule.
+const SERIES_GAMES = 3;
+function threeGameSeriesTotal(s: Session): number | null {
+  const scored = s.games.filter(g => g.score != null);
+  if (scored.length !== SERIES_GAMES) return null;
+  return scored.reduce((sum, g) => sum + (g.score as number), 0);
+}
+
 function calcMetrics(sessions: Session[]): Metrics | null {
   if (sessions.length === 0) return null;
 
@@ -174,12 +201,12 @@ function calcMetrics(sessions: Session[]): Metrics | null {
   const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
   const highGame = Math.max(...scores);
 
+  // High Series counts standard 3-game series only (Phase 24 Part 6b) — an
+  // 8-game tournament block is not a series and would dwarf every league night.
   let highSeries = 0;
   for (const s of sessions) {
-    const total = s.games
-      .filter(g => g.score != null)
-      .reduce((sum, g) => sum + (g.score as number), 0);
-    if (total > highSeries) highSeries = total;
+    const total = threeGameSeriesTotal(s);
+    if (total != null && total > highSeries) highSeries = total;
   }
 
   const gamesWithFrames = allGames.filter(
@@ -212,22 +239,21 @@ function calcMetrics(sessions: Session[]): Metrics | null {
   return { avg, highGame, highSeries, frameStats, gameCount: allGames.length, sessionCount: sessions.length };
 }
 
-// Build series-per-session data (one point per session, chronological)
+// Build series-per-session data (one point per 3-game session, chronological).
+// Non-3-game sessions are excluded (Phase 24 Part 6b), same rule as High Series.
 function buildSeriesData(sessions: Session[]): ChartPoint | null {
   const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
   const labels: string[] = [];
   const data: number[] = [];
 
-  sorted.forEach((s, i) => {
-    const total = s.games
-      .filter(g => g.score != null)
-      .reduce((sum, g) => sum + (g.score as number), 0);
-    if (total > 0) {
-      // Show date label every 3rd session so labels don't crowd
-      labels.push(i % 3 === 0 ? formatDateLabel(s.date) : '');
+  for (const s of sorted) {
+    const total = threeGameSeriesTotal(s);
+    if (total != null && total > 0) {
+      // Show date label every 3rd plotted point so labels don't crowd
+      labels.push(data.length % 3 === 0 ? formatDateLabel(s.date) : '');
       data.push(total);
     }
-  });
+  }
 
   if (data.length < 2) return null;
   return { labels, data };
@@ -505,6 +531,43 @@ function deltaValue(d: number, fmt: CmpFmt): number {
   return Number(d.toFixed(1));
 }
 
+// --- Seven-cell color bands (Phase 24 Part 6) ---
+// Goal-based (Marcus, Nov 2026: "end the season at a 190 average").
+//   green  = the level that produces a 190 average — read from his own games
+//            scoring 180–200 in the Oct 2026 export (FB 8.9, Strike 48%,
+//            Spare 65–67%, Opens 1.6); Clean from P(0 opens) at 1.6 opens/game.
+//   orange = his current level (all-time: FB 8.6, Strike 39%, Doubles 36%,
+//            Clean 7%, Spare 60%, Opens 2.2, Bounce-Back 75%) up to the goal.
+//   red    = below his current level.
+// Deliberately separate from makeableColor / leaveConversionColor (N15).
+// `invert` = lower is better (Opens/G). Callers pass the value AT DISPLAY
+// PRECISION so the colour always agrees with the number on screen.
+interface Band {
+  green: number;
+  orange: number;
+  invert?: boolean;
+}
+const CELL_BANDS = {
+  firstBall: { green: 8.9, orange: 8.6 },
+  strike: { green: 48, orange: 39 },
+  doubles: { green: 42, orange: 36 },
+  clean: { green: 20, orange: 7 },
+  spare: { green: 67, orange: 60 },
+  opensPerGame: { green: 1.6, orange: 2.2, invert: true },
+  bounceBack: { green: 80, orange: 75 },
+} satisfies Record<string, Band>;
+
+function bandColor(value: number, band: Band): string {
+  if (band.invert) {
+    if (value <= band.green) return '#30D158';
+    if (value <= band.orange) return '#FF9F0A';
+    return '#FF453A';
+  }
+  if (value >= band.green) return '#30D158';
+  if (value >= band.orange) return '#FF9F0A';
+  return '#FF453A';
+}
+
 // --- Leaves sort ---
 const LEAVE_SORTS = [
   { key: 'frequency', label: 'Frequency' },
@@ -648,6 +711,32 @@ export default function StatsScreen() {
   const ballStats = useMemo<BallStat[]>(() => buildBallStats(filtered), [filtered]);
   const gameByGameStats = useMemo<GamePositionStat[]>(() => buildGameByGameStats(filtered), [filtered]);
   const advancedStats = useMemo<AdvancedStats>(() => calcAdvancedStats(filtered), [filtered]);
+
+  // Display text + band colour for the seven frame-derived grid cells. Colour
+  // is withheld (white, as before) below MIN_FRAME_GAMES games with frame data —
+  // the sample can't support a verdict. Each colour is computed from the value
+  // rounded to its display precision so the colour never disagrees with the text.
+  const cells = useMemo(() => {
+    const gated = advancedStats.gamesWithFrames >= MIN_FRAME_GAMES;
+    const cell = (raw: number | null | undefined, digits: number, suffix: string, band: Band) => {
+      if (raw == null) return null;
+      const shown = Number(raw.toFixed(digits));
+      return { text: `${raw.toFixed(digits)}${suffix}`, color: gated ? bandColor(shown, band) : undefined };
+    };
+    const fs = metrics?.frameStats ?? null;
+    const cleanPct =
+      advancedStats.gamesWithFrames > 0 ? (advancedStats.cleanGames / advancedStats.gamesWithFrames) * 100 : null;
+    return {
+      firstBall: cell(advancedStats.firstBallAvg, 1, '', CELL_BANDS.firstBall),
+      strike: cell(fs?.strikeRate, 1, '%', CELL_BANDS.strike),
+      doubles: cell(advancedStats.doublesPct, 0, '%', CELL_BANDS.doubles),
+      spare: cell(fs?.spareRate, 1, '%', CELL_BANDS.spare),
+      opensPerGame: cell(fs?.opensPerGame, 1, '', CELL_BANDS.opensPerGame),
+      bounceBack: cell(advancedStats.bounceBackPct, 0, '%', CELL_BANDS.bounceBack),
+      // Clean shows N/M, not a %, so band on the exact share (19.6% is not 20%).
+      cleanColor: gated && cleanPct != null ? bandColor(cleanPct, CELL_BANDS.clean) : undefined,
+    };
+  }, [advancedStats, metrics]);
 
   // Season comparison: the selected season (A) vs its immediately preceding
   // season (B). Reuses filterSessions + computeSeasonMetrics, honouring the
@@ -794,7 +883,7 @@ export default function StatsScreen() {
                 </View>
                 <View style={styles.slimCard}>
                   <Text style={styles.slimLabel}>High Series</Text>
-                  <Text style={styles.slimValue}>{metrics.highSeries}</Text>
+                  <Text style={styles.slimValue}>{metrics.highSeries > 0 ? metrics.highSeries : '—'}</Text>
                 </View>
               </View>
             </View>
@@ -804,19 +893,28 @@ export default function StatsScreen() {
             <View style={styles.gridRow}>
               <GridCell
                 label="FIRST BALL"
-                value={advancedStats.firstBallAvg != null ? advancedStats.firstBallAvg.toFixed(1) : null}
+                value={cells.firstBall?.text ?? null}
+                color={cells.firstBall?.color}
               />
               <GridCell
                 label="STRIKE"
-                value={metrics.frameStats ? `${metrics.frameStats.strikeRate.toFixed(1)}%` : null}
+                value={cells.strike?.text ?? null}
+                color={cells.strike?.color}
               />
               <GridCell
                 label="DOUBLES"
-                value={advancedStats.doublesPct != null ? `${Math.round(advancedStats.doublesPct)}%` : null}
+                value={cells.doubles?.text ?? null}
+                color={cells.doubles?.color}
               />
               <GridCell label="CLEAN">
                 {advancedStats.gamesWithFrames === 0 ? undefined : (
-                  <Text style={styles.gridCellValue}>
+                  <Text
+                    style={
+                      cells.cleanColor
+                        ? [styles.gridCellValueColored, { color: cells.cleanColor }]
+                        : styles.gridCellValue
+                    }
+                  >
                     {advancedStats.cleanGames}
                     <Text style={styles.cleanDenom}>/{advancedStats.gamesWithFrames}</Text>
                   </Text>
@@ -829,7 +927,8 @@ export default function StatsScreen() {
             <View style={styles.gridRow}>
               <GridCell
                 label="SPARE"
-                value={metrics.frameStats ? `${metrics.frameStats.spareRate.toFixed(1)}%` : null}
+                value={cells.spare?.text ?? null}
+                color={cells.spare?.color}
               />
               <GridCell
                 label="MAKEABLE"
@@ -842,17 +941,19 @@ export default function StatsScreen() {
                 }
                 color={
                   leaveStats.hasPinData && leaveStats.makeableSparePct != null
-                    ? conversionColor(leaveStats.makeableSparePct)
+                    ? makeableColor(leaveStats.makeableSparePct)
                     : undefined
                 }
               />
               <GridCell
                 label="OPENS/G"
-                value={metrics.frameStats ? metrics.frameStats.opensPerGame.toFixed(1) : null}
+                value={cells.opensPerGame?.text ?? null}
+                color={cells.opensPerGame?.color}
               />
               <GridCell
                 label="BOUNCE-BK"
-                value={advancedStats.bounceBackPct != null ? `${Math.round(advancedStats.bounceBackPct)}%` : null}
+                value={cells.bounceBack?.text ?? null}
+                color={cells.bounceBack?.color}
               />
             </View>
 
@@ -875,7 +976,7 @@ export default function StatsScreen() {
                 />
               ) : (
                 <View style={styles.chartEmpty}>
-                  <Text style={styles.chartEmptyText}>Need at least 2 sessions to show trend</Text>
+                  <Text style={styles.chartEmptyText}>Need at least 2 three-game series to show trend</Text>
                 </View>
               )}
             </View>
