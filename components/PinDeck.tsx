@@ -81,6 +81,12 @@ type PinDeckProps = {
    * @param notation      Computed throw notation: "X", "/", "—", or "1"–"9".
    */
   onConfirm: (pinsStanding: boolean[], notation: string) => void;
+
+  /**
+   * Tighter sizing for short windows (26.5 — Duo cover screen). Pins stay at
+   * 44pt, the minimum tap target; only spacing and button height shrink.
+   */
+  compact?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -92,6 +98,7 @@ export default function PinDeck({
   isFirstThrow,
   prevPinsStanding,
   onConfirm,
+  compact = false,
 }: PinDeckProps) {
   // Initialize: available pins start STANDING, unavailable pins start DOWN.
   const [standing, setStanding] = useState<boolean[]>(() => [...availablePins]);
@@ -118,11 +125,11 @@ export default function PinDeck({
   const quickLabel = isFirstThrow ? 'Strike' : 'Spare';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, compact && styles.containerCompact]}>
       {/* Pin triangle */}
-      <View style={styles.deck}>
+      <View style={[styles.deck, compact && styles.deckCompact]}>
         {PIN_ROWS.map((row, rowIdx) => (
-          <View key={rowIdx} style={styles.pinRow}>
+          <View key={rowIdx} style={[styles.pinRow, compact && styles.pinRowCompact]}>
             {row.map(pinIndex => {
               const available = availablePins[pinIndex];
               const isStanding = standing[pinIndex];
@@ -132,6 +139,7 @@ export default function PinDeck({
                   key={pinIndex}
                   style={[
                     styles.pin,
+                    compact && styles.pinCompact,
                     available && isStanding  && styles.pinStanding,
                     available && !isStanding && styles.pinDown,
                     !available               && styles.pinUnavailable,
@@ -160,7 +168,7 @@ export default function PinDeck({
       {/* Quick-action + Confirm buttons */}
       <View style={styles.actions}>
         <TouchableOpacity
-          style={styles.quickBtn}
+          style={[styles.quickBtn, compact && styles.btnCompact]}
           onPress={handleQuickAction}
           activeOpacity={0.75}
         >
@@ -168,7 +176,7 @@ export default function PinDeck({
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.confirmBtn}
+          style={[styles.confirmBtn, compact && styles.btnCompact]}
           onPress={handleConfirm}
           activeOpacity={0.75}
         >
@@ -192,6 +200,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
   },
+  containerCompact: { paddingVertical: 8 },
+  deckCompact: { gap: 6, marginBottom: 12 },
+  pinRowCompact: { gap: 8 },
+  pinCompact: { width: 44, height: 44, borderRadius: 22 },
+  btnCompact: { paddingVertical: 11 },
 
   // Pin triangle
   deck: {

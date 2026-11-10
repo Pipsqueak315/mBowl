@@ -12,7 +12,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Platform,
-  Dimensions,
 } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -177,7 +176,10 @@ function MadeCutBadge({ madeCut }: { madeCut: string | null }) {
 // Share card — rendered off-screen, captured with captureRef
 // ---------------------------------------------------------------------------
 
-const SHARE_CARD_WIDTH = Dimensions.get('window').width;
+// Fixed logical width (26.5): the shared image is the same on every phone and
+// every Duo state. Was Dimensions.get('window') captured once at load — wrong
+// after a fold/unfold, and a 951pt-wide image on the Duo's inner screen.
+const SHARE_CARD_WIDTH = 390;
 
 function ShareCardView({ session }: { session: Session }) {
   const avg = sessionAvg(session.games);
