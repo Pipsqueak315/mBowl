@@ -41,6 +41,8 @@ Rule change Marcus approved: the 3-day native freeze is waived for the **Duo onl
 | **Claude Code on the Mac** | prebuild, CocoaPods, the command-line Xcode build + IPA, the GitHub Release, rewriting REBUILD.md. | Installing Xcode / macOS updates; Xcode sign-in prompts. |
 | **Marcus only** | (1) One-time: install the Claude GitHub App + add the `EXPO_TOKEN` secret (~10 min, unlocks Claude doing pushes + ships from the phone). (2) Start the PC and Mac Claude Code sessions with the paste prompts. (3) Mac: be there, install Xcode 27.1, click any Xcode/Apple ID prompts. (4) iloader install on the Duo (phone plugged into the PC). (5) Phone-side data move (AirDrop, Files, Restore) + Settings goals. (6) Check each screen on the Duo, say "ship it", Friday go/no-go. | -- |
 
+**DONE Nov 10, 12:11 (Claude, via the PC link):** docs committed on `master` as `08323d7` and pushed; both branches pushed; CRLF noise discarded; PC working tree clean. `EXPO_TOKEN` secret added and verified (signs in as pipsqueak315). Xcode 27.1 / macOS check done by Marcus. **Remaining tonight: only the "Phase 27 part 1" prompt on the PC.** The commands below are kept for reference only -- do not re-run them.
+
 **Tonight's push (PowerShell, one line at a time):**
 ```
 cd C:\Users\marcus\Desktop\mBowl
