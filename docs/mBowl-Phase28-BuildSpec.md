@@ -17,6 +17,8 @@ This turns the design spec into work packages so Thursday–Friday is execution 
 | D5 | Live game button | Shows when a draft has an unscored game. Label **"Game N"** (the first game without a score). Tap opens Log Frames for that game. **No mid-game resume** — in-progress frames aren't saved today, and adding that is a stored-data change (Level 2) for after league. | Nov 10 (Claude, from the code: frames only persist on Done) |
 | D6 | Native vs JS controls | Use `@expo/ui` (in the v2 build, M6) for `ArrangementView` (page pairs). The segmented control and season menu are **JS components** (`components/v2/`) styled to match iOS — they work on both builds and don't depend on `@expo/ui`'s API. Swapping in native versions later is a one-file change each. | Nov 10 |
 | D7 | Orientation | iOS 27 may ignore the portrait request, so **every screen must work in landscape** (cover landscape gets its own arrangements below). | Nov 10 (Expo SDK 58 guide) |
+| D9 | Log Frames input layout | **Pins mode** = pin deck + Spare/Strike + Confirm (as today). **Quick mode** = keypad only (7-column on the cover screen, 4-column in landscape, big 4-column when open portrait). Not both on one screen. | Nov 10 (approved with the review page) |
+| D10 | Visual sign-off | The v2 review page (17 views, every Duo state) is the approved target. | Nov 10 |
 | D8 | Risk level | **Level 1 throughout.** Presentation only: no change to scoring, stats math, storage keys, or saved data. Any change that would touch those stops and gets flagged. | Nov 10 |
 
 ---
@@ -55,6 +57,7 @@ Each WP: build → `npm run check` → push → CI green → Marcus does the 2-m
 ### WP2 — Log Frames (league-critical)
 Scoring logic, `handleDone`, the leave guard (`usePreventRemove`), and the `KEYS.FRAME_RESULT` hand-off are **not touched** — only layout and styling.
 - **Header (native):** ✕ leading (on the cover screen iOS moves it into the rail), title "Game N", **Done** trailing as the filled teal capsule (shown only when the game is complete — as today).
+- **Pins vs Quick (D9):** Pins mode shows the pin deck with Spare/Strike + Confirm; Quick mode shows the keypad only.
 - **Cover portrait (`compact`):** one row with two segmented controls (Live / Post-game, Pins / Quick) → scorecard (full width) → running total + MAX line → pin deck centered (Pins mode) → **7-column keypad** along the bottom in Quick mode: row 1 `X / — ⌫ 1 2 3`, row 2 `4 5 6 7 8 9 0`. Unavailable keys dim (same availability logic as the chip bar today). Delete-last-throw = the ⌫ key. Frame note + throw notes stay, behind the existing note affordances.
 - **Cover landscape (`compactWide`):** toolbar row with both segmented controls; scorecard across; below it, pin deck card on the left (~250pt) and a **4-column keypad** filling the right: `X / — ⌫` · `1 2 3 4` · `5 6 7 8` · `9 0 [Next frame ×2]`. (Render: `NativeBars-v3_*` / `Closed_6-Landscape_LogFrames.png`.)
 - **Open portrait (`splitStacked`):** Log Frames takes the **whole screen**: scorecard + pin deck in the top half, a large keypad in the bottom half. Done returns to Log over Stats.
@@ -64,7 +67,7 @@ Scoring logic, `handleDone`, the leave guard (`usePreventRemove`), and the `KEYS
 
 ### WP3 — Log tab
 - **Cover portrait:** large title "New session"; grouped form rows (Type, Date, Week, Opponent — tournament fields when Tournament) using today's inputs; "Games" section header with **Add game** (teal text) on the right; each game is one row: score (300, white; "—" grey if none) · "Game N · Ball" · status line ("Frames logged" / "No frames yet"), chevron → Log Frames; Notes row; **Submit session** full-width teal capsule.
-- **Cover landscape:** details form left (~230pt) · Games right · Notes + Submit across the bottom.
+- **Cover landscape (fixed Nov 10, view 6):** two equal columns, each under a matching section header ("Details" / "Games" + Add game): 4 detail rows × 48pt = 3 game rows × 64pt, so both boxes are the same height and line up. Notes + Submit pinned to the bottom in the same two-column grid.
 - **Open-portrait half (~320pt tall):** 44pt game rows; Add game moves into the header.
 - Draft save/restore, validation, submit → Stats behavior **unchanged**.
 - **Check:** create a draft, add 3 games, open/close Log Frames, kill and reopen the app (draft survives), submit lands on Stats; delete the test session.
