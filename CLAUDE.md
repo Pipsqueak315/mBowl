@@ -1,10 +1,10 @@
 # mBowl — Claude Code Instructions
 
 **Full spec:** `mBowl-SPEC.md` in this project folder. Read it before writing any code.
-**Session state:** `mBowl-SessionBrief-REV24.md` — check this for current phase and notes.
-**Duo roadmap + design spec:** `docs/mBowl-DuoPlan.md` (v1.7) — Phases 25–28. Read the brief's START HERE section first.
-**Phase 28 (v2 redesign):** build to `docs/mBowl-Phase28-BuildSpec.md` — decisions D1–D8 are locked; v2 tokens in `src/v2/`, shared controls in `components/v2/` (branch `phase28`).
-**Status (Nov 10, 18:45):** `master` = Phase 26 + 26A merged, still SDK 54 / 1.0.0 — **never OTA from it until `phase27` is merged** (the old phone is on 1.0.0). `phase27` = SDK 58 + native tabs + add-ons, 2.0.0; the v2 binary is built from it (GitHub Release `v2.0.0`). Next steps are in REV24 → **NEXT** (Duo install + data move, then reviewer pass → merge `phase27` → Phase 28 WP1–WP7). Run `npm run check` before calling anything done.
+**Session state:** `mBowl-SessionBrief-REV25.md` — check this for current phase and notes.
+**Duo roadmap + design spec:** `docs/mBowl-DuoPlan.md` (v1.8) — Phases 25–28. Read the brief's START HERE section first.
+**Phase 28 (v2 redesign):** `docs/mBowl-Phase28-BuildSpec.md` — WP1–WP7 all built and shipped Nov 10 night; v2 tokens + layout/page/live-game helpers in `src/v2/`, shared controls in `components/v2/`, tab pages in `components/pages/`.
+**Status (Nov 10, ~20:45):** `master` = **2.0.0 / SDK 58** = `phase27` merged + Phase 28 WP1–WP7 (`44af9ee`), all shipped over the air to the Duo. OTAs from `master` reach only 2.0.0 builds (runtime policy `appVersion`); the old phone stays on 1.0.0 as the fallback. Next: Marcus checks the Duo → fixes → Fri go/no-go — REV25 → **NEXT**. Phase 28 is Level 1 (presentation only). Run `npm run check` (CI runs it on every push) before calling anything done.
 
 ---
 
@@ -16,7 +16,7 @@ A personal iPhone bowling tracker and reference app built in React Native via Ex
 
 ## Current Phase
 
-**Check mBowl-SessionBrief-REV24.md for current phase before starting any session.**
+**Check mBowl-SessionBrief-REV25.md for current phase before starting any session.**
 
 At the top of each session Marcus will tell you which phase he's on. Read the Spec for full context on that phase before writing any code.
 
@@ -24,7 +24,7 @@ At the top of each session Marcus will tell you which phase he's on. Read the Sp
 
 ## Tech Stack
 
-- **React Native via Expo** (SDK 58 / RN 0.88 / Expo Router 58 on `phase27`; `master` is still SDK 54 until the merge)
+- **React Native via Expo** (SDK 58 / RN 0.88 / Expo Router 58)
 - **AsyncStorage** (`@react-native-async-storage/async-storage`) — only storage solution
 - **Expo Router** — file-based routing (NOT bare React Navigation). Since SDK 56, never import `@react-navigation/*`: use `expo-router/react-navigation` (hooks, theme) and `expo-router/js-tabs`.
 - **expo-haptics** — haptic feedback
@@ -46,7 +46,10 @@ This is an **Expo Router** project — NOT bare React Navigation.
 
 - File-based routing. Tabs live in `app/(tabs)/`. Screens are files, not components registered manually.
 - `app/_layout.tsx` is the root layout. Seed logic and dark theme forced here.
-- `app/(tabs)/_layout.tsx` controls the tab bar: `NativeTabs` from `expo-router/native-tabs` (Phase 27.4). NativeTabs draw no header, so each tab is a folder with its own Stack (`components/TabStack.tsx`) — screens set header buttons with `navigation.setOptions` as before.
+- `app/(tabs)/_layout.tsx` controls the tab bar: `NativeTabs` from `expo-router/native-tabs` (Phase 27.4) + the Live game bottom accessory (Phase 28 WP7). NativeTabs draw no header, so each tab is a folder with its own Stack (`components/TabStack.tsx`) — pages set header buttons with `navigation.setOptions` as before (skipped when `embedded`).
+- **Phase 28 WP6:** `app/(tabs)/{log,stats,history}/index.tsx` are thin route wrappers. The real pages live in `components/pages/` (`LogPage`, `StatsPage`, `HistoryPage`); `components/v2/SplitPages.tsx` shows one page (cover screen) or a pair (open screen) and keeps both mounted so fold/unfold never resets state. Pages size themselves with `usePageWidth()` / `useSideInsets()` (`src/v2/page.tsx`), never the raw window. Every page pads by the side safe-area insets (the Duo's tab rail + clock column).
+- **Live game (WP7):** the button only requests (`src/v2/liveGame.ts`); `LogPage` opens Log Frames itself. Never push `/log-frames` for a draft game from anywhere else — the Log page consumes `KEYS.FRAME_RESULT` on focus.
+- **Controls feel native (Marcus):** every tappable control ≥ 44pt and never inside a horizontal ScrollView (Nov 10: 28pt pills in nested scroll views were hard to tap). Use `components/v2/SegmentedControl` / `SeasonMenu` / `FilterHeader`.
 - `app/index.tsx` exists as a redirect to `/(tabs)/log` — required because `unstable_settings` alone doesn't handle root in Expo Go.
 - React Navigation is included via Expo Router — do NOT reinstall it separately.
 
@@ -137,7 +140,7 @@ bad:       #FF453A
 - Game vs session average: +5 or better -> green · within 5 -> orange · below -> red
 - Series: > 550 -> green · >= 500 -> orange · below -> red
 - Overall average: >= 180 -> green · >= 166 -> orange · below -> red
-- Seven Stats grid cells: goal-based bands (green = 190-average level) in `CELL_BANDS`, `app/(tabs)/stats/index.tsx` — table in REV24. No color below 10 games with frame data.
+- Seven Stats grid cells: goal-based bands (green = 190-average level) in `CELL_BANDS`, `components/pages/StatsPage.tsx` — table in REV25. No color below 10 games with frame data.
 - Makeable % (aggregate): green >= 80 · orange >= 60 — locked. Split leaves: green >= 40 · orange >= 15 · else grey (never red).
 
 ---
@@ -160,15 +163,20 @@ mBowl/
 ├── app/
 │   ├── _layout.tsx          — root layout, seed logic, DarkTheme, StatusBar
 │   ├── index.tsx            — redirect to /(tabs)/log
-│   ├── log-frames.tsx       — frame entry screen (chip bar + pin deck)
+│   ├── log-frames.tsx       — frame entry screen (scorecard + pin deck / keypad; Log Frames | Stats on the open screen)
 │   └── (tabs)/
-│       ├── _layout.tsx      — NativeTabs: 4 native iOS tabs (Phase 27.4)
-│       ├── log/             — each tab = its own stack: _layout.tsx (TabStack header) + index.tsx (screen)
-│       │   └── index.tsx    — Log tab (full session form + submit + draft)
-│       ├── stats/index.tsx  — Stats tab (metrics + charts + leave stats)
-│       ├── history/index.tsx — History tab (cards + filter + delete)
-│       └── reference/index.tsx — Reference tab (5 sub-tabs)
+│       ├── _layout.tsx      — NativeTabs: 4 native iOS tabs (Phase 27.4) + Live game accessory (WP7)
+│       ├── log/             — each tab = its own stack: _layout.tsx (TabStack header) + index.tsx (route)
+│       │   └── index.tsx    — route wrapper: LogPage (open screen: Log | Stats)
+│       ├── stats/index.tsx  — route wrapper: StatsPage (open screen: Stats | History)
+│       ├── history/index.tsx — route wrapper: HistoryPage (open screen: Stats | History)
+│       └── reference/index.tsx — Reference tab (5 sub-tabs; still the page itself)
 ├── components/
+│   ├── pages/
+│   │   ├── LogPage.tsx          — Log page (session form + games + submit + draft + Live game answer)
+│   │   ├── StatsPage.tsx        — Stats page (metrics + CELL_BANDS + charts + leave stats); `embedded` prop
+│   │   └── HistoryPage.tsx      — History page (rows + filter + expand/edit/share/delete); `embedded` prop
+│   ├── v2/                      — Phase 28 controls: SegmentedControl, SeasonMenu, FilterHeader, Scorecard, Keypad, SplitPages, LiveGameButton
 │   ├── ScalePressable.tsx       — animated press-scale wrapper
 │   ├── SettingsContent.tsx      — Settings modal content (dates + ball roster + goals + restore)
 │   ├── EditSessionModal.tsx     — session edit sheet (buildSession shared builder)
@@ -188,6 +196,7 @@ mBowl/
 │   ├── sessionFilter.ts     — filterSessions, shared by Stats + History (Phase 24)
 │   ├── types.ts             — canonical shared types (do not redefine locally)
 │   ├── backup.ts            — writeBackup / restoreBackup + exportBackup (mBowl-backup.json)
+│   ├── v2/                  — Phase 28: theme.ts (tokens), layout.ts (useLayoutClass), page.tsx (PageContext, usePageWidth, useSideInsets), liveGame.ts
 │   ├── notifications.ts     — SideStore cert reminder (6-day repeating, iOS only)
 │   ├── seeds.js             — 18 historical sessions (ids 1001–1018)
 │   ├── balls.js             — 9-ball roster
@@ -209,8 +218,8 @@ mBowl/
 ## Pin Deck System (added Phase 12)
 
 The Log Frames screen has two input modes, toggled via a Pins/Quick segmented control:
-- **Pins mode** (default in Live): visual pin deck — user taps pins left standing, captures `pinsStanding` boolean array
-- **Quick mode** (default in Post-Game): chip bar notation (X / — 0-9), no pin data captured
+- **Pins mode** (the default in both Live and Post-Game): visual pin deck (white = standing) — user taps pins left standing, captures `pinsStanding` boolean array
+- **Quick mode**: keypad notation (X / — 0-9, ⌫ deletes the last throw; Phase 28 `components/v2/Keypad.tsx`), no pin data captured
 
 Pin data is optional. `pinsStanding` is `null` for frames entered via chip bar. Scoring always runs on throw notation, never on pin data. Pin data is analytics-only — it powers the Leave Stats section in the Stats tab.
 

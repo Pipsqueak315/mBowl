@@ -1,16 +1,16 @@
 # mBowl — iPhone Duo Plan
-**Stamped:** October 23, 2026 · **Updated:** November 10, 2026 · **Version:** v1.7 (Nov 10 night: Phase 26/26A merged, Phase 27 built, v2 binary on GitHub Release v2.0.0; design locked incl. native iOS bars; renders in docs/design) · **Owner:** Marcus
+**Stamped:** October 23, 2026 · **Updated:** November 10, 2026 (~20:45) · **Version:** v1.8 (Nov 10 night: v2 on the Duo with the real data; `phase27` merged; Phase 28 WP1-WP7 built and shipped over the air) · **Owner:** Marcus
 **Read with:** the latest `mBowl-SessionBrief-REVXX.md` and `mBowl-SPEC.md`. This plan covers the next four phases; the brief still tracks session-by-session state.
 
 ---
 
-## Where things stand (Nov 10)
+## Where things stand (Nov 10, ~20:45)
 
-- **Backup done and verified.** The Oct 10 export from the old phone holds everything: 40 sessions, 125 games, 174.1 average (Winners 25: 24 · Jubilee 26: 13 · Winners 26: 3). Some Winners 2026 weeks were never logged in the app (Sep 26, Oct 3, and Oct 17 onward if you bowled); backfill them later from your scorecards.
-- **Phase 26 + 26A are merged into `master`** (nothing shipped to any phone; `master` is still SDK 54 / 1.0.0).
-- **Phase 27 is built.** Branch `phase27` (SDK 58, native tabs, add-ons M1-M3 + M6, 2.0.0). The v2 binary was built on the Mac Nov 10 night (a day early) and is on **GitHub Release `v2.0.0`**. `phase27` still needs the reviewer pass before merging to `master`.
-- **Phase 25 in progress (Nov 10 night):** install v2 on the Duo with iloader, then move the data (25.2). The old phone has all the data and stays the fallback.
-- **Next league night: Sat, Nov 14.** The native freeze is waived for the Duo only this week. **Step-by-step next actions: REV24 → NEXT.**
+- **Backup done and verified.** Oct 10 export: 40 sessions, 125 games, 174.1 average (Winners 25: 24 · Jubilee 26: 13 · Winners 26: 3). Missing Winners 2026 weeks (Sep 26, Oct 3, Oct 17 onward): backfill later from scorecards.
+- **Phase 25 done:** v2.0.0 installed on the Duo (iloader; Developer Mode had to be turned on) and the backup restored -- 40 sessions confirmed, swipe rows work.
+- **Phase 26 + 26A + 27 merged into `master`** -- `master` is 2.0.0 / SDK 58. OTAs from it reach only the Duo; the old phone stays on 1.0.0 as the fallback.
+- **Phase 28 WP1-WP7 built and shipped over the air** (`master` @ `44af9ee`), after a Duo screen check (findings F1-F6, Claude.ai project doc `mBowl-DuoScreenCheck-Nov10.md`) and an independent reviewer pass. **Next: Marcus checks it on the Duo, fixes ship over the air, Fri 8pm go/no-go. Step-by-step: REV25 → NEXT.**
+- **Next league night: Sat, Nov 14.**
 
 ---
 
@@ -328,6 +328,8 @@ Same bundle ID, so the data stays. Take a fresh backup copy first anyway, then v
 
 ## Phase 28 — Split pages + v2 visual design (OTA)
 
+> **Status Nov 10 night: WP1-WP7 built and shipped OTA to the Duo** (`44af9ee`); awaiting Marcus's on-device check. 28.5 (Reference + Settings) is after league. What was built and every deviation: REV25 → "Phase 28 -- what was built" and the status table in `docs/mBowl-Phase28-BuildSpec.md`.
+
 **Goal:** the open screen shows two full pages side by side, and the whole app moves to the v2 look. The spec is in the Design spec section below. **Execution plan with every decision locked (Nov 10): `docs/mBowl-Phase28-BuildSpec.md`** — Saturday scope = cover + open screen + Live game button; Reference/Settings after league.
 
 **28.1 — One layout per tab that adapts to its width.** Log, Log Frames, Stats, and History each get one layout that works at any width. A half of the open screen (~372–455pt wide) is about the width of the cover screen (382pt), so the open screen just shows two pages at once. No layouts specific to the inner screen. The one exception is the wide-but-short cover landscape (~560×430pt), which gets the arrangements in "Closed (cover screen) layouts".
@@ -450,8 +452,7 @@ The mockups use Inter as a stand-in for SF Pro, with sample numbers. **Build to 
 
 | When | Work |
 |---|---|
-| Tue Nov 10 | ✅ Backup verified; Phase 26 + 26A merged; decisions locked; Phase 27 code done (SDK 58, add-ons, native tabs, splash); ✅ **Mac build done a day early** -> GitHub Release v2.0.0. Tonight: install on the Duo, restore data, verify counts. |
-| Wed Nov 11 | Slack day: finish the Duo install/restore if not done; screen check of the v2 binary; Claude: reviewer pass + merge `phase27`. |
-| Thu–Fri Nov 12–13 | Phase 28 over the air in priority order (Log Frames → Stats → History → page pairs → visual pass); only what's verified on the Duo ships. Fri 8pm go/no-go. |
+| Tue Nov 10 | ✅ Backup verified; Phase 26 + 26A merged; Phase 27 built; ✅ Mac build -> GitHub Release v2.0.0; ✅ **Duo install + restore (40 sessions)**; ✅ screen check; ✅ `phase27` merged; ✅ **Phase 28 WP1-WP7 built + shipped OTA** (two days early). |
+| Wed–Fri Nov 11–13 | Marcus checks Phase 28 on the Duo; fixes ship over the air (only what's verified). Fri 8pm go/no-go. |
 | Sat Nov 14 | League on the Duo (v2) or the old phone (fallback). |
 | After league | Finish any Phase 28 leftovers; Phase 26A walkthrough (EXPO_TOKEN, rollback, dry run); backfill missing Winners 2026 weeks; retire the old phone after one good league night on v2. |
