@@ -678,8 +678,8 @@ function LogFramesBody() {
   }
 
   async function handleDone() {
-    // Two Done buttons at game over (header capsule + final-score card): a
-    // fast double tap must not write twice or go back twice.
+    // A fast double tap on the final-score card's Done must not write twice or
+    // go back twice.
     if (savedRef.current) return;
     // Backstop: never persist a placeholder 0 over a game that has not scored out.
     if (scores[9] === null) {
@@ -748,13 +748,16 @@ function LogFramesBody() {
     navigation.goBack();
   };
 
-  // Header (Phase 28 WP2): ✕ leading, "Game N", and Done as the filled teal
-  // capsule trailing once the game is complete. Done/Cancel go through refs so
-  // the header never holds a stale closure.
-  const handleDoneRef = useRef<() => void>(() => {});
-  handleDoneRef.current = () => {
-    void handleDone();
-  };
+  // Header (Phase 28 WP2): ✕ leading and "Game N". Set once per screen and
+  // never changed while the screen is open.
+  // Nov 11 fix: WP2 also added a teal Done capsule as headerRight, inserted
+  // into the native header the moment the game completed. On the Duo that
+  // mid-screen header change wedged the screen at game over -- Done, the
+  // capsule and ✕ all stopped responding, then the app aborted (SIGABRT on the
+  // TurboModule queue, crash log 2026-11-11 06:29). The pre-v2 header never
+  // changed mid-screen and never hung, so the header is static again and Done
+  // lives only in the "Final score" card. Cancel goes through a ref so the
+  // header never holds a stale closure.
   useLayoutEffect(() => {
     const gameNum = gameIndex !== undefined ? parseInt(gameIndex, 10) + 1 : '';
     navigation.setOptions({
@@ -770,21 +773,8 @@ function LogFramesBody() {
           <IconSymbol name="xmark" size={17} color={color.white} />
         </TouchableOpacity>
       ),
-      headerRight: allComplete
-        ? () => (
-            <TouchableOpacity
-              onPress={() => handleDoneRef.current()}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={styles.headerDone}
-              accessibilityRole="button"
-              accessibilityLabel="Done, save this game"
-            >
-              <Text style={styles.headerDoneText}>Done</Text>
-            </TouchableOpacity>
-          )
-        : undefined,
     });
-  }, [navigation, gameIndex, allComplete]);
+  }, [navigation, gameIndex]);
 
   // ---- Render -------------------------------------------------------------
 
@@ -1039,13 +1029,6 @@ const styles = StyleSheet.create({
 
   // Header buttons
   headerIconBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  headerDone: {
-    backgroundColor: '#00CEC9',
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-  },
-  headerDoneText: { fontSize: 15, fontWeight: '600', color: '#000000' },
 
   // Total row
   totalRow: {
