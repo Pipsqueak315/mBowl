@@ -39,8 +39,9 @@ if [ "$MODE" = "prep" ]; then
   command -v xcodebuild >/dev/null || fail "Xcode not found. Install Xcode 27.1, open it once, then re-run."
   xcodebuild -version | head -1
   xcodebuild -checkFirstLaunchStatus >/dev/null 2>&1 || fail "Xcode needs first-launch setup. Run: sudo xcodebuild -runFirstLaunch   then re-run this."
-  NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
-  [ "$NODE_MAJOR" -ge 20 ] || fail "Node $(node -v) is too old. Install the LTS (22+) from nodejs.org."
+  # Expo SDK 58 supports Node 22.13+, 24.3+ or 26+ -- odd majors (23, 25) don't work.
+  NODE_OK="$(node -p 'const [M, m] = process.versions.node.split(".").map(Number); (M === 22 && m >= 13) || (M === 24 && m >= 3) || (M >= 26 && M % 2 === 0)')"
+  [ "$NODE_OK" = "true" ] || fail "Node $(node -v) won't run Expo SDK 58 (needs 22.13+, 24.3+ or 26+). Install the LTS from nodejs.org, then re-run."
   echo "node $(node -v)"
   command -v pod >/dev/null || fail "CocoaPods not found. Run: sudo gem install cocoapods   (or: brew install cocoapods)"
   echo "pod $(pod --version)"
