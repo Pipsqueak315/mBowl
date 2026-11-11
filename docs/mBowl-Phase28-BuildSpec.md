@@ -11,7 +11,7 @@
 | WP2 | Shipped (`21ac7c1` + fixes) | No "Next frame" key in the landscape keypad (frames auto-advance). Short windows show a compact "Frame N · ball k" row (as in the approved render) so the frame note fits. In-page Done kept alongside the header Done. |
 | WP3 | Shipped | Standard native header titled "New session" (no `headerLargeTitle` yet -- untested on the Duo). Game rows keep their inline score / ball / frames / notes inputs (restyled) rather than one-line rows, so nothing about entering a game changes before league. |
 | WP4 | Shipped | Hero number white (spec). Charts: no "latest value" label. |
-| WP5 | Shipped | List header shows the season's full label + average. |
+| WP5 | Shipped | List header shows the season's full label + average. **Nov 10 night (`db5923c`, Marcus): rows are a plain list like Stats, not boxed.** |
 | WP6 | Shipped | `ArrangementView` needs iOS 27.1 -> spec fallback (row/column, 40pt gap). Pages moved to `components/pages/`; both pages stay mounted (second hidden when folded) so fold/unfold never resets state. |
 | WP7 | Shipped | Lives in `NativeTabs.BottomAccessory`. The button asks; the Log page opens Log Frames itself (keeps the FRAME_RESULT hand-off safe). Whether iOS shows the accessory on the cover screen's side rail is unverified. |
 | Side insets | Shipped | Every page pads by the left/right safe-area insets (Duo rail + clock column). |
