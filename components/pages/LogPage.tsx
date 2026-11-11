@@ -492,7 +492,21 @@ export default function LogPage() {
 
   // ---- Submit -------------------------------------------------------------
 
+  // S18: Submit is in flight. A second tap during the awaits below would build
+  // a second session (new Date.now() id) and save the same night twice.
+  const submittingRef = useRef(false);
+
   async function handleSubmit() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    try {
+      await submitSession();
+    } finally {
+      submittingRef.current = false;
+    }
+  }
+
+  async function submitSession() {
     const hasScore = games.some((g) => g.score !== '');
     if (!hasScore) {
       Alert.alert('No scores entered', 'Enter at least one score before submitting.');
@@ -548,11 +562,20 @@ export default function LogPage() {
       );
       return;
     }
+    // N20 (folded into S18): disarm the pending draft auto-save before the
+    // draft is cleared, or it can fire after writeDraft(null) and put the
+    // just-submitted form back as a phantom draft. Done here, not at the top:
+    // on the early returns above the form stays as-is and its pending save
+    // should still land.
+    if (draftSaveTimer.current) {
+      clearTimeout(draftSaveTimer.current);
+      draftSaveTimer.current = null;
+    }
     await writeSessions([session, ...existingRead.value]);
     void writeBackup();
     await writeDraft(null);
     notifyDraftChanged();
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
     resetForm();
     router.navigate('/(tabs)/stats');
