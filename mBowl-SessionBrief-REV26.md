@@ -13,7 +13,7 @@
 > **Trigger phrase.** When Marcus says **"let's fix all the things needed before this week's league session"** (or similar), that means: build **NEXT step 1, the Pre-league batch, items 1-5 in order**, on one branch from `master`, CI green, then hand Marcus the device test list in step 2 and wait for "ship it". Don't touch the after-league items.
 
 **Where things are:**
-- **Repo:** `github.com/Pipsqueak315/mBowl`, `master` @ `7d9c0f3` (code = `1ab5e24`; `7d9c0f3` adds the audit doc only). CI green. OTAs from `master` reach **only 2.0.0 builds (the Duo)**; the old phone (1.0.0) can't receive them.
+- **Repo:** `github.com/Pipsqueak315/mBowl`, `master`: code = `1ab5e24`; every later commit is docs only (audit doc `7d9c0f3`, REV26 `3be660c`). CI green. OTAs from `master` reach **only 2.0.0 builds (the Duo)**; the old phone (1.0.0) can't receive them.
   - Branches `fix/logframes-done`, `fix/allow-rotation`, `fix/landscape-logframes` are merged (fast-forwarded) -- safe to delete, along with `phase26`, `phase26a`, `phase27`, `phase28`, `verify-expo-token`.
 - **v2 binary:** `mBowl-2.0.0.ipa`, GitHub Release `v2.0.0` (target `467d73e`), on the Duo via iloader (Developer Mode on).
 - **Phones:**
