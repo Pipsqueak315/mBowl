@@ -950,14 +950,17 @@ function LogFramesBody() {
           {controls}
           {scorecard}
         </View>
-        <View style={[styles.wideBody, { paddingLeft: side.left, paddingRight: 12 + side.right, paddingBottom: insets.bottom + 8 }]}>
+        {/* The info column's hairlines run to the screen edge (square bands may
+            bleed -- the iOS list look); its content keeps the inset. Nov 11:
+            stopping the column 12pt short made it read as cut off. */}
+        <View style={[styles.wideBody, { paddingLeft: side.left, paddingBottom: insets.bottom + 8 }]}>
           <View style={styles.wideInput}>
             {pinDeck ?? <View style={styles.wideKeypad}>{keypad}</View>}
           </View>
           <View style={styles.wideInfo}>
-            {totals}
-            {middle}
-            {pinDeck && deleteRow}
+            <View style={{ paddingRight: side.right }}>{totals}</View>
+            <View style={[styles.middleWrap, { paddingRight: side.right }]}>{middle}</View>
+            {pinDeck && <View style={{ paddingRight: side.right }}>{deleteRow}</View>}
           </View>
         </View>
       </View>
