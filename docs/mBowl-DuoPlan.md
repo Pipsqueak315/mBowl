@@ -409,7 +409,7 @@ The cover screen gets the full v2 look too. It's the screen used most, so it's a
 
 ### v2 visual rules (modeled on Apple Sports, Fitness, and Weather)
 - **Font:** SF Pro system font, unchanged. No custom fonts; SF Hello was considered and rejected on Oct 23 (license and print-only design). SF Pro Rounded via the system is allowed if wanted later.
-- **Fewer boxes:** Stats is type on black with thin dividers. Boxed groups only for lists you tap into: History rows and the Log form.
+- **Fewer boxes:** Stats and History are type on black with thin dividers. History is a plain iOS list (rows edge to edge, hairline separators, opaque highlight on press) so it reads as one design beside Stats on the open screen (Marcus, Nov 10 night -- replaces "History rows boxed"). Boxed (inset-grouped, symmetric) only for the Log form. Rounded cards never run under the rail; only square backgrounds do.
 - **Type:**
   - Large page titles (32pt, weight 600).
   - Sentence-case section headers (20pt, weight 600). No tiny all-caps labels.

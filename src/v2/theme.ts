@@ -48,7 +48,7 @@ export const radius = { card: 13, control: 10, capsule: 999 } as const;
 /** Hairline divider between rows on black ("fewer boxes"). */
 export const divider: ViewStyle = { height: 0.5, backgroundColor: color.border };
 
-/** Boxed group — only for lists you tap into (History rows, the Log form). */
+/** Boxed group — only for the Log form (History is a plain list like Stats, Nov 10). */
 export const group: ViewStyle = { backgroundColor: color.surface, borderRadius: radius.card, overflow: 'hidden' };
 
 /** Filled teal capsule — the main button (Done, Submit session). */

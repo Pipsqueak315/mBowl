@@ -102,7 +102,7 @@ Metrics, `CELL_BANDS`, `filterSessions`, comparison logic **unchanged** — layo
 
 ### WP5 — History
 - Large title "History"; **SeasonMenu** + **SegmentedControl** (same as Stats; same `filterSessions`).
-- Rows stay boxed (they're tappable): date + type + season label; game scores in **secondary grey**; series in **white with a small colored dot** (series band: >550 green, ≥500 orange, else red); expanded detail, edit, share, swipe-to-delete **unchanged**.
+- **Rows are a plain iOS list** (changed Nov 10 night, Marcus: match Stats -- no cards; edge to edge on black, hairline separators inset to the text, opaque highlight on press, swipe Edit/Delete via `components/v2/SwipeRow`): date + type + season label; game scores in **secondary grey**; series in **white with a small colored dot** (series band: >550 green, ≥500 orange, else red); expanded detail, edit, share, swipe-to-delete **unchanged**.
 - Landscape: same list, full width.
 - **Check:** expand/collapse, edit a session and cancel, share card still renders, swipe-delete confirm (cancel it).
 
