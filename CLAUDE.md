@@ -1,10 +1,11 @@
 # mBowl — Claude Code Instructions
 
 **Full spec:** `mBowl-SPEC.md` in this project folder. Read it before writing any code.
-**Session state:** `mBowl-SessionBrief-REV25.md` — check this for current phase and notes.
+**Session state:** `mBowl-SessionBrief-REV26.md` — check this for current phase and notes (START HERE + NEXT).
+**Audit fix list (Nov 11):** `docs/PHASE28-AUDIT.md` — pre-league batch M2, S17–S20 (in that order), after-league S21–S23 + NICE. "Let's fix all the things needed before this week's league session" = REV26 → NEXT step 1.
 **Duo roadmap + design spec:** `docs/mBowl-DuoPlan.md` (v1.8) — Phases 25–28. Read the brief's START HERE section first.
 **Phase 28 (v2 redesign):** `docs/mBowl-Phase28-BuildSpec.md` — WP1–WP7 all built and shipped Nov 10 night; v2 tokens + layout/page/live-game helpers in `src/v2/`, shared controls in `components/v2/`, tab pages in `components/pages/`.
-**Status (Nov 10, ~21:05):** `master` = **2.0.0 / SDK 58** = `phase27` merged + Phase 28 WP1–WP7 (`44af9ee`) + right-column/settings polish (`75a430e`), all shipped over the air to the Duo. Polish round 2 (`db5923c` on `phase28`: plain History list, SwipeRow, motion tokens, no spinner on refocus) shipped over the air at 21:33 (OTA run 42966234484, `master` @ `70393b1`). OTAs from `master` reach only 2.0.0 builds (runtime policy `appVersion`); the old phone stays on 1.0.0 as the fallback. Next: Marcus checks the Duo → fixes → Fri go/no-go — REV25 → **NEXT**. Phase 28 is Level 1 (presentation only). Run `npm run check` (CI runs it on every push) before calling anything done.
+**Status (Nov 11, ~08:15):** `master` @ `7d9c0f3` = **2.0.0 / SDK 58**, code `1ab5e24`, everything shipped over the air to the Duo (last OTA run 43054655209): Phase 28 WP1–WP7 + polish rounds, the Log Frames game-over hang fix (`97de587`, SDK 58 `usePreventRemove` → `repeat()`), rotation unlocked (`1ea0f6c`), cover-landscape Log Frames + season-based Week suggestion (`4d4ec3b`, `1ab5e24`). OTAs from `master` reach only 2.0.0 builds (runtime policy `appVersion`); the old phone stays on 1.0.0 as the fallback. Next: the pre-league fix batch → Marcus's device checks → Fri go/no-go — REV26 → **NEXT**. Level 1 (presentation only) before league. Run `npm run check` (CI runs it on every push) before calling anything done.
 
 ---
 
@@ -16,7 +17,7 @@ A personal iPhone bowling tracker and reference app built in React Native via Ex
 
 ## Current Phase
 
-**Check mBowl-SessionBrief-REV25.md for current phase before starting any session.**
+**Check mBowl-SessionBrief-REV26.md for current phase before starting any session.**
 
 At the top of each session Marcus will tell you which phase he's on. Read the Spec for full context on that phase before writing any code.
 
@@ -32,7 +33,7 @@ At the top of each session Marcus will tell you which phase he's on. Read the Sp
 - **expo-symbols** — SF Symbols icons
 - **react-native-reanimated** (4.7) — animations
 - **react-native-gesture-handler** (3.x) — swipe gestures via `ReanimatedSwipeable` (the legacy `Swipeable` is gone)
-- **Phase 27 native add-ons** — `expo-screen-orientation` (portrait request at startup), `expo-keep-awake` (Log Frames), `expo-document-picker` + `@expo/ui` (in the binary for later OTA features)
+- **Phase 27 native add-ons** — `expo-screen-orientation` (unused since Nov 11 — the app rotates; iOS Rotation Lock is the switch), `expo-keep-awake` (Log Frames), `expo-document-picker` + `@expo/ui` (in the binary for later OTA features)
 - **react-native-chart-kit** — Stats tab line charts
 - **react-native-svg** — required by chart-kit + PinDeck visuals
 - **@react-native-community/datetimepicker** — native iOS date pickers
@@ -53,6 +54,8 @@ This is an **Expo Router** project — NOT bare React Navigation.
 - **Duo rail:** only SQUARE backgrounds run under the rail (History's plain list rows, Reference's sub-tab band); rounded cards (the Log form) stay symmetric inside the safe areas; text and controls never sit under it. History is a plain iOS list like Stats (no cards). Swipe rows use `components/v2/SwipeRow`; all motion uses `motion` in `src/v2/theme.ts` / `animateNextLayout()` in `src/v2/motion.ts`. Hidden second pages of a folded pair skip their focus reloads (`usePageVisible()`). On the rail, the Live game button is `components/v2/LiveGameRailButton` (above the tab capsule); with a bottom tab bar it's the native `NativeTabs.BottomAccessory`.
 - `app/index.tsx` exists as a redirect to `/(tabs)/log` — required because `unstable_settings` alone doesn't handle root in Expo Go.
 - React Navigation is included via Expo Router — do NOT reinstall it separately.
+- **SDK 58 vendored-API rule (Nov 11):** Expo Router 58 vendors React Navigation and changed some APIs. Check the vendored source (`expo/expo` branch `sdk-58`, `packages/expo-router/src/react-navigation/...`), not React Navigation's docs. `usePreventRemove`: continue a blocked exit with the callback's `repeat()` (or the returned `disablePrevention()` then navigate) — **never** `navigation.dispatch(data.action)` (loops forever; the Nov 11 game-over hang).
+- **Every exit/guard path gets one on-device run before it counts as done.**
 
 ### Windows Machine Constraints
 
@@ -141,7 +144,7 @@ bad:       #FF453A
 - Game vs session average: +5 or better -> green · within 5 -> orange · below -> red
 - Series: > 550 -> green · >= 500 -> orange · below -> red
 - Overall average: >= 180 -> green · >= 166 -> orange · below -> red
-- Seven Stats grid cells: goal-based bands (green = 190-average level) in `CELL_BANDS`, `components/pages/StatsPage.tsx` — table in REV25. No color below 10 games with frame data.
+- Seven Stats grid cells: goal-based bands (green = 190-average level) in `CELL_BANDS`, `components/pages/StatsPage.tsx` — table in REV25/REV26. No color below 10 games with frame data.
 - Makeable % (aggregate): green >= 80 · orange >= 60 — locked. Split leaves: green >= 40 · orange >= 15 · else grey (never red).
 
 ---

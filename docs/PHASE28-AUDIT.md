@@ -11,6 +11,8 @@ Then one separate verification agent re-read every cited line: **13 CONFIRMED, 4
 
 ## ⭐ AGREED TRIAGE — start here
 
+**Agreed by Marcus, Nov 11 ~08:12.** Build order for the pre-league batch: **1. M2 → 2. S17 → 3. S18 → 4. S19 → 5. S20** (one branch, one commit per item, CI + `reviewer`, then the device checks at the bottom and "ship it"). After league: **S21 → S22 → S23 → NICE batch**. Fixes were deferred to a new chat; the trigger phrase "let's fix all the things needed before this week's league session" = the pre-league batch (see `mBowl-SessionBrief-REV26.md` → NEXT step 1, which has the implementation notes per item).
+
 **Headline:** no second SDK 58 "flipped API" bug. A2 checked every non-navigation library API against source: safe. A1 found one routing problem that predates SDK 58 but became user-visible with the WP7 Live game button (M2).
 
 | Bucket | Items |

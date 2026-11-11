@@ -8,7 +8,7 @@
 |---|---|---|
 | WP0 | Done (`f64a967`) | -- |
 | WP1 | Shipped (`73a794e`) | Segments got >= 48pt touch targets (Marcus: pills hard to tap) |
-| WP2 | Shipped (`21ac7c1` + fixes) | No "Next frame" key in the landscape keypad (frames auto-advance). Short windows show a compact "Frame N · ball k" row (as in the approved render) so the frame note fits. In-page Done kept alongside the header Done. |
+| WP2 | Shipped (`21ac7c1` + fixes) | No "Next frame" key in the landscape keypad (frames auto-advance). Short windows show a compact "Frame N · ball k" row (as in the approved render) so the frame note fits. In-page Done kept alongside the header Done. **Nov 11: the header Done capsule was removed** (`89957d8`, while chasing the game-over hang -- the real cause was the leave guard, `97de587`); Done is the final-score card only. Cover-landscape padding/wrap fixes `4d4ec3b` + `1ab5e24`. |
 | WP3 | Shipped | Standard native header titled "New session" (no `headerLargeTitle` yet -- untested on the Duo). Game rows keep their inline score / ball / frames / notes inputs (restyled) rather than one-line rows, so nothing about entering a game changes before league. |
 | WP4 | Shipped | Hero number white (spec). Charts: no "latest value" label. |
 | WP5 | Shipped | List header shows the season's full label + average. **Nov 10 night (`db5923c`, Marcus): rows are a plain list like Stats, not boxed.** |
