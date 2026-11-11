@@ -616,6 +616,7 @@ export default function ReferenceScreen() {
       <Modal
         visible={settingsOpen}
         animationType="slide"
+        supportedOrientations={['portrait', 'landscape']}
         presentationStyle="pageSheet"
         onRequestClose={() => setSettingsOpen(false)}
       >

@@ -1205,6 +1205,7 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
       <Modal
         visible={settingsOpen}
         animationType="slide"
+        supportedOrientations={['portrait', 'landscape']}
         presentationStyle="pageSheet"
         onRequestClose={() => setSettingsOpen(false)}
       >

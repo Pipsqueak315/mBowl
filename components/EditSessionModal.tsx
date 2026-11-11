@@ -233,6 +233,7 @@ export default function EditSessionModal({
     <Modal
       visible={visible}
       animationType="slide"
+      supportedOrientations={['portrait', 'landscape']}
       presentationStyle="pageSheet"
       onRequestClose={handleCancel}
     >
@@ -559,6 +560,7 @@ export default function EditSessionModal({
         <Modal
           visible={ballPickerOpen}
           animationType="slide"
+          supportedOrientations={['portrait', 'landscape']}
           presentationStyle="pageSheet"
           onRequestClose={() => setBallPickerOpen(false)}
         >

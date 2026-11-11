@@ -943,6 +943,7 @@ export default function LogPage() {
       <Modal
         visible={ballPickerOpen}
         animationType="slide"
+        supportedOrientations={['portrait', 'landscape']}
         presentationStyle="pageSheet"
         onRequestClose={() => setBallPickerOpen(false)}
         onDismiss={() => {
@@ -1005,6 +1006,7 @@ export default function LogPage() {
         visible={draftResumeVisible}
         transparent
         animationType="slide"
+        supportedOrientations={['portrait', 'landscape']}
         onRequestClose={() => {}}
       >
         <BlurView intensity={60} tint="dark" style={styles.resumeOverlay}>
@@ -1029,6 +1031,7 @@ export default function LogPage() {
       <Modal
         visible={settingsOpen}
         animationType="slide"
+        supportedOrientations={['portrait', 'landscape']}
         presentationStyle="pageSheet"
         onRequestClose={() => setSettingsOpen(false)}
       >
