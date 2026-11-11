@@ -25,6 +25,8 @@ import * as Haptics from 'expo-haptics';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import { FrameGrid } from '@/components/FrameGrid';
+import SegmentedControl from '@/components/v2/SegmentedControl';
+import { useLayoutClass } from '@/src/v2/layout';
 import {
   readSessionsResult,
   writeSessions,
@@ -35,6 +37,13 @@ import {
   KEYS,
 } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
+import {
+  notifyDraftChanged,
+  onLiveGameRequest,
+  hasLiveGameRequest,
+  clearLiveGameRequest,
+  firstUnscoredGame,
+} from '@/src/v2/liveGame';
 import type { ThrowEntry, Ball, DraftData } from '@/src/types';
 
 // ---------------------------------------------------------------------------
@@ -144,7 +153,7 @@ function GameRow({ game, index, onChange, onPickBall, onLogFrames }: GameRowProp
 
   return (
     <View style={styles.gameCard}>
-      <Text style={styles.gameLabel}>GAME {index + 1}</Text>
+      <Text style={styles.gameLabel}>Game {index + 1}</Text>
 
       {/* Score */}
       <View style={styles.scoreRow}>
@@ -186,9 +195,14 @@ function GameRow({ game, index, onChange, onPickBall, onLogFrames }: GameRowProp
         style={styles.logFramesButton}
         onPress={onLogFrames}
       >
-        <Text style={styles.logFramesText}>
-          {game.frames && game.frames.length > 0 ? 'Edit Frames' : 'Log Frames'}
-        </Text>
+        <View>
+          <Text style={styles.logFramesText}>
+            {game.frames && game.frames.length > 0 ? 'Edit frames' : 'Log frames'}
+          </Text>
+          <Text style={styles.logFramesStatus}>
+            {game.frames && game.frames.length > 0 ? 'Frames logged' : 'No frames yet'}
+          </Text>
+        </View>
         <IconSymbol name="chevron.right" size={14} color="#8E8E93" />
       </TouchableOpacity>
 
@@ -197,7 +211,7 @@ function GameRow({ game, index, onChange, onPickBall, onLogFrames }: GameRowProp
         style={styles.gameNotesInput}
         value={game.notes}
         onChangeText={(v) => onChange('notes', v)}
-        placeholder="Game notes..."
+        placeholder="Game notes"
         placeholderTextColor="#48484A"
         multiline
       />
@@ -205,12 +219,12 @@ function GameRow({ game, index, onChange, onPickBall, onLogFrames }: GameRowProp
   );
 }
 
-const SESSION_TYPES: { key: SessionType; label: string }[] = [
+const SESSION_TYPE_SEGMENTS = [
   { key: 'league', label: 'League' },
   { key: 'makeup', label: 'Makeup' },
-  { key: 'tournament', label: 'Tournament' },
+  { key: 'tournament', label: 'Tourney' },
   { key: 'practice', label: 'Practice' },
-];
+] as const satisfies readonly { key: SessionType; label: string }[];
 
 const MADE_CUT_OPTIONS: MadeCut[] = ['Yes', 'No', 'N/A'];
 
@@ -257,6 +271,13 @@ export default function LogPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Used by Manage Balls → Settings transition to avoid setTimeout timing hack
   const pendingOpenSettings = useRef(false);
+  // Phase 28 WP7: set once the mount-time draft check has finished, so a Live
+  // game request never acts on the empty form a pending draft is about to
+  // replace.
+  const [ready, setReady] = useState(false);
+  // Cover landscape: details and games side by side (Phase 28 WP3).
+  const wide = useLayoutClass().layout === 'compactWide';
+  const [liveTick, setLiveTick] = useState(0);
 
   // ---- Mount: load balls + check for draft --------------------------------
   useEffect(() => {
@@ -275,6 +296,7 @@ export default function LogPage() {
         setWeek(String(calcWeek(new Date(), settingsData.seasonStart)));
       }
       initialized.current = true;
+      setReady(true);
     }
     init();
   }, []);
@@ -337,7 +359,7 @@ export default function LogPage() {
       // Only persist a draft the user has actually put content into. Skipping an
       // empty form here (rather than writing it, or clearing to null) is the one
       // guard that fixes both S5 and S6 — see draftHasContent above.
-      if (draftHasContent(draft)) writeDraft(draft);
+      if (draftHasContent(draft)) writeDraft(draft).then(notifyDraftChanged);
     }, 400);
     return () => {
       if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
@@ -440,7 +462,10 @@ export default function LogPage() {
   }
 
   async function discardDraft() {
+    // A Live game request was for the draft's game; the draft is gone.
+    clearLiveGameRequest();
     await writeDraft(null);
+    notifyDraftChanged();
     setDraftResumeVisible(false);
     setPendingDraft(null);
   }
@@ -506,6 +531,7 @@ export default function LogPage() {
     await writeSessions([session, ...existingRead.value]);
     void writeBackup();
     await writeDraft(null);
+    notifyDraftChanged();
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
     resetForm();
@@ -513,6 +539,40 @@ export default function LogPage() {
   }
 
   // ---- Render -------------------------------------------------------------
+
+  // Open Log Frames for one game -- the game row and the Live game button
+  // both come through here.
+  function openLogFrames(index: number) {
+    const game = games[index];
+    if (!game) return;
+    router.push({
+      pathname: '/log-frames',
+      params: {
+        gameIndex: String(index),
+        priorScores: games.slice(0, index).map((g) => parseInt(g.score, 10) || 0).join(','),
+        ...(game.frames && game.frames.length > 0
+          ? { initialFrames: JSON.stringify(game.frames) }
+          : {}),
+      },
+    });
+  }
+
+  // ---- Live game button (Phase 28 WP7) --------------------------------------
+  // The button (any tab) asks; this page answers once the draft is loaded and
+  // any resume prompt is settled, using its own game list.
+  useEffect(() => onLiveGameRequest(() => setLiveTick((t) => t + 1)), []);
+  useFocusEffect(
+    useCallback(() => {
+      setLiveTick((t) => t + 1);
+    }, [])
+  );
+  useEffect(() => {
+    if (!ready || draftResumeVisible || !hasLiveGameRequest()) return;
+    clearLiveGameRequest();
+    const idx = firstUnscoredGame(games);
+    if (idx >= 0) openLogFrames(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveTick, ready, draftResumeVisible]);
 
   const showWeek = sessionType === 'league' || sessionType === 'makeup';
   const showOpponent = sessionType === 'league' || sessionType === 'makeup';
@@ -535,23 +595,22 @@ export default function LogPage() {
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
         >
-          {/* ---- Type selector ---- */}
+          <View style={wide ? styles.wideCols : undefined}>
+          <View style={wide ? styles.wideCol : undefined}>
+          {/* ---- Type selector (Phase 28 WP3: v2 segmented control) ---- */}
           <View style={styles.typeBar}>
-            {SESSION_TYPES.map(({ key, label }) => (
-              <ScalePressable
-                key={key}
-                style={[styles.typePill, sessionType === key && styles.typePillActive]}
-                onPress={() => setSessionType(key)}
-              >
-                <Text style={[styles.typePillText, sessionType === key && styles.typePillTextActive]}>
-                  {label}
-                </Text>
-              </ScalePressable>
-            ))}
+            <SegmentedControl
+              segments={SESSION_TYPE_SEGMENTS}
+              value={sessionType}
+              onChange={setSessionType}
+              accessibilityLabel="Session type"
+            />
           </View>
 
+          {/* ---- Details: one grouped list (Phase 28 WP3) ---- */}
+          <View style={styles.detailsGroup}>
           {/* ---- Date ---- */}
-          <View style={styles.card}>
+          <View style={styles.groupRowFirst}>
             <TouchableOpacity
               style={styles.fieldRow}
               onPress={() => setShowDatePicker((v) => !v)}
@@ -581,7 +640,7 @@ export default function LogPage() {
 
           {/* ---- Week (League / Makeup) ---- */}
           {showWeek && (
-            <View style={styles.card}>
+            <View style={styles.groupRow}>
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>Week</Text>
                 <TextInput
@@ -599,7 +658,7 @@ export default function LogPage() {
 
           {/* ---- Opponent (League / Makeup) ---- */}
           {showOpponent && (
-            <View style={styles.card}>
+            <View style={styles.groupRow}>
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>
                   Opponent
@@ -620,7 +679,7 @@ export default function LogPage() {
           {/* ---- Tournament fields ---- */}
           {showTournament && (
             <>
-              <View style={styles.card}>
+              <View style={styles.groupRow}>
                 <View style={styles.fieldRow}>
                   <Text style={styles.fieldLabel}>Name</Text>
                   <TextInput
@@ -633,7 +692,7 @@ export default function LogPage() {
                   />
                 </View>
               </View>
-              <View style={styles.card}>
+              <View style={styles.groupRow}>
                 <View style={styles.fieldRow}>
                   <Text style={styles.fieldLabel}>Format</Text>
                   <TextInput
@@ -646,7 +705,7 @@ export default function LogPage() {
                   />
                 </View>
               </View>
-              <View style={styles.card}>
+              <View style={styles.groupRow}>
                 <View style={styles.fieldRow}>
                   <Text style={styles.fieldLabel}>Pattern</Text>
                   <TextInput
@@ -659,7 +718,7 @@ export default function LogPage() {
                   />
                 </View>
               </View>
-              <View style={styles.card}>
+              <View style={styles.groupRow}>
                 <View style={[styles.fieldRow, { borderBottomWidth: 0 }]}>
                   <Text style={styles.fieldLabel}>Made Cut</Text>
                   <View style={styles.madeCutBar}>
@@ -685,7 +744,7 @@ export default function LogPage() {
                   </View>
                 </View>
               </View>
-              <View style={styles.card}>
+              <View style={styles.groupRow}>
                 <View style={styles.fieldRow}>
                   <Text style={styles.fieldLabel}>Finish / Place</Text>
                   <TextInput
@@ -701,8 +760,17 @@ export default function LogPage() {
             </>
           )}
 
+          </View>
+          </View>
+
+          <View style={wide ? styles.wideCol : undefined}>
           {/* ---- Games ---- */}
-          <Text style={styles.sectionLabel}>GAMES</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Games</Text>
+            <TouchableOpacity onPress={addGame} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={styles.addGameText}>Add game</Text>
+            </TouchableOpacity>
+          </View>
           {games.map((game, index) => (
             <ReanimatedSwipeable
               key={game.id}
@@ -723,31 +791,23 @@ export default function LogPage() {
                 index={index}
                 onChange={(f, v) => updateGame(game.id, f, v)}
                 onPickBall={() => openBallPicker(game.id)}
-                onLogFrames={() => router.push({
-                  pathname: '/log-frames',
-                  params: {
-                    gameIndex: String(index),
-                    priorScores: games.slice(0, index).map((g) => parseInt(g.score, 10) || 0).join(','),
-                    ...(game.frames && game.frames.length > 0
-                      ? { initialFrames: JSON.stringify(game.frames) }
-                      : {}),
-                  },
-                })}
+                onLogFrames={() => openLogFrames(index)}
               />
             </ReanimatedSwipeable>
           ))}
-          <ScalePressable style={styles.addGameButton} onPress={addGame}>
-            <Text style={styles.addGameText}>+ Add Game</Text>
-          </ScalePressable>
+          </View>
+          </View>
 
           {/* ---- Session notes ---- */}
-          <Text style={styles.sectionLabel}>SESSION NOTES</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Notes</Text>
+          </View>
           <View style={styles.card}>
             <TextInput
               style={styles.sessionNotesInput}
               value={sessionNotes}
               onChangeText={setSessionNotes}
-              placeholder="Optional notes about this session..."
+              placeholder="Optional notes about this session"
               placeholderTextColor="#48484A"
               multiline
               textAlignVertical="top"
@@ -756,7 +816,7 @@ export default function LogPage() {
 
           {/* ---- Submit ---- */}
           <ScalePressable style={styles.submitButton} onPress={handleSubmit}>
-            <Text style={styles.submitText}>Submit Session</Text>
+            <Text style={styles.submitText}>Submit session</Text>
           </ScalePressable>
 
           <View style={styles.bottomSpacer} />
@@ -870,20 +930,35 @@ export default function LogPage() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: '#000000' },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 16 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
 
-  // Type bar
-  typeBar: {
-    flexDirection: 'row',
+  // Phase 28 WP3 layout
+  wideCols: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
+  wideCol: { flex: 1 },
+  detailsGroup: {
     backgroundColor: '#1C1C1E',
-    borderRadius: 10,
-    padding: 3,
+    borderRadius: 13,
+    overflow: 'hidden',
     marginBottom: 20,
   },
-  typePill: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center' },
-  typePillActive: { backgroundColor: '#2C2C2E' },
-  typePillText: { fontSize: 13, color: '#8E8E93', fontWeight: '500' },
-  typePillTextActive: { color: '#FFFFFF', fontWeight: '600' },
+  groupRowFirst: { paddingHorizontal: 16 },
+  groupRow: {
+    paddingHorizontal: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#38383A',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  sectionTitle: { fontSize: 20, fontWeight: '600', color: '#FFFFFF' },
+  logFramesStatus: { fontSize: 13, color: '#8E8E93', marginTop: 2 },
+
+  // Type bar
+  typeBar: { marginBottom: 16 },
 
   // Card
   card: {
@@ -898,9 +973,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
   },
-  fieldLabel: { fontSize: 15, color: '#FFFFFF', fontWeight: '500' },
-  fieldValueTeal: { fontSize: 15, color: '#00CEC9' },
-  fieldValueDim: { fontSize: 15, color: '#48484A' },
+  fieldLabel: { fontSize: 17, color: '#FFFFFF', fontWeight: '400' },
+  fieldValueTeal: { fontSize: 17, color: '#00CEC9' },
+  fieldValueDim: { fontSize: 17, color: '#48484A' },
   required: { color: '#FF453A' },
 
   // Inline text input (right-aligned, in fieldRow)
@@ -943,15 +1018,6 @@ const styles = StyleSheet.create({
   madeCutText: { fontSize: 13, color: '#8E8E93', fontWeight: '500' },
   madeCutTextActive: { color: '#FFFFFF', fontWeight: '600' },
 
-  // Section label
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#8E8E93',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-    marginLeft: 4,
-  },
 
   // Game card
   gameCard: {
@@ -961,11 +1027,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   gameLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#8E8E93',
-    letterSpacing: 0.8,
-    marginBottom: 12,
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 8,
   },
   scoreRow: {
     flexDirection: 'row',
@@ -1027,8 +1092,7 @@ const styles = StyleSheet.create({
   },
   swipeDeleteText: { color: '#FFFFFF', fontWeight: '600', fontSize: 15 },
 
-  // Add game
-  addGameButton: { paddingVertical: 14, alignItems: 'center', marginBottom: 16 },
+  // Add game (section header action)
   addGameText: { fontSize: 17, color: '#00CEC9', fontWeight: '500' },
 
   // Session notes
@@ -1043,8 +1107,8 @@ const styles = StyleSheet.create({
   // Submit
   submitButton: {
     backgroundColor: '#00CEC9',
-    borderRadius: 13,
-    paddingVertical: 16,
+    borderRadius: 999,
+    paddingVertical: 15,
     alignItems: 'center',
     marginTop: 8,
     marginBottom: 8,

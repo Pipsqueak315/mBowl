@@ -1,5 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { NativeTabs } from 'expo-router/native-tabs';
+import LiveGameButton from '@/components/v2/LiveGameButton';
+import { useLiveGame } from '@/src/v2/liveGame';
 
 // Phase 27.4: native iOS tabs (UITabBarController). iOS places the bar itself:
 // a side column on the Duo's cover screen and open-landscape, floating at the
@@ -7,6 +9,9 @@ import { NativeTabs } from 'expo-router/native-tabs';
 // Liquid Glass look. Each tab is its own stack (see components/TabStack.tsx),
 // which supplies the header the old JS tab bar used to draw.
 export default function TabLayout() {
+  // Phase 28 WP7: the Live game button, in the native bottom accessory, only
+  // while the draft has a game without a score.
+  const live = useLiveGame();
   return (
     <NativeTabs
       tintColor="#00CEC9"
@@ -17,6 +22,11 @@ export default function TabLayout() {
         },
       }}
     >
+      {live && (
+        <NativeTabs.BottomAccessory>
+          <LiveGameButton gameNumber={live.gameIndex + 1} />
+        </NativeTabs.BottomAccessory>
+      )}
       <NativeTabs.Trigger name="log">
         <NativeTabs.Trigger.Icon sf="square.and.pencil" />
         <NativeTabs.Trigger.Label>Log</NativeTabs.Trigger.Label>
