@@ -27,6 +27,9 @@ import SegmentedControl from '@/components/v2/SegmentedControl';
 import Scorecard from '@/components/v2/Scorecard';
 import Keypad from '@/components/v2/Keypad';
 import { useLayoutClass } from '@/src/v2/layout';
+import { useSideInsets } from '@/src/v2/page';
+import SplitPages from '@/components/v2/SplitPages';
+import StatsPage from '@/components/pages/StatsPage';
 import { color } from '@/src/v2/theme';
 
 // ---------------------------------------------------------------------------
@@ -50,8 +53,6 @@ const INPUT_SEGMENTS = [
   { key: 'pins', label: 'Pins' },
   { key: 'quick', label: 'Quick' },
 ] as const;
-/** Open-landscape (two-page) width cap until WP6 pairs Log Frames with Stats. */
-const SPLIT_MAX_WIDTH = 600;
 // Window heights below this get the compact layout (26.5). The Duo cover screen
 // is 678pt; a standard 6.1" iPhone is 844pt.
 const COMPACT_HEIGHT = 760;
@@ -358,28 +359,55 @@ function ActiveFrameCard({
 }) {
   const slotCount = frameIndex === 9 ? 3 : 2;
   const { throws } = frame;
+  const ball = Math.min(throws.length + 1, slotCount);
+
+  const slots = Array.from({ length: slotCount }).map((_, i) => {
+    const t = throws[i];
+    const filled = t !== undefined;
+    const isNext = i === throws.length;
+    return (
+      <View
+        key={i}
+        style={[
+          styles.activeSlot,
+          compact && styles.activeSlotCompact,
+          filled && styles.activeSlotFilled,
+          compact && isNext && styles.activeSlotNext,
+        ]}
+      >
+        <Text style={[
+          styles.activeSlotText,
+          compact && styles.activeSlotTextCompact,
+          !filled && styles.activeSlotEmpty,
+          t === 'X' && styles.activeStrikeText,
+          compact && t === 'X' && styles.activeStrikeTextCompact,
+        ]}>
+          {filled ? t : compact ? '' : '·'}
+        </Text>
+      </View>
+    );
+  });
+
+  // Phase 28 WP2 (short windows -- the cover screen): one row, small slots,
+  // "Frame 6 · ball 2", as in the approved render. Leaves room for the note.
+  if (compact) {
+    return (
+      <View style={[styles.activeCard, styles.activeCardTight]}>
+        <View style={styles.activeRow}>
+          <View style={styles.activeSlotsRowCompact}>{slots}</View>
+          <Text style={styles.activeRowLabel}>
+            Frame {frameIndex + 1} · ball {ball}
+          </Text>
+        </View>
+        <FrameNoteField value={frame.note} onChange={onNoteChange} />
+      </View>
+    );
+  }
 
   return (
-    <View style={[styles.activeCard, compact && styles.activeCardCompact]}>
+    <View style={styles.activeCard}>
       <Text style={styles.activeFrameLabel}>Frame {frameIndex + 1}</Text>
-      <View style={styles.activeSlotsRow}>
-        {Array.from({ length: slotCount }).map((_, i) => {
-          const t = throws[i];
-          const filled = t !== undefined;
-          return (
-            <View key={i} style={[styles.activeSlot, compact && styles.activeSlotCompact, filled && styles.activeSlotFilled]}>
-              <Text style={[
-                styles.activeSlotText,
-                compact && styles.activeSlotTextCompact,
-                !filled && styles.activeSlotEmpty,
-                t === 'X' && styles.activeStrikeText,
-              ]}>
-                {filled ? t : '·'}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
+      <View style={styles.activeSlotsRow}>{slots}</View>
       <FrameNoteField value={frame.note} onChange={onNoteChange} />
     </View>
   );
@@ -454,7 +482,7 @@ function firstIncompleteFrame(frames: FrameData[]): number {
   return 9;
 }
 
-export default function LogFramesScreen() {
+function LogFramesBody() {
   const { gameIndex, priorScores, initialFrames } = useLocalSearchParams<{
     gameIndex: string;
     priorScores?: string;
@@ -906,17 +934,21 @@ export default function LogFramesScreen() {
     />
   );
 
-  const padSides = { paddingLeft: insets.left, paddingRight: insets.right };
+  // Each band pads itself by the side insets, so the grey input panel and the
+  // hairlines run edge to edge while the content clears the Duo's rail and
+  // status column (Nov 10 check: the grey panel stopped short of the rail).
+  const side = useSideInsets();
+  const padSides = { paddingLeft: side.left, paddingRight: side.right };
 
   // --- Cover landscape: input on the left, frame info on the right ---------
   if (wide) {
     return (
-      <View style={[styles.container, padSides]}>
-        <View style={styles.wideTop}>
+      <View style={styles.container}>
+        <View style={[styles.wideTop, padSides]}>
           {controls}
           {scorecard}
         </View>
-        <View style={[styles.wideBody, { paddingBottom: insets.bottom + 8 }]}>
+        <View style={[styles.wideBody, padSides, { paddingBottom: insets.bottom + 8 }]}>
           <View style={styles.wideInput}>
             {pinDeck ?? <View style={styles.wideKeypad}>{keypad}</View>}
           </View>
@@ -931,29 +963,34 @@ export default function LogFramesScreen() {
   }
 
   // --- Portrait stack (cover portrait, phones, open screen) ----------------
-  const isSplit = layout === 'splitSideBySide';
   return (
-    <View style={[styles.container, padSides]}>
-      <View style={[styles.stack, isSplit && styles.stackSplit]}>
-        <View style={styles.top}>
-          {controls}
-          {scorecard}
-        </View>
-        {totals}
-        {middle}
-        {pinDeck ? (
-          <>
-            {deleteRow}
-            <View style={[styles.inputArea, { paddingBottom: insets.bottom + 8 }]}>{pinDeck}</View>
-          </>
-        ) : (
-          <View style={[styles.inputArea, styles.keypadArea, { paddingBottom: insets.bottom + 8 }]}>
-            {keypad}
-          </View>
-        )}
+    <View style={styles.container}>
+      <View style={[styles.top, padSides]}>
+        {controls}
+        {scorecard}
       </View>
+      <View style={padSides}>{totals}</View>
+      <View style={[styles.middleWrap, padSides]}>{middle}</View>
+      {pinDeck ? (
+        <>
+          {deleteRow}
+          <View style={[styles.inputArea, padSides, { paddingBottom: insets.bottom + 8 }]}>{pinDeck}</View>
+        </>
+      ) : (
+        <View style={[styles.inputArea, styles.keypadArea, { paddingBottom: insets.bottom + 8 }]}>
+          <View style={padSides}>{keypad}</View>
+        </View>
+      )}
     </View>
   );
+}
+
+export default function LogFramesScreen() {
+  const { layout } = useLayoutClass();
+  if (layout === 'splitSideBySide') {
+    return <SplitPages first={<LogFramesBody />} second={<StatsPage embedded />} />;
+  }
+  return <LogFramesBody />;
 }
 
 // ---------------------------------------------------------------------------
@@ -964,8 +1001,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000000' },
 
   // Phase 28 WP2 arrangement
-  stack: { flex: 1 },
-  stackSplit: { width: '100%', maxWidth: SPLIT_MAX_WIDTH, alignSelf: 'center' },
+  middleWrap: { flex: 1 },
   top: { paddingHorizontal: 12, paddingTop: 10, gap: 10, paddingBottom: 10 },
   controlsRow: { flexDirection: 'row', gap: 10 },
   controlCell: { flex: 1 },
@@ -1030,15 +1066,20 @@ const styles = StyleSheet.create({
 
   // Active frame card
   activeCard: { alignItems: 'center', gap: 20, width: '100%' },
-  activeCardCompact: { gap: 10 },
   activeFrameLabel: { fontSize: 13, fontWeight: '500', color: '#8E8E93' },
   activeSlotsRow: { flexDirection: 'row', gap: 16 },
   activeSlot: {
     width: 80, height: 80, borderRadius: 14,
     backgroundColor: '#2C2C2E', alignItems: 'center', justifyContent: 'center',
   },
-  activeSlotCompact: { width: 60, height: 60, borderRadius: 12 },
-  activeSlotTextCompact: { fontSize: 30 },
+  activeSlotCompact: { width: 44, height: 44, borderRadius: 10 },
+  activeSlotTextCompact: { fontSize: 22, fontWeight: '300' },
+  activeStrikeTextCompact: { fontSize: 22 },
+  activeSlotNext: { borderWidth: 1.5, borderColor: '#00CEC9', backgroundColor: 'transparent' },
+  activeCardTight: { gap: 6, alignItems: 'stretch' },
+  activeRow: { flexDirection: 'row', alignItems: 'center', gap: 14, alignSelf: 'stretch' },
+  activeSlotsRowCompact: { flexDirection: 'row', gap: 8 },
+  activeRowLabel: { fontSize: 15, color: '#8E8E93', fontWeight: '400' },
   activeSlotFilled: { backgroundColor: '#1C1C1E' },
   activeSlotText: { fontSize: 40, fontWeight: '200', color: '#FFFFFF' },
   activeSlotEmpty: { color: '#38383A' },

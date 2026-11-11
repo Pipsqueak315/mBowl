@@ -43,5 +43,7 @@ export default function FilterHeader({
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 12, marginBottom: 14 },
+  // flexShrink 0: a long list below must never squeeze the controls (Nov 10
+  // Duo check: History's old pill rows were clipped when a card expanded).
+  wrap: { gap: 12, marginBottom: 14, flexShrink: 0 },
 });
