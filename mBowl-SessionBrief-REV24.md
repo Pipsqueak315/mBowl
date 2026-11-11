@@ -11,8 +11,8 @@
 
 **Where things are:**
 - **Branches (all on GitHub, `github.com/Pipsqueak315/mBowl`):**
-  - `master` @ `4b6e5bf` -- Phase 24 Parts 5/6/6b + Phase 26 + Phase 26A automation, merged Nov 10. SDK 54, **version 1.0.0**. Nothing from it has shipped to any phone.
-  - `phase27` -- **SDK 58 + native tabs + add-ons, version 2.0.0. This is what the v2 binary was built from** (`467d73e`). CI green. Master's docs commit is merged into it (Nov 10 night). **Not merged to `master` yet** -- needs the reviewer pass first (see NEXT).
+  - `master` -- Phase 24 Parts 5/6/6b + Phase 26 + Phase 26A automation, merged Nov 10. SDK 54, **version 1.0.0**. Nothing from it has shipped to any phone.
+  - `phase27` -- **SDK 58 + native tabs + add-ons, version 2.0.0. The v2 binary was built from `467d73e`** (later commits on the branch are docs only). CI green. Docs are identical on `master` and `phase27`, and `phase27` merges into `master` cleanly (checked Nov 10 night). **Not merged to `master` yet** -- needs the reviewer pass first (see NEXT).
   - `phase28` @ `86fbd86` -- Phase 28 WP0 only (theme tokens, layout classes, SegmentedControl, SeasonMenu; no screen changes). Based on an early `phase27` commit (`92a642d`); rebase onto `phase27` before WP1.
   - `phase26`, `phase26a`, `verify-expo-token` -- already merged / done; safe to delete later.
 - **v2 binary:** `mBowl-2.0.0.ipa` (15.7 MB), **GitHub Release `v2.0.0`** (https://github.com/Pipsqueak315/mBowl/releases/tag/v2.0.0, target `467d73e`), also in the Mac's iCloud Drive -> mBowl Builds. Built Nov 10 18:18 on the Mac (Xcode 27.2, Apple ID Personal Team signing).
