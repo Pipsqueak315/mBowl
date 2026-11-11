@@ -10,11 +10,12 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
-import { useNavigation, usePreventRemove } from '@react-navigation/native';
+import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
+import { useKeepAwake } from 'expo-keep-awake';
 
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
@@ -514,6 +515,9 @@ export default function LogFramesScreen() {
   }>();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  // 27.0 M3: the screen stays on for as long as Log Frames is open (live
+  // scoring between throws); released automatically when the screen unmounts.
+  useKeepAwake();
   // 26.5: short windows (the Duo's 678pt cover screen, SE-size phones) get a
   // tighter layout so the pin deck + Confirm never fall off the bottom. Read
   // live from useWindowDimensions so it re-evaluates on fold / unfold.

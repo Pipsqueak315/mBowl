@@ -18,9 +18,9 @@ Give each agent ONE slice and the project rules (CLAUDE.md Non-Negotiables,
 Storage Keys + read-state rules, Locked Decisions). Suggested slices:
 - **Data safety:** `src/storage.ts`, `src/backup.ts`, `app/_layout.tsx` seed path.
 - **Scoring:** `app/log-frames.tsx` scorer, frame entry, 10th frame, edit-from-History path.
-- **Draft + Log:** `app/(tabs)/log.tsx` draft save/restore/submit.
-- **History + edit:** `app/(tabs)/history.tsx`, `components/EditSessionModal.tsx`, the FRAME_RESULT hand-off.
-- **Stats math:** `app/(tabs)/stats.tsx`, `src/leaveUtils.js`, `src/seasons.ts`, `src/sessionFilter.ts`.
+- **Draft + Log:** `app/(tabs)/log/index.tsx` draft save/restore/submit.
+- **History + edit:** `app/(tabs)/history/index.tsx`, `components/EditSessionModal.tsx`, the FRAME_RESULT hand-off.
+- **Stats math:** `app/(tabs)/stats/index.tsx`, `src/leaveUtils.js`, `src/seasons.ts`, `src/sessionFilter.ts`.
 - **Settings:** `components/SettingsContent.tsx` (seasons CRUD, balls, export/restore).
 - **Reference tab + subtabs.**
 - **Native/config:** `app.json`, `package.json`, notifications, OTA channel.

@@ -76,7 +76,9 @@ export async function writeBackup(): Promise<void> {
       reference,
     };
 
-    file.write(JSON.stringify(payload, null, 2));
+    // SDK 58: File.write() is async. Await it so exportBackup() never shares a
+    // half-written file and a failed write lands in the catch below.
+    await file.write(JSON.stringify(payload, null, 2));
 
     console.log('[backup] written to', file.uri);
   } catch (e) {

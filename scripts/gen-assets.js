@@ -1,3 +1,6 @@
+// OBSOLETE (Nov 10, 2026): this generated the original teal-ball icon + splash. The app now uses the
+// blue ball-and-pin icon (assets/images/icon.png) and a splash made from it. Running this would
+// overwrite both with the old design -- do not run. Kept for history only.
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
