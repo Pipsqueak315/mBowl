@@ -356,17 +356,18 @@ export default function LogPage() {
   };
   const refreshFormDate = useCallback(async () => {
     const prevSettings = settingsRef.current;
-    let fresh = prevSettings;
-    try {
-      fresh = (await readSettings()) ?? null;
-    } catch {
-      // keep the settings we have
-    }
+    // readSettings() never throws (read() catches; a failed read gives the
+    // defaults) -- same exposure as the mount read, untouched forms only.
+    const fresh = await readSettings();
     settingsRef.current = fresh;
     const f = liveFormRef.current;
     if (!initialized.current || f.blocked || f.hasContent || dateUserSetRef.current) return;
     const now = new Date();
-    if (formatDateISO(f.date) !== formatDateISO(now)) {
+    if (formatDateISO(f.date) === formatDateISO(now)) {
+      // Confirmed current: the 12h floor counts from the LAST time the date
+      // was seen to be today, so a night that crosses midnight stays put.
+      dateSetAtRef.current = now.getTime();
+    } else {
       if (now.getTime() - dateSetAtRef.current < STALE_MS) return;
       dateSetAtRef.current = now.getTime();
       setDate(now);
@@ -569,25 +570,30 @@ export default function LogPage() {
   // a second session (new Date.now() id) and save the same night twice.
   const submittingRef = useRef(false);
 
+  // On SUCCESS the guard stays set until this page is focused again (cleared
+  // in the Live/focus effect below): a second tap can land after the save but
+  // before React draws the cleared form, and that stale handler still holds
+  // the old games. Early returns (alerts, refused read) release it at once.
   async function handleSubmit() {
     if (submittingRef.current) return;
     submittingRef.current = true;
+    let saved = false;
     try {
-      await submitSession();
+      saved = await submitSession();
     } finally {
-      submittingRef.current = false;
+      if (!saved) submittingRef.current = false;
     }
   }
 
-  async function submitSession() {
+  async function submitSession(): Promise<boolean> {
     const hasScore = games.some((g) => g.score !== '');
     if (!hasScore) {
       Alert.alert('No scores entered', 'Enter at least one score before submitting.');
-      return;
+      return false;
     }
     if (sessionType === 'league' && !opponent.trim()) {
       Alert.alert('Opponent required', 'Enter an opponent name for League sessions.');
-      return;
+      return false;
     }
 
     const session = {
@@ -633,7 +639,7 @@ export default function LogPage() {
         'Could not save session',
         'Your saved sessions could not be read. This session was not saved, because saving now would overwrite your history. Your entry is kept as a draft — please relaunch the app and try again.'
       );
-      return;
+      return false;
     }
     // N20 (folded into S18): disarm the pending draft auto-save before the
     // draft is cleared, or it can fire after writeDraft(null) and put the
@@ -652,6 +658,7 @@ export default function LogPage() {
 
     resetForm();
     router.navigate('/(tabs)/stats');
+    return true;
   }
 
   // ---- Render -------------------------------------------------------------
@@ -688,6 +695,7 @@ export default function LogPage() {
   useFocusEffect(
     useCallback(() => {
       openingFramesRef.current = false;
+      submittingRef.current = false; // S18: re-arm Submit after a successful save
       // Only re-render the form when a Live game request is actually waiting
       // (Nov 10 polish: an unconditional bump re-rendered the whole Log page on
       // every tab switch).
