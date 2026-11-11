@@ -15,6 +15,9 @@ on:
       message:
         description: 'Update message (defaults to the last commit subject)'
         required: false
+      eas_before:
+        description: 'Optional ISO time (e.g. 2026-11-11T16:00:00Z). Installs eas-cli with npm --before=<time>, i.e. the dependency tree as the registry stood then -- the escape hatch when a fresh eas-cli install breaks upstream (Nov 11: a Babel release needed @babel/* 7.29.14 that npm did not serve). Leave empty for the normal install.'
+        required: false
 
 concurrency:
   group: ota-production
@@ -35,12 +38,19 @@ jobs:
       - name: All checks must pass
         run: npm run check
       - uses: expo/expo-github-action@v8
+        if: ${{ !github.event.inputs.eas_before }}
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install eas-cli as of a past registry time (escape hatch)
+        if: ${{ github.event.inputs.eas_before }}
+        env:
+          EAS_BEFORE: ${{ github.event.inputs.eas_before }}
+        run: npm install -g eas-cli@latest --before="$EAS_BEFORE"
       - name: Publish to production channel
         env:
           INPUT_MESSAGE: ${{ github.event.inputs.message }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           MSG="${INPUT_MESSAGE:-$(git log -1 --pretty=%s)}"
           eas update --branch production --message "$MSG" --non-interactive
