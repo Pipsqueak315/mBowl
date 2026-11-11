@@ -4,7 +4,7 @@
 **Session state:** `mBowl-SessionBrief-REV24.md` — check this for current phase and notes.
 **Duo roadmap + design spec:** `docs/mBowl-DuoPlan.md` (v1.6) — Phases 25–28. Read the brief's START HERE section first.
 **Phase 28 (v2 redesign):** build to `docs/mBowl-Phase28-BuildSpec.md` — decisions D1–D8 are locked; v2 tokens in `src/v2/`, shared controls in `components/v2/` (branch `phase28`).
-**Status (Nov 10):** `phase26` + `phase26a` are merged into `master` (not shipped to any phone yet). `phase27` = SDK 58 + native tabs + add-ons, pushed, ready for the Mac build (see REV24 "DONE Nov 10 night"). v2 sprint in progress — see REV24 SPRINT. Run `npm run check` before calling anything done.
+**Status (Nov 10, 18:45):** `master` = Phase 26 + 26A merged, still SDK 54 / 1.0.0 — **never OTA from it until `phase27` is merged** (the old phone is on 1.0.0). `phase27` = SDK 58 + native tabs + add-ons, 2.0.0; the v2 binary is built from it (GitHub Release `v2.0.0`). Next steps are in REV24 → **NEXT** (Duo install + data move, then reviewer pass → merge `phase27` → Phase 28 WP1–WP7). Run `npm run check` before calling anything done.
 
 ---
 

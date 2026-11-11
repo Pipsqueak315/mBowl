@@ -38,6 +38,10 @@ Thresholds live in one constant so they can be tuned in one line after checking 
 
 ---
 
+## Applies to every work package
+- **Duo rail safe areas (moved here from Phase 27, Nov 10):** every page reads `useSafeAreaInsets()` and pads **both** left and right (the rail needs 84pt on whichever side it sits); absolutely placed elements use `insets.right + 16`, never a bare `16`; on NativeTabs screens don't add a fixed tab-bar height to `insets.bottom`.
+- Landscape must work on every screen (D7).
+
 ## Work packages — build in this order
 
 Each WP: build → `npm run check` → push → CI green → Marcus does the 2-minute check on the Duo → ship over the air (`ota.yml`, master only, reaches 2.0.0 only). **Cut line:** if Friday 8pm arrives, whatever isn't checked doesn't ship; WP6–WP7 are the first to slip.
