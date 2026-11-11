@@ -1,5 +1,5 @@
 # mBowl — iPhone Duo Plan
-**Stamped:** October 23, 2026 · **Updated:** November 10, 2026 · **Version:** v1.6 (Phase 26 built on branches; design locked incl. native iOS bars; renders in docs/design) · **Owner:** Marcus
+**Stamped:** October 23, 2026 · **Updated:** November 10, 2026 · **Version:** v1.7 (Nov 10 night: Phase 26/26A merged, Phase 27 built, v2 binary on GitHub Release v2.0.0; design locked incl. native iOS bars; renders in docs/design) · **Owner:** Marcus
 **Read with:** the latest `mBowl-SessionBrief-REVXX.md` and `mBowl-SPEC.md`. This plan covers the next four phases; the brief still tracks session-by-session state.
 
 ---
@@ -7,9 +7,10 @@
 ## Where things stand (Nov 10)
 
 - **Backup done and verified.** The Oct 10 export from the old phone holds everything: 40 sessions, 125 games, 174.1 average (Winners 25: 24 · Jubilee 26: 13 · Winners 26: 3). Some Winners 2026 weeks were never logged in the app (Sep 26, Oct 3, and Oct 17 onward if you bowled); backfill them later from your scorecards.
-- **Phase 26 is built, checked and reviewed, but not merged or shipped.** It's on branch `phase26` in the PC repo. Phase 26A's files are on `phase26a`. Neither is on GitHub yet (cloud pushes need the Claude GitHub App). Details and the exact commands: REV24 START HERE.
-- **Phase 25 not started.** The Duo has no mBowl yet. The old phone has all the data.
-- **Next league night: Sat, Nov 14.** Native-install freeze from Wed, Nov 11.
+- **Phase 26 + 26A are merged into `master`** (nothing shipped to any phone; `master` is still SDK 54 / 1.0.0).
+- **Phase 27 is built.** Branch `phase27` (SDK 58, native tabs, add-ons M1-M3 + M6, 2.0.0). The v2 binary was built on the Mac Nov 10 night (a day early) and is on **GitHub Release `v2.0.0`**. `phase27` still needs the reviewer pass before merging to `master`.
+- **Phase 25 in progress (Nov 10 night):** install v2 on the Duo with iloader, then move the data (25.2). The old phone has all the data and stays the fallback.
+- **Next league night: Sat, Nov 14.** The native freeze is waived for the Duo only this week. **Step-by-step next actions: REV24 → NEXT.**
 
 ---
 
@@ -158,7 +159,7 @@ If it shows 18 sessions after the restore, the app was reopened and overwrote th
 
 ## Phase 26 — Cleanup + screen-size proofing
 
-> **Status Nov 10: built on branch `phase26`, not merged, not shipped.** Every item below except 26.4 is done; tsc + checks green; reviewer pass with 4 warnings fixed. What changed and the decisions made: REV24 → "Phase 26 -- what's on the branch". 26.4 is waiting on your keep/cut calls.
+> **Status Nov 10: done and merged to `master`; reaches the Duo inside the v2 binary (never OTA'd to the old phone).** tsc + checks green; reviewer pass with 4 warnings fixed. Details: REV24 → "Phase 26 -- what was built".
 
 **Goal:** the three fixes and NICE items ship, and every screen adapts to whatever size it's given. That fixes the cover screen now and sets up Phase 28.
 
@@ -198,7 +199,7 @@ Bowl on the Duo cover screen, or on the old phone if anything is off. Log in Ful
 
 ## Phase 26A — Automation setup (first thing after league)
 
-> **Status Nov 10: files pre-built on branch `phase26a`** — `npm run check` (green), `npm run backup-check`, `npm run ship:ota`, hooks, the four skills, the reviewer agent, `ci.yml`, and `ota.yml` (manual-only for now). What's left is the walkthrough itself: merge it, add `EXPO_TOKEN`, approve GitHub access (26A.1), write and test rollback (26A.7), and the dry run (26A.8).
+> **Status Nov 10: merged to `master`; GitHub App installed; `EXPO_TOKEN` added.** `npm run check`, `npm run backup-check`, `npm run ship:ota`, hooks, the four skills, the reviewer agent, `ci.yml` (green), and `ota.yml` (manual-only). Still to do: rollback (26A.7) and the dry run (26A.8) -- the first Phase 28 OTA effectively is the dry run.
 
 **Goal:** turn on the working model in "How we work". It's done in small steps, and each one comes with a short explanation, so you learn what each piece does as it goes in.
 
@@ -255,6 +256,8 @@ Bowl on the Duo cover screen, or on the old phone if anything is off. Log in Ful
 ---
 
 ## Phase 27 — iOS 27 upgrade (native)
+
+> **Status Nov 10 night: built.** SDK 54 -> 58 step by step, native tabs, add-ons M1-M3 + M6, splash, 2.0.0 -- branch `phase27`, CI green. Mac build done a day early (Xcode 27.2, Node 24 via Homebrew `node@24`); `mBowl-2.0.0.ipa` on GitHub Release `v2.0.0`. Left: install on the Duo (27.8), confirm OTA reaches 2.0.0 (27.7), reviewer pass + merge to `master`. Mac rebuild procedure and facts: REV24 → "Mac rebuild procedure".
 
 **Goal:** rebuild the app with the iOS 27 toolchain so it can fill the inner screen. You won't see much yet: the splash fix, and the app filling the inner screen with layouts not tuned yet.
 
@@ -447,8 +450,8 @@ The mockups use Inter as a stand-in for SF Pro, with sample numbers. **Build to 
 
 | When | Work |
 |---|---|
-| Tue Nov 10 | ✅ Backup verified; Phase 26 + 26A built on branches; decisions locked. Tonight: push, check Mac/Xcode 27.1, Claude Code on PC starts Phase 27 code (SDK 58, add-ons, native tabs, splash). |
-| Wed Nov 11 | Mac day: build v2 (2.0.0). Install on the Duo, restore data, verify counts. |
+| Tue Nov 10 | ✅ Backup verified; Phase 26 + 26A merged; decisions locked; Phase 27 code done (SDK 58, add-ons, native tabs, splash); ✅ **Mac build done a day early** -> GitHub Release v2.0.0. Tonight: install on the Duo, restore data, verify counts. |
+| Wed Nov 11 | Slack day: finish the Duo install/restore if not done; screen check of the v2 binary; Claude: reviewer pass + merge `phase27`. |
 | Thu–Fri Nov 12–13 | Phase 28 over the air in priority order (Log Frames → Stats → History → page pairs → visual pass); only what's verified on the Duo ships. Fri 8pm go/no-go. |
 | Sat Nov 14 | League on the Duo (v2) or the old phone (fallback). |
 | After league | Finish any Phase 28 leftovers; Phase 26A walkthrough (EXPO_TOKEN, rollback, dry run); backfill missing Winners 2026 weeks; retire the old phone after one good league night on v2. |

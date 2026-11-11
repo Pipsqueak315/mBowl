@@ -1,6 +1,6 @@
 # mBowl -- Session Brief REV24
 **Full spec lives in:** mBowl-SPEC.md -- read it before writing any code.
-**Duo roadmap + locked design spec:** `docs/mBowl-DuoPlan.md` (v1.6) -- Phases 25-28. **Phase 28 build spec (execution-ready):** `docs/mBowl-Phase28-BuildSpec.md`.
+**Duo roadmap + locked design spec:** `docs/mBowl-DuoPlan.md` (v1.7) -- Phases 25-28. **Phase 28 build spec (execution-ready):** `docs/mBowl-Phase28-BuildSpec.md`.
 **Last updated:** November 10, 2026, 18:45 (Tue night)
 
 ---
