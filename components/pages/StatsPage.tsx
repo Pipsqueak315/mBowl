@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useCallback, useMemo, useEffect, type ReactNode } from 'react';
+import { useState, useLayoutEffect, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 import SettingsContent from '@/components/SettingsContent';
 import FilterHeader from '@/components/v2/FilterHeader';
-import { usePageWidth, useSideInsets } from '@/src/v2/page';
+import { usePageWidth, useSideInsets, usePageVisible } from '@/src/v2/page';
 import { useLayoutClass } from '@/src/v2/layout';
 import { LineChart } from 'react-native-chart-kit';
 import { readSessions, readSettings } from '@/src/storage';
@@ -631,6 +631,8 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
   const [showAllLeaves, setShowAllLeaves] = useState(false);
   const [leaveSort, setLeaveSort] = useState<LeaveSort>('frequency');
   const navigation = useNavigation();
+  const visible = usePageVisible();
+  const dataSigRef = useRef('');
   // Duo rail + status column live in the side safe areas (Nov 10 Duo check
   // F1/F2): pad the page by them, and size the charts to this page's width
   // (half the window when the open screen shows two pages).
@@ -658,6 +660,8 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
 
   useFocusEffect(
     useCallback(() => {
+      // Hidden second page of a folded pair: nothing to draw, so no work.
+      if (!visible) return;
       let active = true;
       // Leaves sort, type filter, and season selection are all non-persistent —
       // reset each visit. The season default (current season) needs the loaded
@@ -665,14 +669,21 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
       setLeaveSort('frequency');
       setTypeFilter('all');
       (async () => {
-        setLoading(true);
+        // Nov 10 polish: the spinner only shows on the very first load. On a
+        // refocus the page stays up while storage is re-read, and the charts
+        // are only recomputed when the data actually changed (before, every tab
+        // switch blanked the page to a spinner and redrew every chart).
         const [sessionsData, settingsData] = await Promise.all([
           readSessions(),
           readSettings(),
         ]);
         if (active) {
-          setSessions(sessionsData);
-          setSettings(settingsData);
+          const sig = JSON.stringify([sessionsData, settingsData]);
+          if (sig !== dataSigRef.current) {
+            dataSigRef.current = sig;
+            setSessions(sessionsData);
+            setSettings(settingsData);
+          }
           const cur = currentSeason(getSeasons(settingsData), todayISO());
           setSeasonSel(cur ? cur.id : ALL_TIME);
           setLoading(false);
@@ -681,7 +692,7 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
       return () => {
         active = false;
       };
-    }, []),
+    }, [visible]),
   );
 
   const seasons = useMemo(() => getSeasons(settings), [settings]);

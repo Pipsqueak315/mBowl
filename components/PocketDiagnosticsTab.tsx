@@ -6,11 +6,11 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  LayoutAnimation,
   Platform,
   UIManager,
   ActivityIndicator,
 } from 'react-native';
+import { animateNextLayout } from '@/src/v2/motion';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { readSessions } from '@/src/storage';
 import { computeLeaveStats } from '@/src/leaveUtils';
@@ -298,7 +298,7 @@ export default function PocketDiagnosticsTab({
   // ---- Actions -------------------------------------------------------------
 
   function toggleCard(originalIndex: number) {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    animateNextLayout();
     setExpanded(prev => {
       const next = new Set(prev);
       next.has(originalIndex) ? next.delete(originalIndex) : next.add(originalIndex);

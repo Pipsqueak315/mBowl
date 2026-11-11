@@ -6,10 +6,10 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  LayoutAnimation,
   Platform,
   UIManager,
 } from 'react-native';
+import { animateNextLayout } from '@/src/v2/motion';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -294,7 +294,7 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
   type SetUpdater = (updater: (prev: Set<number>) => Set<number>) => void;
 
   function toggle(setter: SetUpdater, i: number) {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    animateNextLayout();
     setter(prev => {
       const next = new Set(prev);
       next.has(i) ? next.delete(i) : next.add(i);

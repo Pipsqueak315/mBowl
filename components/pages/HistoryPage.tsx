@@ -6,6 +6,7 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   Modal,
   Alert,
@@ -17,7 +18,6 @@ import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from 'expo-router/react-navigation';
-import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
@@ -28,7 +28,10 @@ import HeaderIconButton from '@/components/v2/HeaderIconButton';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { FrameGrid } from '@/components/FrameGrid';
 import FilterHeader from '@/components/v2/FilterHeader';
-import { useSideInsets, useBleed } from '@/src/v2/page';
+import { useSideInsets, usePageVisible } from '@/src/v2/page';
+import SwipeRow from '@/components/v2/SwipeRow';
+import { animateNextLayout } from '@/src/v2/motion';
+import { color } from '@/src/v2/theme';
 import { filterSessions, ALL_TIME, type SeasonSelection, type TypeFilter } from '@/src/sessionFilter';
 import { getSeasons, currentSeason, resolveSeasonRanges, seasonForDate } from '@/src/seasons';
 
@@ -36,6 +39,9 @@ import { getSeasons, currentSeason, resolveSeasonRanges, seasonForDate } from '@
 // is wired in Part 4; until then History calls filterSessions with ALL_TIME —
 // type-only, identical to the pre-Part-0 inline filter.
 type FilterType = TypeFilter;
+
+/** iOS system blue (dark) for the neutral swipe action. */
+const SWIPE_EDIT = '#0A84FF';
 
 
 const EMPTY_LABELS: Record<FilterType, string> = {
@@ -327,15 +333,9 @@ function SessionCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const swipeRef = useRef<SwipeableMethods>(null);
-  // Row background runs to the screen edge under the Duo's rail; text stays inset.
-  const bleed = useBleed(16, 13);
-  const bleedCorners = {
-    borderTopLeftRadius: bleed.outer.borderTopLeftRadius,
-    borderBottomLeftRadius: bleed.outer.borderBottomLeftRadius,
-    borderTopRightRadius: bleed.outer.borderTopRightRadius,
-    borderBottomRightRadius: bleed.outer.borderBottomRightRadius,
-  };
+  // Plain iOS list row (Nov 10 polish): the row runs edge to edge on black,
+  // text stays inside the side safe areas (the Duo's rail + clock column).
+  const side = useSideInsets();
   const shareCardRef = useRef<ViewInstance>(null);
   const avg = sessionAvg(session.games);
   const series = seriesTotal(session.games);
@@ -359,52 +359,43 @@ function SessionCard({
     }
   }
 
-  const renderRightActions = () => (
-    <View style={styles.swipeActions}>
-      <TouchableOpacity
-        style={styles.editAction}
-        onPress={() => {
-          swipeRef.current?.close();
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          onEdit(session);
-        }}
-      >
-        <Text style={styles.swipeActionText}>Edit</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.deleteAction}
-        onPress={() => {
-          swipeRef.current?.close();
-          Alert.alert('Delete Session', 'Are you sure? This cannot be undone.', [
-            { text: 'Cancel', style: 'cancel', onPress: () => swipeRef.current?.close() },
-            {
-              text: 'Delete',
-              style: 'destructive',
-              onPress: () => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                onDelete(session.id);
-              },
-            },
-          ]);
-        }}
-      >
-        <Text style={styles.swipeActionText}>Delete</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const confirmDelete = () => {
+    Alert.alert('Delete Session', 'Are you sure? This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          onDelete(session.id);
+        },
+      },
+    ]);
+  };
 
   return (
-    <ReanimatedSwipeable
-      ref={swipeRef}
-      renderRightActions={renderRightActions}
-      friction={2}
-      overshootRight={false}
-      containerStyle={{ marginLeft: bleed.outer.marginLeft, marginRight: bleed.outer.marginRight }}
+    <SwipeRow
+      trailingBleed={side.right}
+      actions={[
+        { label: 'Edit', tint: SWIPE_EDIT, onPress: () => onEdit(session) },
+        { label: 'Delete', tint: color.bad, onPress: confirmDelete },
+      ]}
     >
-      <TouchableOpacity
-        activeOpacity={0.85}
-        onPress={() => setExpanded((e) => !e)}
-        style={[styles.card, bleedCorners, bleed.inner]}
+      {/* Opaque highlight on press (never an opacity fade: the swipe actions
+          live behind the row and would show through). */}
+      <Pressable
+        // Like a UITableView cell: a short delay so starting a scroll doesn't
+        // flash the highlight; a quick tap still registers.
+        unstable_pressDelay={60}
+        onPress={() => {
+          animateNextLayout();
+          setExpanded((e) => !e);
+        }}
+        style={({ pressed }) => [
+          styles.card,
+          { paddingLeft: 16 + side.left, paddingRight: 16 + side.right },
+          pressed && styles.cardPressed,
+        ]}
       >
         {/* Collapsed header (Phase 28 WP5): date + "League · Week 6" on the
             left; game scores in grey, the series in white with a band dot,
@@ -542,8 +533,8 @@ function SessionCard({
             <ShareCardView session={session} />
           </View>
         )}
-      </TouchableOpacity>
-    </ReanimatedSwipeable>
+      </Pressable>
+    </SwipeRow>
   );
 }
 
@@ -563,6 +554,10 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const sideInsets = useSideInsets();
+  // Hidden second page of a folded pair: skip the reload (see usePageVisible).
+  const visible = usePageVisible();
+  // What was last put on screen, so a refocus with unchanged data re-renders nothing.
+  const dataSigRef = useRef('');
 
   // Tracks a pending frame-edit: live session snapshot + game index + whether the
   // modal already had unsaved edits, used to reopen the modal on return either way
@@ -607,14 +602,25 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
 
   useFocusEffect(
     useCallback(() => {
+      // A hidden page still finishes a frame edit it started (the FRAME_RESULT
+      // hand-off below); otherwise it waits until it's on screen.
+      if (!visible && !pendingFrameEditRef.current) return;
       let active = true;
       const load = async () => {
-        setLoaded(false);
+        // Nov 10 polish: no spinner on refocus. The list stays up while storage
+        // is re-read (the spinner only shows on the very first load), and the
+        // list is only rebuilt when the data actually changed. Before, every tab
+        // switch blanked the list, showed a spinner and rebuilt every row --
+        // that's what made switching feel quick one time and slow the next.
         const [raw, settingsData] = await Promise.all([readSessions(), readSettings()]);
         if (!active) return;
         raw.sort((a, b) => b.date.localeCompare(a.date));
-        setSessions(raw);
-        setSettings(settingsData);
+        const sig = JSON.stringify([raw, settingsData]);
+        if (sig !== dataSigRef.current) {
+          dataSigRef.current = sig;
+          setSessions(raw);
+          setSettings(settingsData);
+        }
         const cur = currentSeason(getSeasons(settingsData), todayISO());
         setSeasonSel(cur ? cur.id : ALL_TIME);
         setLoaded(true);
@@ -661,7 +667,7 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
       };
       load();
       return () => { active = false; };
-    }, [])
+    }, [visible])
   );
 
   const handleDelete = useCallback((id: number | string) => {
@@ -736,7 +742,7 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
     <>
       {/* Content is inset by the side safe areas (the Duo's tab rail + clock
           column, Nov 10 check F1/F2); session rows' backgrounds run to the
-          screen edge under the rail (useBleed). */}
+          screen edge under the rail (plain iOS list). */}
       <View style={styles.container}>
         {/* Phase 28 WP5: season menu + type segmented control (replaces the pills). */}
         <View style={[styles.filterHeader, { paddingLeft: 16 + sideInsets.left, paddingRight: 16 + sideInsets.right }]}>
@@ -763,7 +769,7 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
           <FlatList
             ListHeaderComponent={
               filtered.length > 0 ? (
-                <View style={styles.listHeader}>
+                <View style={[styles.listHeader, { paddingLeft: 16 + sideInsets.left, paddingRight: 16 + sideInsets.right }]}>
                   <Text style={styles.listHeaderTitle}>
                     {seasonSel === ALL_TIME
                       ? 'All-Time'
@@ -777,6 +783,9 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
             }
             data={filtered}
             keyExtractor={(item) => String(item.id)}
+            ItemSeparatorComponent={() => (
+              <View style={[styles.rowSeparator, { marginLeft: 16 + sideInsets.left }]} />
+            )}
             renderItem={({ item }) => (
               <SessionCard
                 session={item}
@@ -785,10 +794,7 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
                 seasonShort={seasonSel === ALL_TIME ? seasonShortForDate(item.date) : undefined}
               />
             )}
-            contentContainerStyle={[
-              styles.listContent,
-              { paddingLeft: 16 + sideInsets.left, paddingRight: 16 + sideInsets.right, paddingBottom: insets.bottom + 16 },
-            ]}
+            contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 16 }]}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -833,8 +839,8 @@ const styles = StyleSheet.create({
   // List
   listContent: {
     paddingBottom: 32,
-    gap: 10,
   },
+  rowSeparator: { height: StyleSheet.hairlineWidth, backgroundColor: '#38383A' },
 
   // Empty state
   emptyState: {
@@ -851,11 +857,10 @@ const styles = StyleSheet.create({
 
   // Card
   card: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 13,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    backgroundColor: '#000000',
+    paddingVertical: 14,
   },
+  cardPressed: { backgroundColor: '#1C1C1E' },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -879,8 +884,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'baseline',
-    paddingHorizontal: 4,
-    paddingBottom: 2,
+    paddingTop: 4,
+    paddingBottom: 8,
   },
   listHeaderTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', flexShrink: 1 },
   listHeaderAvg: { color: '#8E8E93', fontSize: 15, fontVariant: ['tabular-nums'] },
@@ -1033,34 +1038,6 @@ const styles = StyleSheet.create({
     left: -10000,
     backgroundColor: '#1C1C1E',
   },
-
-  // Swipe actions
-  swipeActions: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    paddingLeft: 8,
-    gap: 8,
-  },
-  editAction: {
-    backgroundColor: '#0A84FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 80,
-    borderRadius: 13,
-  },
-  deleteAction: {
-    backgroundColor: '#FF453A',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 80,
-    borderRadius: 13,
-  },
-  swipeActionText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
 
   // Settings modal
   modal: {

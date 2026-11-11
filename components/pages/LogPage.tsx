@@ -13,11 +13,12 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useSideInsets, useBleed } from '@/src/v2/page';
+import { useSideInsets } from '@/src/v2/page';
+import SwipeRow from '@/components/v2/SwipeRow';
+import { color } from '@/src/v2/theme';
 import { BlurView } from 'expo-blur';
 import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -284,22 +285,9 @@ export default function LogPage() {
   const [ready, setReady] = useState(false);
   // Cover landscape: details and games side by side (Phase 28 WP3).
   const wide = useLayoutClass().layout === 'compactWide';
-  // Boxed groups run to the screen edge under the Duo's rail (content stays
-  // inset). Off in the two-column landscape layout, where a bleeding left
-  // column would run under the right one.
-  const bleedRaw = useBleed(16, 13);
-  const bleed = wide
-    ? { outer: { marginLeft: 0, marginRight: 0 }, corners: {}, inner: { paddingLeft: 16, paddingRight: 16 } }
-    : {
-        outer: { marginLeft: bleedRaw.outer.marginLeft, marginRight: bleedRaw.outer.marginRight },
-        corners: {
-          borderTopLeftRadius: bleedRaw.outer.borderTopLeftRadius,
-          borderBottomLeftRadius: bleedRaw.outer.borderBottomLeftRadius,
-          borderTopRightRadius: bleedRaw.outer.borderTopRightRadius,
-          borderBottomRightRadius: bleedRaw.outer.borderBottomRightRadius,
-        },
-        inner: bleedRaw.inner,
-      };
+  // Rounded groups are inset-grouped cards (Nov 10 polish): the same margin on
+  // both sides, inside the safe areas -- iOS never runs a ROUNDED card under the
+  // rail, only plain (square) backgrounds like History's list rows.
   const [liveTick, setLiveTick] = useState(0);
 
   // ---- Mount: load balls + check for draft --------------------------------
@@ -589,7 +577,10 @@ export default function LogPage() {
   useFocusEffect(
     useCallback(() => {
       openingFramesRef.current = false;
-      setLiveTick((t) => t + 1);
+      // Only re-render the form when a Live game request is actually waiting
+      // (Nov 10 polish: an unconditional bump re-rendered the whole Log page on
+      // every tab switch).
+      if (hasLiveGameRequest()) setLiveTick((t) => t + 1);
     }, [])
   );
   useEffect(() => {
@@ -637,9 +628,9 @@ export default function LogPage() {
           </View>
 
           {/* ---- Details: one grouped list (Phase 28 WP3) ---- */}
-          <View style={[styles.detailsGroup, bleed.outer, bleed.corners]}>
+          <View style={styles.detailsGroup}>
           {/* ---- Date ---- */}
-          <View style={[styles.groupRowFirst, bleed.inner]}>
+          <View style={styles.groupRowFirst}>
             <TouchableOpacity
               style={styles.fieldRow}
               onPress={() => setShowDatePicker((v) => !v)}
@@ -669,7 +660,7 @@ export default function LogPage() {
 
           {/* ---- Week (League / Makeup) ---- */}
           {showWeek && (
-            <View style={[styles.groupRow, bleed.inner]}>
+            <View style={styles.groupRow}>
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>Week</Text>
                 <TextInput
@@ -687,7 +678,7 @@ export default function LogPage() {
 
           {/* ---- Opponent (League / Makeup) ---- */}
           {showOpponent && (
-            <View style={[styles.groupRow, bleed.inner]}>
+            <View style={styles.groupRow}>
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>
                   Opponent
@@ -708,7 +699,7 @@ export default function LogPage() {
           {/* ---- Tournament fields ---- */}
           {showTournament && (
             <>
-              <View style={[styles.groupRow, bleed.inner]}>
+              <View style={styles.groupRow}>
                 <View style={styles.fieldRow}>
                   <Text style={styles.fieldLabel}>Name</Text>
                   <TextInput
@@ -721,7 +712,7 @@ export default function LogPage() {
                   />
                 </View>
               </View>
-              <View style={[styles.groupRow, bleed.inner]}>
+              <View style={styles.groupRow}>
                 <View style={styles.fieldRow}>
                   <Text style={styles.fieldLabel}>Format</Text>
                   <TextInput
@@ -734,7 +725,7 @@ export default function LogPage() {
                   />
                 </View>
               </View>
-              <View style={[styles.groupRow, bleed.inner]}>
+              <View style={styles.groupRow}>
                 <View style={styles.fieldRow}>
                   <Text style={styles.fieldLabel}>Pattern</Text>
                   <TextInput
@@ -747,7 +738,7 @@ export default function LogPage() {
                   />
                 </View>
               </View>
-              <View style={[styles.groupRow, bleed.inner]}>
+              <View style={styles.groupRow}>
                 <View style={[styles.fieldRow, { borderBottomWidth: 0 }]}>
                   <Text style={styles.fieldLabel}>Made cut</Text>
                   <View style={styles.madeCutBar}>
@@ -760,7 +751,7 @@ export default function LogPage() {
                   </View>
                 </View>
               </View>
-              <View style={[styles.groupRow, bleed.inner]}>
+              <View style={styles.groupRow}>
                 <View style={styles.fieldRow}>
                   <Text style={styles.fieldLabel}>Finish / Place</Text>
                   <TextInput
@@ -788,20 +779,15 @@ export default function LogPage() {
             </TouchableOpacity>
           </View>
           {games.map((game, index) => (
-            <ReanimatedSwipeable
+            <SwipeRow
               key={game.id}
-              containerStyle={bleed.outer}
-              renderRightActions={() =>
-                games.length > 1 ? (
-                  <TouchableOpacity
-                    style={styles.swipeDelete}
-                    onPress={() => confirmRemove(game.id)}
-                  >
-                    <Text style={styles.swipeDeleteText}>Remove</Text>
-                  </TouchableOpacity>
-                ) : null
+              radius={13}
+              style={styles.gameSwipe}
+              actions={
+                games.length > 1
+                  ? [{ label: 'Remove', tint: color.bad, onPress: () => confirmRemove(game.id) }]
+                  : []
               }
-              overshootRight={false}
             >
               <GameRow
                 game={game}
@@ -809,9 +795,8 @@ export default function LogPage() {
                 onChange={(f, v) => updateGame(game.id, f, v)}
                 onPickBall={() => openBallPicker(game.id)}
                 onLogFrames={() => openLogFrames(index)}
-                cardStyle={[bleed.corners, bleed.inner]}
               />
-            </ReanimatedSwipeable>
+            </SwipeRow>
           ))}
           </View>
           </View>
@@ -1027,10 +1012,9 @@ const styles = StyleSheet.create({
   // Game card
   gameCard: {
     backgroundColor: '#1C1C1E',
-    borderRadius: 13,
     padding: 16,
-    marginBottom: 10,
   },
+  gameSwipe: { marginBottom: 10 },
   gameLabel: {
     fontSize: 17,
     fontWeight: '600',
@@ -1086,16 +1070,6 @@ const styles = StyleSheet.create({
   },
 
   // Swipe delete
-  swipeDelete: {
-    backgroundColor: '#FF453A',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 90,
-    borderRadius: 13,
-    marginBottom: 10,
-    marginLeft: 8,
-  },
-  swipeDeleteText: { color: '#FFFFFF', fontWeight: '600', fontSize: 15 },
 
   // Add game (section header action)
   addGameText: { fontSize: 17, color: '#00CEC9', fontWeight: '500' },

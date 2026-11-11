@@ -33,7 +33,10 @@ export function useIsInSplit(): boolean {
 
 /**
  * Edge-to-edge backgrounds (Phase 28 polish, Marcus Nov 10). iOS's rule:
- * backgrounds ignore the safe area, content respects it. For a boxed row or
+ * backgrounds ignore the safe area, content respects it -- but only SQUARE
+ * backgrounds (plain list rows, bars). A rounded card that bleeds on one side
+ * looks lopsided (Nov 10 check), so rounded cards stay inset on both sides
+ * (inset-grouped) and nothing uses this today; kept for a future square band. For a boxed row or
  * group inside a page whose content is inset by `pad` + the side insets, this
  * returns styles that stretch the BOX to the screen edge on any side that has
  * a safe-area inset (the Duo's rail / clock column) while keeping the CONTENT
@@ -57,4 +60,17 @@ export function useBleed(pad = 16, radius = 13): {
     },
     inner: { paddingLeft: pad + left, paddingRight: pad + right },
   };
+}
+
+/**
+ * False for the second page of a pair while the Duo is folded (SplitPages
+ * keeps it mounted but hidden). Hidden pages skip their focus reloads, so a
+ * tab switch only does the work for what's on screen (Nov 10 polish: tab
+ * switches felt slow some of the time because hidden copies of Stats were
+ * re-reading storage and re-drawing charts nobody could see).
+ */
+export const PageVisibleContext = createContext(true);
+
+export function usePageVisible(): boolean {
+  return useContext(PageVisibleContext);
 }

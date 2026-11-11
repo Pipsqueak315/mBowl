@@ -61,3 +61,18 @@ export const primaryButton: ViewStyle = {
   paddingHorizontal: space.xl,
 };
 export const primaryButtonText: TextStyle = { fontSize: 17, fontWeight: '600', color: '#000000' };
+
+/**
+ * Motion (Nov 10 polish, Marcus: "snappy but smooth", the same everywhere).
+ * One spring for anything that follows a finger or a press, one duration for
+ * layout changes. Both are critically damped (no bounce) and settle in about
+ * a quarter second, so a tap, a swipe and an expand all feel the same.
+ */
+export const motion = {
+  /** Swipe rows, press scale, anything a finger drives. Settles in ~0.25s. */
+  spring: { mass: 1, stiffness: 520, damping: 46, overshootClamping: true },
+  /** Pressed buttons shrink to this (ScalePressable). */
+  pressScale: 0.97,
+  /** Expand / collapse / insert / remove (LayoutAnimation), in ms. */
+  layoutMs: 240,
+} as const;

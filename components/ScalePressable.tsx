@@ -4,6 +4,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
+import { motion } from '@/src/v2/theme';
 import type { PressableProps, StyleProp, ViewStyle } from 'react-native';
 
 type Props = Omit<PressableProps, 'style'> & {
@@ -28,11 +29,11 @@ export default function ScalePressable({
     <Animated.View style={[style, animStyle]}>
       <Pressable
         onPressIn={e => {
-          scale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
+          scale.value = withSpring(motion.pressScale, motion.spring);
           onPressIn?.(e);
         }}
         onPressOut={e => {
-          scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+          scale.value = withSpring(1, motion.spring);
           onPressOut?.(e);
         }}
         onPress={onPress}

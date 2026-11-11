@@ -16,7 +16,7 @@
 import type { ReactNode } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PageContext } from '@/src/v2/page';
+import { PageContext, PageVisibleContext } from '@/src/v2/page';
 import { color } from '@/src/v2/theme';
 
 /** Gap left free at the fold (spec: x 455-495 on the open landscape screen). */
@@ -65,7 +65,9 @@ export default function SplitPages({
           torn down mid-hand-off -- an unmounted History page would leave its
           KEYS.FRAME_RESULT for the Log tab to pick up (reviewer, Nov 10). */}
       <View style={[styles.pane, !split && styles.hidden]}>
-        <PageContext.Provider value={frame}>{secondary}</PageContext.Provider>
+        <PageVisibleContext.Provider value={split}>
+          <PageContext.Provider value={frame}>{secondary}</PageContext.Provider>
+        </PageVisibleContext.Provider>
       </View>
     </View>
   );
