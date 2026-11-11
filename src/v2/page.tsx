@@ -30,3 +30,31 @@ export function useSideInsets(): { left: number; right: number } {
 export function useIsInSplit(): boolean {
   return useContext(PageContext) !== null;
 }
+
+/**
+ * Edge-to-edge backgrounds (Phase 28 polish, Marcus Nov 10). iOS's rule:
+ * backgrounds ignore the safe area, content respects it. For a boxed row or
+ * group inside a page whose content is inset by `pad` + the side insets, this
+ * returns styles that stretch the BOX to the screen edge on any side that has
+ * a safe-area inset (the Duo's rail / clock column) while keeping the CONTENT
+ * where it was. Sides without an inset keep the normal rounded card.
+ *   outer -> on the box's outermost view (negative margins + square corners)
+ *   inner -> on the view that pads the box's content
+ */
+export function useBleed(pad = 16, radius = 13): {
+  outer: { marginLeft: number; marginRight: number; borderTopLeftRadius: number; borderBottomLeftRadius: number; borderTopRightRadius: number; borderBottomRightRadius: number };
+  inner: { paddingLeft: number; paddingRight: number };
+} {
+  const { left, right } = useSideInsets();
+  return {
+    outer: {
+      marginLeft: -left,
+      marginRight: -right,
+      borderTopLeftRadius: left > 0 ? 0 : radius,
+      borderBottomLeftRadius: left > 0 ? 0 : radius,
+      borderTopRightRadius: right > 0 ? 0 : radius,
+      borderBottomRightRadius: right > 0 ? 0 : radius,
+    },
+    inner: { paddingLeft: pad + left, paddingRight: pad + right },
+  };
+}

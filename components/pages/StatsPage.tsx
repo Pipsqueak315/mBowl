@@ -16,6 +16,7 @@ import { useLayoutClass } from '@/src/v2/layout';
 import { LineChart } from 'react-native-chart-kit';
 import { readSessions, readSettings } from '@/src/storage';
 import type { Session, Settings, ThrowEntry } from '@/src/types';
+import HeaderIconButton from '@/components/v2/HeaderIconButton';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { computeLeaveStats } from '@/src/leaveUtils';
 import { filterSessions, ALL_TIME, type SeasonSelection, type TypeFilter } from '@/src/sessionFilter';
@@ -646,13 +647,11 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
     if (embedded) return;
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
+        <HeaderIconButton
+          icon="gearshape"
           onPress={() => setSettingsOpen(true)}
-          style={styles.gearButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <IconSymbol name="gearshape.fill" size={22} color="#8E8E93" />
-        </TouchableOpacity>
+          accessibilityLabel="Settings"
+        />
       ),
     });
   }, [navigation, embedded]);
@@ -842,26 +841,31 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
           <>
             <View style={wide ? styles.wideTop : undefined}>
             {/* Hero (Phase 28 WP4): Average label, big white number, delta,
-                counts; High game / High series as divider rows. */}
-            <View style={[styles.hero, wide && styles.heroWide]}>
-              <Text style={styles.heroAvgLabel}>Average</Text>
-              <Text style={styles.heroAvgNumber} numberOfLines={1} adjustsFontSizeToFit>
-                {metrics.avg.toFixed(1)}
-              </Text>
-              {avgGoalDelta && (
-                <Text style={[styles.heroDelta, { color: avgGoalDelta.color }]}>
-                  {avgGoalDelta.text}
+                counts. High game / High series are stacked divider rows --
+                beside the average in portrait (so Striking and Spares both
+                fit above the fold on the cover screen), under it in the
+                landscape hero column. */}
+            <View style={[styles.hero, wide ? styles.heroWide : styles.heroSide]}>
+              <View style={wide ? undefined : styles.heroMain}>
+                <Text style={styles.heroAvgLabel}>Average</Text>
+                <Text style={styles.heroAvgNumber} numberOfLines={1} adjustsFontSizeToFit>
+                  {metrics.avg.toFixed(1)}
                 </Text>
-              )}
-              <Text style={styles.heroMeta}>
-                {metrics.gameCount} games · {metrics.sessionCount} sessions
-              </Text>
-              <View style={[styles.heroRows, wide && styles.heroRowsWide]}>
-                <View style={[styles.heroRow, wide && styles.heroRowWide]}>
+                {avgGoalDelta && (
+                  <Text style={[styles.heroDelta, { color: avgGoalDelta.color }]}>
+                    {avgGoalDelta.text}
+                  </Text>
+                )}
+                <Text style={styles.heroMeta}>
+                  {metrics.gameCount} games · {metrics.sessionCount} sessions
+                </Text>
+              </View>
+              <View style={[styles.heroRows, styles.heroRowsWide, !wide && styles.heroRowsSide]}>
+                <View style={[styles.heroRow, styles.heroRowWide]}>
                   <Text style={styles.heroRowLabel}>High game</Text>
                   <Text style={styles.heroRowValue}>{metrics.highGame}</Text>
                 </View>
-                <View style={[styles.heroRow, styles.heroRowSecond, wide && styles.heroRowWide]}>
+                <View style={[styles.heroRow, styles.heroRowWide, styles.heroRowLast]}>
                   <Text style={styles.heroRowLabel}>High series</Text>
                   <Text style={styles.heroRowValue}>{metrics.highSeries > 0 ? metrics.highSeries : '—'}</Text>
                 </View>
@@ -1233,6 +1237,10 @@ const styles = StyleSheet.create({
   wideSections: { flex: 1 },
   hero: { marginBottom: 20 },
   heroWide: { width: 196 },
+  heroSide: { flexDirection: 'row', alignItems: 'flex-end', gap: 16 },
+  heroMain: { flex: 1, minWidth: 0 },
+  heroRowsSide: { width: 150, marginTop: 0, borderTopWidth: 0 },
+  heroRowLast: { borderBottomWidth: 0 },
   heroAvgLabel: { fontSize: 15, fontWeight: '400', color: '#8E8E93' },
   heroAvgNumber: {
     fontSize: 64,
@@ -1261,12 +1269,6 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingRight: 12,
   },
-  heroRowSecond: {
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    borderLeftColor: '#38383A',
-    paddingLeft: 12,
-    paddingRight: 0,
-  },
   heroRowWide: {
     borderLeftWidth: 0,
     paddingLeft: 0,
@@ -1274,7 +1276,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#38383A',
   },
-  heroRowLabel: { fontSize: 17, fontWeight: '400', color: '#8E8E93' },
+  heroRowLabel: { fontSize: 15, fontWeight: '400', color: '#8E8E93' },
   heroRowValue: { fontSize: 22, fontWeight: '300', color: '#FFFFFF', fontVariant: ['tabular-nums'] },
 
   // --- Section header + 4-up metric row (no boxes) ---
@@ -1355,10 +1357,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Gear button
-  gearButton: {
-    marginRight: 16,
-  },
 
   // --- Leaves / list-card sections ---
   leavesCard: { paddingTop: 4, paddingBottom: 4, marginBottom: 20 },

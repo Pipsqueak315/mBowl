@@ -3,7 +3,6 @@ import {
   View,
   Text,
   Modal,
-  TouchableOpacity,
   StyleSheet,
   ScrollView,
   TextInput,
@@ -15,7 +14,7 @@ import { useSideInsets } from '@/src/v2/page';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import HeaderIconButton from '@/components/v2/HeaderIconButton';
 import SettingsContent from '@/components/SettingsContent';
 import SignalsTab, { SignalsData, DEFAULT_SIGNALS } from '@/components/SignalsTab';
 import PocketDiagnosticsTab, {
@@ -255,13 +254,11 @@ export default function ReferenceScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
+        <HeaderIconButton
+          icon="gearshape"
           onPress={() => setSettingsOpen(true)}
-          style={styles.gearButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <IconSymbol name="gearshape.fill" size={22} color="#8E8E93" />
-        </TouchableOpacity>
+          accessibilityLabel="Settings"
+        />
       ),
     });
   }, [navigation]);
@@ -876,9 +873,6 @@ const styles = StyleSheet.create({
   },
 
   // ---- Gear button ----
-  gearButton: {
-    marginRight: 16,
-  },
 
   // ---- Bottom spacer ----
   bottomSpacer: {

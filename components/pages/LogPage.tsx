@@ -13,7 +13,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useSideInsets } from '@/src/v2/page';
+import { useSideInsets, useBleed } from '@/src/v2/page';
 import { BlurView } from 'expo-blur';
 import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,6 +22,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
+import HeaderIconButton from '@/components/v2/HeaderIconButton';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import { FrameGrid } from '@/components/FrameGrid';
@@ -134,9 +135,11 @@ type GameRowProps = {
   onChange: (field: 'score' | 'ball' | 'notes', value: string) => void;
   onPickBall: () => void;
   onLogFrames: () => void;
+  /** Edge-to-edge card background (Phase 28 polish): corner + padding styles. */
+  cardStyle?: import('react-native').StyleProp<import('react-native').ViewStyle>;
 };
 
-function GameRow({ game, index, onChange, onPickBall, onLogFrames }: GameRowProps) {
+function GameRow({ game, index, onChange, onPickBall, onLogFrames, cardStyle }: GameRowProps) {
   function handleScoreEndEditing() {
     if (game.calculatedScore === undefined) return;
     const entered = parseInt(game.score, 10);
@@ -152,7 +155,7 @@ function GameRow({ game, index, onChange, onPickBall, onLogFrames }: GameRowProp
   }
 
   return (
-    <View style={styles.gameCard}>
+    <View style={[styles.gameCard, cardStyle]}>
       <Text style={styles.gameLabel}>Game {index + 1}</Text>
 
       {/* Score */}
@@ -277,6 +280,22 @@ export default function LogPage() {
   const [ready, setReady] = useState(false);
   // Cover landscape: details and games side by side (Phase 28 WP3).
   const wide = useLayoutClass().layout === 'compactWide';
+  // Boxed groups run to the screen edge under the Duo's rail (content stays
+  // inset). Off in the two-column landscape layout, where a bleeding left
+  // column would run under the right one.
+  const bleedRaw = useBleed(16, 13);
+  const bleed = wide
+    ? { outer: { marginLeft: 0, marginRight: 0 }, corners: {}, inner: { paddingLeft: 16, paddingRight: 16 } }
+    : {
+        outer: { marginLeft: bleedRaw.outer.marginLeft, marginRight: bleedRaw.outer.marginRight },
+        corners: {
+          borderTopLeftRadius: bleedRaw.outer.borderTopLeftRadius,
+          borderBottomLeftRadius: bleedRaw.outer.borderBottomLeftRadius,
+          borderTopRightRadius: bleedRaw.outer.borderTopRightRadius,
+          borderBottomRightRadius: bleedRaw.outer.borderBottomRightRadius,
+        },
+        inner: bleedRaw.inner,
+      };
   const [liveTick, setLiveTick] = useState(0);
 
   // ---- Mount: load balls + check for draft --------------------------------
@@ -374,13 +393,11 @@ export default function LogPage() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
+        <HeaderIconButton
+          icon="gearshape"
           onPress={() => setSettingsOpen(true)}
-          style={styles.gearButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <IconSymbol name="gearshape.fill" size={22} color="#8E8E93" />
-        </TouchableOpacity>
+          accessibilityLabel="Settings"
+        />
       ),
     });
   }, [navigation]);
@@ -590,13 +607,16 @@ export default function LogPage() {
   return (
     <>
       <KeyboardAvoidingView
-        style={[styles.flex, { paddingLeft: sideInsets.left, paddingRight: sideInsets.right }]}
+        style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={88}
       >
         <ScrollView
           style={styles.flex}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingLeft: 16 + sideInsets.left, paddingRight: 16 + sideInsets.right },
+          ]}
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
         >
@@ -613,9 +633,9 @@ export default function LogPage() {
           </View>
 
           {/* ---- Details: one grouped list (Phase 28 WP3) ---- */}
-          <View style={styles.detailsGroup}>
+          <View style={[styles.detailsGroup, bleed.outer, bleed.corners]}>
           {/* ---- Date ---- */}
-          <View style={styles.groupRowFirst}>
+          <View style={[styles.groupRowFirst, bleed.inner]}>
             <TouchableOpacity
               style={styles.fieldRow}
               onPress={() => setShowDatePicker((v) => !v)}
@@ -645,7 +665,7 @@ export default function LogPage() {
 
           {/* ---- Week (League / Makeup) ---- */}
           {showWeek && (
-            <View style={styles.groupRow}>
+            <View style={[styles.groupRow, bleed.inner]}>
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>Week</Text>
                 <TextInput
@@ -663,7 +683,7 @@ export default function LogPage() {
 
           {/* ---- Opponent (League / Makeup) ---- */}
           {showOpponent && (
-            <View style={styles.groupRow}>
+            <View style={[styles.groupRow, bleed.inner]}>
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>
                   Opponent
@@ -684,7 +704,7 @@ export default function LogPage() {
           {/* ---- Tournament fields ---- */}
           {showTournament && (
             <>
-              <View style={styles.groupRow}>
+              <View style={[styles.groupRow, bleed.inner]}>
                 <View style={styles.fieldRow}>
                   <Text style={styles.fieldLabel}>Name</Text>
                   <TextInput
@@ -697,7 +717,7 @@ export default function LogPage() {
                   />
                 </View>
               </View>
-              <View style={styles.groupRow}>
+              <View style={[styles.groupRow, bleed.inner]}>
                 <View style={styles.fieldRow}>
                   <Text style={styles.fieldLabel}>Format</Text>
                   <TextInput
@@ -710,7 +730,7 @@ export default function LogPage() {
                   />
                 </View>
               </View>
-              <View style={styles.groupRow}>
+              <View style={[styles.groupRow, bleed.inner]}>
                 <View style={styles.fieldRow}>
                   <Text style={styles.fieldLabel}>Pattern</Text>
                   <TextInput
@@ -723,7 +743,7 @@ export default function LogPage() {
                   />
                 </View>
               </View>
-              <View style={styles.groupRow}>
+              <View style={[styles.groupRow, bleed.inner]}>
                 <View style={[styles.fieldRow, { borderBottomWidth: 0 }]}>
                   <Text style={styles.fieldLabel}>Made Cut</Text>
                   <View style={styles.madeCutBar}>
@@ -749,7 +769,7 @@ export default function LogPage() {
                   </View>
                 </View>
               </View>
-              <View style={styles.groupRow}>
+              <View style={[styles.groupRow, bleed.inner]}>
                 <View style={styles.fieldRow}>
                   <Text style={styles.fieldLabel}>Finish / Place</Text>
                   <TextInput
@@ -779,6 +799,7 @@ export default function LogPage() {
           {games.map((game, index) => (
             <ReanimatedSwipeable
               key={game.id}
+              containerStyle={bleed.outer}
               renderRightActions={() =>
                 games.length > 1 ? (
                   <TouchableOpacity
@@ -797,6 +818,7 @@ export default function LogPage() {
                 onChange={(f, v) => updateGame(game.id, f, v)}
                 onPickBall={() => openBallPicker(game.id)}
                 onLogFrames={() => openLogFrames(index)}
+                cardStyle={[bleed.corners, bleed.inner]}
               />
             </ReanimatedSwipeable>
           ))}
@@ -935,7 +957,7 @@ export default function LogPage() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: '#000000' },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 12 },
+  scrollContent: { paddingTop: 12 },
 
   // Phase 28 WP3 layout
   wideCols: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
@@ -1123,8 +1145,6 @@ const styles = StyleSheet.create({
   // Bottom spacer
   bottomSpacer: { height: 40 },
 
-  // Gear button
-  gearButton: { marginRight: 16 },
 
   // Shared modal chrome
   modal: { flex: 1, backgroundColor: '#1C1C1E' },

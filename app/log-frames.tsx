@@ -966,22 +966,25 @@ function LogFramesBody() {
   }
 
   // --- Portrait stack (cover portrait, phones, open screen) ----------------
+  // Log Frames has no tab bar, so on the Duo's cover screen the right 84pt
+  // column only holds the clock (y 75-160, measured Nov 10). The top band --
+  // the two toggles and the running total -- stays clear of it; everything
+  // from the scorecard down uses the full width (scorecard cells ~43pt
+  // instead of ~34, wider Strike / Confirm and keypad).
   return (
     <View style={styles.container}>
-      <View style={[styles.top, padSides]}>
-        {controls}
-        {scorecard}
-      </View>
+      <View style={[styles.top, padSides]}>{controls}</View>
       <View style={padSides}>{totals}</View>
-      <View style={[styles.middleWrap, padSides]}>{middle}</View>
+      <View style={styles.scorecardBand}>{scorecard}</View>
+      <View style={styles.middleWrap}>{middle}</View>
       {pinDeck ? (
         <>
           {deleteRow}
-          <View style={[styles.inputArea, padSides, { paddingBottom: insets.bottom + 8 }]}>{pinDeck}</View>
+          <View style={[styles.inputArea, { paddingBottom: insets.bottom + 8 }]}>{pinDeck}</View>
         </>
       ) : (
         <View style={[styles.inputArea, styles.keypadArea, { paddingBottom: insets.bottom + 8 }]}>
-          <View style={padSides}>{keypad}</View>
+          {keypad}
         </View>
       )}
     </View>
@@ -1012,6 +1015,7 @@ const styles = StyleSheet.create({
 
   // Phase 28 WP2 arrangement
   middleWrap: { flex: 1 },
+  scorecardBand: { paddingHorizontal: 8, paddingTop: 10 },
   top: { paddingHorizontal: 12, paddingTop: 10, gap: 10, paddingBottom: 10 },
   controlsRow: { flexDirection: 'row', gap: 10 },
   controlCell: { flex: 1 },

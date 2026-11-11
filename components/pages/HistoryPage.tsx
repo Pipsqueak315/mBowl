@@ -24,10 +24,11 @@ import { router } from 'expo-router';
 import { readSessions, writeSessions, readSettings, KEYS } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
 import type { ThrowEntry, GameEntry, Session, Settings } from '@/src/types';
+import HeaderIconButton from '@/components/v2/HeaderIconButton';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { FrameGrid } from '@/components/FrameGrid';
 import FilterHeader from '@/components/v2/FilterHeader';
-import { useSideInsets } from '@/src/v2/page';
+import { useSideInsets, useBleed } from '@/src/v2/page';
 import { filterSessions, ALL_TIME, type SeasonSelection, type TypeFilter } from '@/src/sessionFilter';
 import { getSeasons, currentSeason, resolveSeasonRanges, seasonForDate } from '@/src/seasons';
 
@@ -327,6 +328,14 @@ function SessionCard({
   const [expanded, setExpanded] = useState(false);
   const [sharing, setSharing] = useState(false);
   const swipeRef = useRef<SwipeableMethods>(null);
+  // Row background runs to the screen edge under the Duo's rail; text stays inset.
+  const bleed = useBleed(16, 13);
+  const bleedCorners = {
+    borderTopLeftRadius: bleed.outer.borderTopLeftRadius,
+    borderBottomLeftRadius: bleed.outer.borderBottomLeftRadius,
+    borderTopRightRadius: bleed.outer.borderTopRightRadius,
+    borderBottomRightRadius: bleed.outer.borderBottomRightRadius,
+  };
   const shareCardRef = useRef<ViewInstance>(null);
   const avg = sessionAvg(session.games);
   const series = seriesTotal(session.games);
@@ -390,11 +399,12 @@ function SessionCard({
       renderRightActions={renderRightActions}
       friction={2}
       overshootRight={false}
+      containerStyle={{ marginLeft: bleed.outer.marginLeft, marginRight: bleed.outer.marginRight }}
     >
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={() => setExpanded((e) => !e)}
-        style={styles.card}
+        style={[styles.card, bleedCorners, bleed.inner]}
       >
         {/* Collapsed header (Phase 28 WP5): date + "League · Week 6" on the
             left; game scores in grey, the series in white with a band dot,
@@ -574,13 +584,11 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
     if (embedded) return;
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
+        <HeaderIconButton
+          icon="gearshape"
           onPress={() => setSettingsOpen(true)}
-          style={styles.gearButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <IconSymbol name="gearshape.fill" size={22} color="#8E8E93" />
-        </TouchableOpacity>
+          accessibilityLabel="Settings"
+        />
       ),
     });
   }, [navigation, embedded]);
@@ -726,11 +734,12 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
 
   return (
     <>
-      {/* Pad by the side safe areas so nothing sits under the Duo's tab rail or
-          status column (Nov 10 Duo check F1/F2). */}
-      <View style={[styles.container, { paddingLeft: sideInsets.left, paddingRight: sideInsets.right }]}>
+      {/* Content is inset by the side safe areas (the Duo's tab rail + clock
+          column, Nov 10 check F1/F2); session rows' backgrounds run to the
+          screen edge under the rail (useBleed). */}
+      <View style={styles.container}>
         {/* Phase 28 WP5: season menu + type segmented control (replaces the pills). */}
-        <View style={styles.filterHeader}>
+        <View style={[styles.filterHeader, { paddingLeft: 16 + sideInsets.left, paddingRight: 16 + sideInsets.right }]}>
           <FilterHeader
             seasonOptions={seasonPills}
             season={seasonSel}
@@ -776,7 +785,10 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
                 seasonShort={seasonSel === ALL_TIME ? seasonShortForDate(item.date) : undefined}
               />
             )}
-            contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 16 }]}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingLeft: 16 + sideInsets.left, paddingRight: 16 + sideInsets.right, paddingBottom: insets.bottom + 16 },
+            ]}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -816,11 +828,10 @@ const styles = StyleSheet.create({
   },
 
   // Filter header (Phase 28 WP5)
-  filterHeader: { paddingHorizontal: 16, paddingTop: 12 },
+  filterHeader: { paddingTop: 12 },
 
   // List
   listContent: {
-    paddingHorizontal: 16,
     paddingBottom: 32,
     gap: 10,
   },
@@ -1050,10 +1061,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Gear button
-  gearButton: {
-    marginRight: 16,
-  },
 
   // Settings modal
   modal: {
