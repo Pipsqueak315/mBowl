@@ -678,6 +678,9 @@ function LogFramesBody() {
   }
 
   async function handleDone() {
+    // Two Done buttons at game over (header capsule + final-score card): a
+    // fast double tap must not write twice or go back twice.
+    if (savedRef.current) return;
     // Backstop: never persist a placeholder 0 over a game that has not scored out.
     if (scores[9] === null) {
       Alert.alert('Game Not Complete', 'Fill in every frame before saving.');

@@ -542,9 +542,13 @@ export default function LogPage() {
 
   // Open Log Frames for one game -- the game row and the Live game button
   // both come through here.
+  // Guards a double tap (row or Live button) from stacking two Log Frames
+  // screens; cleared when this page is focused again.
+  const openingFramesRef = useRef(false);
   function openLogFrames(index: number) {
     const game = games[index];
-    if (!game) return;
+    if (!game || openingFramesRef.current) return;
+    openingFramesRef.current = true;
     router.push({
       pathname: '/log-frames',
       params: {
@@ -563,6 +567,7 @@ export default function LogPage() {
   useEffect(() => onLiveGameRequest(() => setLiveTick((t) => t + 1)), []);
   useFocusEffect(
     useCallback(() => {
+      openingFramesRef.current = false;
       setLiveTick((t) => t + 1);
     }, [])
   );

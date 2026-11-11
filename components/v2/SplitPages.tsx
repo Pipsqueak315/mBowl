@@ -6,11 +6,11 @@
 // a 40pt gap where the fold is. Each page manages its own scroll and data
 // loading; each gets its width through PageContext.
 //
-// State survives fold / unfold / rotate (plan 28.6): the PRIMARY page -- the
-// one the screen belongs to -- always sits at the same place in the React tree,
-// whether or not the split is showing. Only the secondary page is added or
-// removed, so a game in progress in Log Frames or an unsaved Log form is never
-// remounted. `secondaryFirst` puts the secondary page on the left / top
+// State survives fold / unfold / rotate (plan 28.6): both pages always sit at
+// the same place in the React tree, whether or not the split is showing; the
+// secondary page is hidden (display: none) when folded, never unmounted. So a
+// game in progress in Log Frames, an unsaved Log form, or an edit open in the
+// second page is never remounted. `secondaryFirst` puts the secondary page on the left / top
 // visually (History tab: Stats | History) without moving the primary in the
 // tree.
 import type { ReactNode } from 'react';
@@ -60,11 +60,13 @@ export default function SplitPages({
       <View style={styles.pane}>
         <PageContext.Provider value={frame}>{primary}</PageContext.Provider>
       </View>
-      {split && (
-        <View style={styles.pane}>
-          <PageContext.Provider value={frame}>{secondary}</PageContext.Provider>
-        </View>
-      )}
+      {/* The secondary page stays mounted and is only hidden when folded, so
+          an edit in progress there (History -> Edit -> Edit Frames) is never
+          torn down mid-hand-off -- an unmounted History page would leave its
+          KEYS.FRAME_RESULT for the Log tab to pick up (reviewer, Nov 10). */}
+      <View style={[styles.pane, !split && styles.hidden]}>
+        <PageContext.Provider value={frame}>{secondary}</PageContext.Provider>
+      </View>
     </View>
   );
 }
@@ -72,4 +74,5 @@ export default function SplitPages({
 const styles = StyleSheet.create({
   split: { flex: 1, backgroundColor: color.bg },
   pane: { flex: 1, overflow: 'hidden' },
+  hidden: { display: 'none' },
 });
