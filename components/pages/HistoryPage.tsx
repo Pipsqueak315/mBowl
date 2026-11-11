@@ -764,7 +764,7 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
                     <Text style={styles.listHeaderAvg}>{listAvg.toFixed(1)} avg</Text>
                   )}
                 </View>
-              ) : null
+              ) : undefined
             }
             data={filtered}
             keyExtractor={(item) => String(item.id)}
