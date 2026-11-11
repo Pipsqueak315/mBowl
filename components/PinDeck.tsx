@@ -214,7 +214,8 @@ const styles = StyleSheet.create({
   btnCompact: { paddingVertical: 11 },
   containerSide: { flexDirection: 'row', alignItems: 'center', gap: 20, paddingHorizontal: 12 },
   deckSide: { marginBottom: 0 },
-  actionsSide: { flexDirection: 'column', width: 150, paddingHorizontal: 0, gap: 10 },
+  // 132 (was 150): gives the cover-landscape info column ~18pt more (Nov 11).
+  actionsSide: { flexDirection: 'column', width: 132, paddingHorizontal: 0, gap: 10 },
   btnSide: { flex: 0, paddingVertical: 14 },
 
   // Pin triangle

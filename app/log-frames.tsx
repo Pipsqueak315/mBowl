@@ -939,13 +939,18 @@ function LogFramesBody() {
 
   // --- Cover landscape: input on the left, frame info on the right ---------
   if (wide) {
+    // Nov 11 (Marcus's cover-landscape screenshots): the side inset REPLACED the
+    // 12pt base padding, and in cover landscape the right inset is 0 (the rail
+    // and camera are on the left), so the toggles, scorecard and info column ran
+    // into the right screen edge. Base padding + inset on both sides.
+    const widePad = { paddingLeft: 12 + side.left, paddingRight: 12 + side.right };
     return (
       <View style={styles.container}>
-        <View style={[styles.wideTop, padSides]}>
+        <View style={[styles.wideTop, widePad]}>
           {controls}
           {scorecard}
         </View>
-        <View style={[styles.wideBody, padSides, { paddingBottom: insets.bottom + 8 }]}>
+        <View style={[styles.wideBody, { paddingLeft: side.left, paddingRight: 12 + side.right, paddingBottom: insets.bottom + 8 }]}>
           <View style={styles.wideInput}>
             {pinDeck ?? <View style={styles.wideKeypad}>{keypad}</View>}
           </View>
@@ -1078,7 +1083,9 @@ const styles = StyleSheet.create({
   activeStrikeTextCompact: { fontSize: 22 },
   activeSlotNext: { borderWidth: 1.5, borderColor: '#00CEC9', backgroundColor: 'transparent' },
   activeCardTight: { gap: 6, alignItems: 'stretch' },
-  activeRow: { flexDirection: 'row', alignItems: 'center', gap: 14, alignSelf: 'stretch' },
+  // flexWrap: in cover landscape the info column is ~160pt, so "Frame N · ball k"
+  // drops under the slots instead of being cut off (Nov 11 screenshot).
+  activeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 14, rowGap: 4, alignSelf: 'stretch' },
   activeSlotsRowCompact: { flexDirection: 'row', gap: 8 },
   activeRowLabel: { fontSize: 15, color: '#8E8E93', fontWeight: '400' },
   activeSlotFilled: { backgroundColor: '#1C1C1E' },

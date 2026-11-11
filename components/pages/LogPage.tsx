@@ -46,7 +46,8 @@ import {
   clearLiveGameRequest,
   firstUnscoredGame,
 } from '@/src/v2/liveGame';
-import type { ThrowEntry, Ball, DraftData } from '@/src/types';
+import type { ThrowEntry, Ball, DraftData, Settings } from '@/src/types';
+import { getSeasons, seasonForDate } from '@/src/seasons';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -59,6 +60,18 @@ function calcWeek(d: Date, seasonStartISO?: string | null): number {
   const diff = d.getTime() - start.getTime();
   if (diff < 0) return 1;
   return Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1;
+}
+
+// Week auto-suggest (Nov 11 fix): count from the start of the SEASON the date
+// falls in (Phase 24 season model), not the legacy settings.seasonStart -- which
+// was never moved past 2025 and suggested "Week 62" in Nov 2026. Falls back to
+// the legacy start only for a date before every season. Suggestion only: the
+// Week field stays editable and nothing is stored until Submit.
+function weekFor(d: Date, settings: Settings | null): number {
+  const seasons = getSeasons(settings);
+  const id = seasonForDate(formatDateISO(d), seasons);
+  const season = id ? seasons.find((s) => s.id === id) : undefined;
+  return calcWeek(d, season?.start ?? settings?.seasonStart ?? null);
 }
 
 function formatDate(d: Date): string {
@@ -246,8 +259,8 @@ export default function LogPage() {
   const sideInsets = useSideInsets();
   const navigation = useNavigation();
   const initialized = useRef(false);
-  // Tracks the loaded season start ISO string for week calculation without a settings state
-  const seasonStartRef = useRef<string | null>(null);
+  // Loaded settings, for the week suggestion (seasons) without a settings state
+  const settingsRef = useRef<Settings | null>(null);
   // Debounce handle for draft auto-save
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -255,7 +268,7 @@ export default function LogPage() {
   const [sessionType, setSessionType] = useState<SessionType>('league');
   const [date, setDate] = useState(() => new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [week, setWeek] = useState(() => String(calcWeek(new Date(), null)));
+  const [week, setWeek] = useState(() => String(weekFor(new Date(), null)));
   // League / Makeup
   const [opponent, setOpponent] = useState('');
   // Tournament
@@ -302,10 +315,8 @@ export default function LogPage() {
         setDraftResumeVisible(true);
       }
       // Recalculate week using actual season start now that settings are loaded
-      if (settingsData?.seasonStart) {
-        seasonStartRef.current = settingsData.seasonStart;
-        setWeek(String(calcWeek(new Date(), settingsData.seasonStart)));
-      }
+      settingsRef.current = settingsData ?? null;
+      setWeek(String(weekFor(new Date(), settingsRef.current)));
       initialized.current = true;
       setReady(true);
     }
@@ -399,7 +410,7 @@ export default function LogPage() {
   const handleDateChange = (_event: unknown, selectedDate?: Date) => {
     if (selectedDate) {
       setDate(selectedDate);
-      setWeek(String(calcWeek(selectedDate, seasonStartRef.current)));
+      setWeek(String(weekFor(selectedDate, settingsRef.current)));
     }
   };
 
@@ -438,7 +449,7 @@ export default function LogPage() {
     const now = new Date();
     setSessionType('league');
     setDate(now);
-    setWeek(String(calcWeek(now)));
+    setWeek(String(weekFor(now, settingsRef.current)));
     setOpponent('');
     setTournamentName('');
     setTournamentFormat('');
