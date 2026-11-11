@@ -12,6 +12,7 @@ import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 import SettingsContent from '@/components/SettingsContent';
 import FilterHeader from '@/components/v2/FilterHeader';
 import { usePageWidth, useSideInsets } from '@/src/v2/page';
+import { useLayoutClass } from '@/src/v2/layout';
 import { LineChart } from 'react-native-chart-kit';
 import { readSessions, readSettings } from '@/src/storage';
 import type { Session, Settings, ThrowEntry } from '@/src/types';
@@ -63,9 +64,14 @@ interface HistBucket {
 
 // --- Chart Config (defined outside component — stable reference) ---
 const CHART_CONFIG = {
-  backgroundColor: '#1C1C1E',
-  backgroundGradientFrom: '#1C1C1E',
-  backgroundGradientTo: '#1C1C1E',
+  backgroundColor: '#000000',
+  backgroundGradientFrom: '#000000',
+  backgroundGradientTo: '#000000',
+  // Phase 28 WP4: soft area fill under a thin teal line.
+  fillShadowGradientFrom: '#00CEC9',
+  fillShadowGradientFromOpacity: 0.22,
+  fillShadowGradientTo: '#00CEC9',
+  fillShadowGradientToOpacity: 0,
   decimalPlaces: 0,
   color: (opacity = 1) => 'rgba(0, 206, 201, ' + String(opacity) + ')',
   labelColor: (opacity = 1) => 'rgba(142, 142, 147, ' + String(opacity) + ')',
@@ -73,10 +79,10 @@ const CHART_CONFIG = {
     r: '3',
     strokeWidth: '2',
     stroke: '#00CEC9',
-    fill: '#1C1C1E',
+    fill: '#000000',
   },
   propsForBackgroundLines: {
-    stroke: '#38383A',
+    stroke: '#1C1C1E',
     strokeDasharray: '',
   },
 };
@@ -577,25 +583,36 @@ function GridCell({
   value,
   color,
   children,
+  first = false,
 }: {
   label: string;
   value?: string | null;
   color?: string;
   children?: ReactNode;
+  /** First cell in its row: no divider on its left. */
+  first?: boolean;
 }) {
   const locked = value == null && children == null;
+  // Phase 28 WP4: value on top (colored by its band when the sample allows),
+  // sentence-case label below, hairline dividers between cells, no box.
   return (
-    <View style={styles.gridCell}>
-      <Text style={styles.gridCellLabel} numberOfLines={1}>{label}</Text>
+    <View style={[styles.gridCell, !first && styles.gridCellDivider]}>
       {locked ? (
-        <IconSymbol name="lock.fill" size={13} color="#48484A" />
+        <View style={styles.gridLock}>
+          <IconSymbol name="lock.fill" size={13} color="#48484A" />
+        </View>
       ) : children != null ? (
         children
       ) : (
-        <Text style={[color ? styles.gridCellValueColored : styles.gridCellValue, color ? { color } : null]}>
+        <Text
+          style={[color ? styles.gridCellValueColored : styles.gridCellValue, color ? { color } : null]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
           {value}
         </Text>
       )}
+      <Text style={styles.gridCellLabel} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -618,6 +635,8 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
   // (half the window when the open screen shows two pages).
   const insets = useSideInsets();
   const pageWidth = usePageWidth();
+  // Cover landscape: hero column on the left, Striking + Spares on the right.
+  const wide = useLayoutClass().layout === 'compactWide' && !embedded;
   // Chart fills the card edge-to-edge; card sits inside 16px scroll padding each side
   const chartWidth = pageWidth - 32;
 
@@ -821,53 +840,54 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
           </View>
         ) : (
           <>
-            {/* Hero strip — Average (left ~58%) + High Game / High Series stack (right ~42%) */}
-            <View style={styles.heroRow}>
-              <View style={styles.heroAvgCard}>
-                <Text style={styles.heroAvgLabel}>Average</Text>
-                <Text style={[styles.heroAvgNumber, { color: avgColor(metrics.avg) }]}>
-                  {metrics.avg.toFixed(1)}
+            <View style={wide ? styles.wideTop : undefined}>
+            {/* Hero (Phase 28 WP4): Average label, big white number, delta,
+                counts; High game / High series as divider rows. */}
+            <View style={[styles.hero, wide && styles.heroWide]}>
+              <Text style={styles.heroAvgLabel}>Average</Text>
+              <Text style={styles.heroAvgNumber} numberOfLines={1} adjustsFontSizeToFit>
+                {metrics.avg.toFixed(1)}
+              </Text>
+              {avgGoalDelta && (
+                <Text style={[styles.heroDelta, { color: avgGoalDelta.color }]}>
+                  {avgGoalDelta.text}
                 </Text>
-                {avgGoalDelta && (
-                  <Text style={[styles.heroDelta, { color: avgGoalDelta.color }]}>
-                    {avgGoalDelta.text}
-                  </Text>
-                )}
-                <Text style={styles.heroMeta}>
-                  {metrics.gameCount} games · {metrics.sessionCount} sessions
-                </Text>
-              </View>
-              <View style={styles.heroSideCol}>
-                <View style={styles.slimCard}>
-                  <Text style={styles.slimLabel}>High Game</Text>
-                  <Text style={styles.slimValue}>{metrics.highGame}</Text>
+              )}
+              <Text style={styles.heroMeta}>
+                {metrics.gameCount} games · {metrics.sessionCount} sessions
+              </Text>
+              <View style={[styles.heroRows, wide && styles.heroRowsWide]}>
+                <View style={[styles.heroRow, wide && styles.heroRowWide]}>
+                  <Text style={styles.heroRowLabel}>High game</Text>
+                  <Text style={styles.heroRowValue}>{metrics.highGame}</Text>
                 </View>
-                <View style={styles.slimCard}>
-                  <Text style={styles.slimLabel}>High Series</Text>
-                  <Text style={styles.slimValue}>{metrics.highSeries > 0 ? metrics.highSeries : '—'}</Text>
+                <View style={[styles.heroRow, styles.heroRowSecond, wide && styles.heroRowWide]}>
+                  <Text style={styles.heroRowLabel}>High series</Text>
+                  <Text style={styles.heroRowValue}>{metrics.highSeries > 0 ? metrics.highSeries : '—'}</Text>
                 </View>
               </View>
             </View>
 
+            <View style={wide ? styles.wideSections : undefined}>
             {/* STRIKING group */}
             <Text style={styles.groupEyebrow}>Striking</Text>
             <View style={styles.gridRow}>
               <GridCell
-                label="FIRST BALL"
+                first label="First ball"
                 value={cells.firstBall?.text ?? null}
                 color={cells.firstBall?.color}
               />
               <GridCell
-                label="STRIKE"
+                label="Strike"
                 value={cells.strike?.text ?? null}
                 color={cells.strike?.color}
               />
               <GridCell
-                label="DOUBLES"
+                label="Doubles"
                 value={cells.doubles?.text ?? null}
                 color={cells.doubles?.color}
               />
-              <GridCell label="CLEAN">
+              <GridCell label="Clean">
                 {advancedStats.gamesWithFrames === 0 ? undefined : (
                   <Text
                     style={
@@ -884,15 +904,15 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
             </View>
 
             {/* SPARES & RECOVERY group */}
-            <Text style={styles.groupEyebrow}>Spares &amp; Recovery</Text>
+            <Text style={styles.groupEyebrow}>Spares &amp; recovery</Text>
             <View style={styles.gridRow}>
               <GridCell
-                label="SPARE"
+                first label="Spare"
                 value={cells.spare?.text ?? null}
                 color={cells.spare?.color}
               />
               <GridCell
-                label="MAKEABLE"
+                label="Makeable"
                 value={
                   !leaveStats.hasPinData
                     ? null
@@ -907,20 +927,23 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
                 }
               />
               <GridCell
-                label="OPENS/G"
+                label="Opens/game"
                 value={cells.opensPerGame?.text ?? null}
                 color={cells.opensPerGame?.color}
               />
               <GridCell
-                label="BOUNCE-BK"
+                label="Bounce-back"
                 value={cells.bounceBack?.text ?? null}
                 color={cells.bounceBack?.color}
               />
             </View>
 
-            {/* Series Trend Chart — compact */}
+            </View>
+            </View>
+
+            {/* Series chart */}
             <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Series Trend</Text>
+              <Text style={styles.chartTitle}>Series</Text>
               {seriesChartPoint ? (
                 <LineChart
                   data={{
@@ -949,7 +972,7 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
               if (nonEmpty.length === 0) {
                 return (
                   <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
-                    <Text style={styles.cardLabel}>Score Distribution</Text>
+                    <Text style={styles.cardLabel}>Score distribution</Text>
                     <IconSymbol name="lock.fill" size={18} color="#48484A" />
                     <Text style={styles.naText}>No game scores in range to display.</Text>
                   </View>
@@ -957,7 +980,7 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
               }
               return (
                 <View style={styles.histCard}>
-                  <Text style={styles.histTitle}>Score Distribution</Text>
+                  <Text style={styles.histTitle}>Score distribution</Text>
                   {nonEmpty.map(bucket => {
                     const barPct = maxCount > 0 ? bucket.count / maxCount : 0;
                     return (
@@ -965,7 +988,11 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
                         <Text style={styles.histLabel}>{bucket.label}</Text>
                         <View style={styles.histBarTrack}>
                           <View
-                            style={[styles.histBar, { width: `${Math.max(barPct * 100, 4)}%` }]}
+                            style={[
+                              styles.histBar,
+                              bucket.count !== maxCount && styles.histBarDim,
+                              { width: `${Math.max(barPct * 100, 4)}%` },
+                            ]}
                           />
                         </View>
                         <Text style={styles.histCount}>{bucket.count}</Text>
@@ -978,7 +1005,7 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
 
             {/* Game-by-Game Trend Chart — below the fold, compact */}
             <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Game-by-Game Trend</Text>
+              <Text style={styles.chartTitle}>Game by game</Text>
               {gameChartPoint ? (
                 <LineChart
                   data={{
@@ -1005,12 +1032,12 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
             {/* By Ball */}
             {ballStats.length === 0 ? (
               <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
-                <Text style={styles.cardLabel}>By Ball</Text>
+                <Text style={styles.cardLabel}>By ball</Text>
                 <Text style={styles.naText}>No ball data logged yet.</Text>
               </View>
             ) : (
               <View style={styles.leavesCard}>
-                <Text style={styles.leavesTitle}>By Ball</Text>
+                <Text style={styles.leavesTitle}>By ball</Text>
                 {ballStats.map((bs, i) => (
                   <View
                     key={bs.ball}
@@ -1031,13 +1058,13 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
             {/* By Game Number */}
             {gameByGameStats.length === 0 ? (
               <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
-                <Text style={styles.cardLabel}>By Game Number</Text>
+                <Text style={styles.cardLabel}>By game number</Text>
                 <IconSymbol name="lock.fill" size={18} color="#48484A" />
                 <Text style={styles.naText}>Log a session to see game-by-game trends.</Text>
               </View>
             ) : (
               <View style={styles.leavesCard}>
-                <Text style={styles.leavesTitle}>By Game Number</Text>
+                <Text style={styles.leavesTitle}>By game number</Text>
                 {gameByGameStats.map((gs, i) => (
                   <View
                     key={gs.key}
@@ -1105,7 +1132,7 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
             {/* Season Comparison — selected season vs its predecessor */}
             {comparison && (
               <View style={styles.leavesCard}>
-                <Text style={styles.leavesTitle}>Season Comparison</Text>
+                <Text style={styles.leavesTitle}>Season comparison</Text>
                 <View style={styles.cmpHeaderRow}>
                   <Text style={styles.cmpLabelCell}> </Text>
                   <Text style={[styles.cmpValCell, styles.cmpHeaderText]}>
@@ -1201,140 +1228,104 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // --- Hero strip ---
-  heroRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 12,
-  },
-  heroAvgCard: {
-    flex: 58,
-    backgroundColor: '#1C1C1E',
-    borderRadius: 13,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-  },
-  heroAvgLabel: {
-    fontSize: 10,
-    fontWeight: '500',
-    letterSpacing: 1.2,
-    color: '#8E8E93',
-    textTransform: 'uppercase',
-    marginBottom: 2,
-  },
+  // --- Hero (Phase 28 WP4) ---
+  wideTop: { flexDirection: 'row', gap: 20, alignItems: 'flex-start' },
+  wideSections: { flex: 1 },
+  hero: { marginBottom: 20 },
+  heroWide: { width: 196 },
+  heroAvgLabel: { fontSize: 15, fontWeight: '400', color: '#8E8E93' },
   heroAvgNumber: {
-    fontSize: 40,
+    fontSize: 64,
     fontWeight: '200',
-    lineHeight: 46,
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -1,
+    lineHeight: 72,
   },
-  heroDelta: {
-    fontSize: 11.5,
-    fontWeight: '500',
-    marginTop: 3,
+  heroDelta: { fontSize: 15, fontWeight: '500', marginTop: 2 },
+  heroMeta: { fontSize: 13, fontWeight: '400', color: '#8E8E93', marginTop: 2 },
+  heroRows: {
+    flexDirection: 'row',
+    marginTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#38383A',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#38383A',
   },
-  heroMeta: {
-    fontSize: 11,
-    fontWeight: '400',
-    color: '#8E8E93',
-    marginTop: 3,
-  },
-  heroSideCol: {
-    flex: 42,
-    gap: 8,
-  },
-  slimCard: {
+  heroRowsWide: { flexDirection: 'column', borderBottomWidth: 0 },
+  heroRow: {
     flex: 1,
-    backgroundColor: '#1C1C1E',
-    borderRadius: 13,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 11,
+    paddingRight: 12,
   },
-  slimLabel: {
-    fontSize: 9.5,
-    fontWeight: '500',
-    letterSpacing: 0.4,
-    color: '#8E8E93',
-    textTransform: 'uppercase',
-    flexShrink: 1,
+  heroRowSecond: {
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: '#38383A',
+    paddingLeft: 12,
+    paddingRight: 0,
   },
-  slimValue: {
-    fontSize: 19,
-    fontWeight: '300',
-    color: '#FFFFFF',
-    marginLeft: 6,
+  heroRowWide: {
+    borderLeftWidth: 0,
+    paddingLeft: 0,
+    paddingRight: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#38383A',
   },
+  heroRowLabel: { fontSize: 17, fontWeight: '400', color: '#8E8E93' },
+  heroRowValue: { fontSize: 22, fontWeight: '300', color: '#FFFFFF', fontVariant: ['tabular-nums'] },
 
-  // --- Group eyebrow + 4-across grid ---
+  // --- Section header + 4-up metric row (no boxes) ---
   groupEyebrow: {
-    fontSize: 9,
-    fontWeight: '500',
-    letterSpacing: 1.4,
-    color: '#48484A',
-    textTransform: 'uppercase',
-    marginBottom: 6,
-    marginLeft: 2,
-    marginTop: 2,
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 8,
   },
   gridRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginBottom: 12,
+    marginBottom: 20,
   },
   gridCell: {
     flex: 1,
-    backgroundColor: '#1C1C1E',
-    borderRadius: 12,
-    paddingVertical: 11,
-    paddingHorizontal: 3,
-    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    gap: 2,
+    minHeight: 50,
     justifyContent: 'center',
-    gap: 5,
-    minHeight: 58,
   },
+  gridCellDivider: {
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: '#38383A',
+  },
+  gridLock: { height: 28, justifyContent: 'center' },
   gridCellLabel: {
-    fontSize: 9,
-    fontWeight: '500',
-    letterSpacing: 0.3,
+    fontSize: 13,
+    fontWeight: '400',
     color: '#8E8E93',
-    textTransform: 'uppercase',
-    textAlign: 'center',
   },
   gridCellValue: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: '300',
     color: '#FFFFFF',
+    fontVariant: ['tabular-nums'],
   },
   gridCellValueColored: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: '400',
+    fontVariant: ['tabular-nums'],
   },
   cleanDenom: {
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '300',
     color: '#8E8E93',
   },
 
   // Full-width NA / locked card (Score Distribution, By Ball, By Game, Leaves)
-  card: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 13,
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardLabel: {
-    color: '#8E8E93',
-    fontSize: 11,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
+  card: { paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
+  cardLabel: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', marginBottom: 6, alignSelf: 'flex-start' },
   naCard: {
     gap: 6,
     paddingVertical: 18,
@@ -1347,23 +1338,8 @@ const styles = StyleSheet.create({
   },
 
   // Charts
-  chartCard: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 13,
-    marginBottom: 12,
-    overflow: 'hidden',
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  chartTitle: {
-    color: '#8E8E93',
-    fontSize: 13,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    paddingHorizontal: 16,
-    marginBottom: 6,
-  },
+  chartCard: { marginBottom: 20, overflow: 'hidden', paddingTop: 4 },
+  chartTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', marginBottom: 8 },
   chart: {
     borderRadius: 0,
   },
@@ -1385,22 +1361,8 @@ const styles = StyleSheet.create({
   },
 
   // --- Leaves / list-card sections ---
-  leavesCard: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 13,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-    marginBottom: 12,
-  },
-  leavesTitle: {
-    color: '#8E8E93',
-    fontSize: 13,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
+  leavesCard: { paddingTop: 4, paddingBottom: 4, marginBottom: 20 },
+  leavesTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', marginBottom: 8 },
   leavesNaCard: {
     marginBottom: 12,
   },
@@ -1523,21 +1485,11 @@ const styles = StyleSheet.create({
 
   // --- Score Distribution ---
   histCard: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 13,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 10,
-    marginBottom: 12,
+    paddingTop: 4,
+    paddingBottom: 4,
+    marginBottom: 20,
   },
-  histTitle: {
-    color: '#8E8E93',
-    fontSize: 13,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 10,
-  },
+  histTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', marginBottom: 8 },
   histRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1562,6 +1514,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#00CEC9',
     borderRadius: 5,
   },
+  // Phase 28 WP4: only the tallest bar is teal.
+  histBarDim: { backgroundColor: '#48484A' },
   histCount: {
     color: '#FFFFFF',
     fontSize: 11,
