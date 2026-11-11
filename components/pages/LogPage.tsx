@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  AppState,
 } from 'react-native';
 import { useSideInsets } from '@/src/v2/page';
 import SwipeRow from '@/components/v2/SwipeRow';
@@ -52,6 +53,11 @@ import { getSeasons, seasonForDate } from '@/src/seasons';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// S19: a stale form date must also be >= 12h old, so a league night that runs
+// past midnight never moves an empty form (e.g. while Game 1's FRAME_RESULT is
+// still on its way back) to the next day. A week in memory clears it easily.
+const STALE_MS = 12 * 60 * 60 * 1000;
 
 const DEFAULT_SEASON_START = '2025-09-06';
 
@@ -323,18 +329,81 @@ export default function LogPage() {
     init();
   }, []);
 
-  // ---- Reload balls when Settings modal closes ----------------------------
+  // ---- S19: keep an untouched form's date / week current ---------------------
+  // `date` used to be set only at mount, on resume and in resetForm, so if the
+  // app sat in memory from one league night to the next, Submit saved last
+  // week's date (and weekFor() suggested last week's week). settingsRef was
+  // also never refreshed after a Settings change.
+  //
+  // Rule: re-read settings, then -- only for a form with NO content (same test
+  // as the draft auto-save, so the S5/S6 rules hold), no pending draft / resume
+  // prompt, no open date picker, and a date the APP set (never one Marcus
+  // picked, e.g. while backfilling from SyncPassport) -- move a stale date to
+  // today and re-suggest the week. Same day: only an untouched week suggestion
+  // is re-computed (season dates may have changed).
+  const dateUserSetRef = useRef(false);
+  const dateSetAtRef = useRef(Date.now());
+  const liveFormRef = useRef({ hasContent: false, blocked: true, date: new Date(), week: '' });
+  liveFormRef.current = {
+    hasContent: draftHasContent({
+      sessionType, date: '', week, opponent,
+      tournamentName, tournamentFormat, tournamentPattern, madeCut, placement,
+      games, sessionNotes,
+    }),
+    blocked: draftResumeVisible || pendingDraft !== null || showDatePicker,
+    date,
+    week,
+  };
+  const refreshFormDate = useCallback(async () => {
+    const prevSettings = settingsRef.current;
+    let fresh = prevSettings;
+    try {
+      fresh = (await readSettings()) ?? null;
+    } catch {
+      // keep the settings we have
+    }
+    settingsRef.current = fresh;
+    const f = liveFormRef.current;
+    if (!initialized.current || f.blocked || f.hasContent || dateUserSetRef.current) return;
+    const now = new Date();
+    if (formatDateISO(f.date) !== formatDateISO(now)) {
+      if (now.getTime() - dateSetAtRef.current < STALE_MS) return;
+      dateSetAtRef.current = now.getTime();
+      setDate(now);
+      setWeek(String(weekFor(now, fresh)));
+      return;
+    }
+    if (f.week === String(weekFor(f.date, prevSettings))) {
+      const next = String(weekFor(f.date, fresh));
+      if (next !== f.week) setWeek(next);
+    }
+  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      void refreshFormDate();
+    }, [refreshFormDate])
+  );
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') void refreshFormDate();
+    });
+    return () => sub.remove();
+  }, [refreshFormDate]);
+
+  // ---- Reload balls (+ S19 settings) when Settings modal closes -----------
   const wasSettingsOpen = useRef(false);
   useEffect(() => {
-    if (wasSettingsOpen.current && !settingsOpen) {
+    const justClosed = wasSettingsOpen.current && !settingsOpen;
+    wasSettingsOpen.current = settingsOpen;
+    if (justClosed) {
       let active = true;
       readBalls().then(b => {
         if (active && b) setAvailableBalls(b.filter(ball => ball.active).sort((a, b) => a.strength - b.strength));
       });
+      void refreshFormDate();
       return () => { active = false; };
     }
-    wasSettingsOpen.current = settingsOpen;
-  }, [settingsOpen]);
+  }, [settingsOpen, refreshFormDate]);
 
   // ---- Read frame result when returning from log-frames -------------------
   useFocusEffect(
@@ -409,6 +478,7 @@ export default function LogPage() {
 
   const handleDateChange = (_event: unknown, selectedDate?: Date) => {
     if (selectedDate) {
+      dateUserSetRef.current = true; // S19: never auto-move a picked date
       setDate(selectedDate);
       setWeek(String(weekFor(selectedDate, settingsRef.current)));
     }
@@ -447,6 +517,8 @@ export default function LogPage() {
 
   function resetForm() {
     const now = new Date();
+    dateUserSetRef.current = false;
+    dateSetAtRef.current = now.getTime();
     setSessionType('league');
     setDate(now);
     setWeek(String(weekFor(now, settingsRef.current)));
@@ -466,6 +538,7 @@ export default function LogPage() {
   function resumeDraft() {
     if (!pendingDraft) return;
     const d = pendingDraft;
+    dateUserSetRef.current = true; // S19: a resumed draft keeps its own date
     setSessionType(d.sessionType);
     setDate(new Date(d.date));
     setWeek(d.week ?? '');
