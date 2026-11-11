@@ -228,23 +228,23 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
 
-  // Standing: teal fill, black label
+  // Phase 28 WP1 (v2 look). Standing: solid white, black number.
   pinStanding: {
-    backgroundColor: '#00CEC9',
-    borderColor: '#00CEC9',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
   },
 
-  // Knocked down: dim fill, dark label
+  // Knocked down: faint ring, no fill.
   pinDown: {
-    backgroundColor: '#2C2C2E',
+    backgroundColor: 'transparent',
     borderColor: '#38383A',
   },
 
-  // Unavailable (already knocked down in a prior throw): very faint
+  // Unavailable (already knocked down in a prior throw): dimmer still.
   pinUnavailable: {
-    backgroundColor: '#1C1C1E',
+    backgroundColor: 'transparent',
     borderColor: '#38383A',
-    opacity: 0.3,
+    opacity: 0.35,
   },
 
   pinLabel: {
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   pinLabelDown: {
-    color: '#48484A',
+    color: '#636366',
   },
 
   // Buttons

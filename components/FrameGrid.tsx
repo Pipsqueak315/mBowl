@@ -8,22 +8,19 @@ import type { ThrowEntry } from '@/src/types';
 //
 // The JSX/logic — throw-slicing, 10th-frame handling, and the leave mini-deck
 // mapping — lives here once. Two visual treatments are selected by `variant`:
-//   • 'compact' — Log's separated, fixed-width boxes that wrap.
-//   • 'full'    — History's connected, bordered, flex scorecard.
-// The two style tables below are byte-for-byte the originals from log.tsx /
-// history.tsx, so each surface renders exactly as before — with the single
-// deliberate exception that the standing-pin color is now unified (see
-// STANDING_PIN), fixing log's earlier drift to #FFFFFF (audit S16).
+//   • 'compact' — Log's small one-row box score.
+//   • 'full'    — History's larger box score (expanded card + share card).
+// Both are connected box-score grids with hairline dividers (Phase 28 WP1).
 // ---------------------------------------------------------------------------
 
 // Pin index → row layout for the mini leave diagram (indices 0-9 = pins 1-10).
 const MINI_PIN_ROWS: number[][] = [[6, 7, 8, 9], [3, 4, 5], [1, 2], [0]];
 
-// Standing-pin color — single source of truth. Teal accent, matching the
-// canonical Stats "Leaves" LeaveMiniPinDeck. Referenced by both variants so
-// the two decks can never drift apart again. Knocked-down pins recede to
-// #38383A (kept literal per variant — they never diverged).
-const STANDING_PIN = '#00CEC9';
+// Standing-pin color — single source of truth, referenced by both variants so
+// the two decks can never drift apart again. Phase 28 WP1 (v2 look): standing
+// pins are white (was teal), matching the PinDeck input; knocked-down pins
+// recede to #38383A.
+const STANDING_PIN = '#FFFFFF';
 
 export type FrameGridVariant = 'compact' | 'full';
 
@@ -61,7 +58,16 @@ function MiniPinDeck({ pinsStanding, styles }: { pinsStanding: boolean[]; styles
   );
 }
 
-export function FrameGrid({ frames, variant }: { frames: ThrowEntry[]; variant: FrameGridVariant }) {
+export function FrameGrid({
+  frames,
+  variant,
+  currentFrame,
+}: {
+  frames: ThrowEntry[];
+  variant: FrameGridVariant;
+  /** Phase 28 WP1: tint this frame's column (0-9) with a subtle teal. */
+  currentFrame?: number;
+}) {
   const styles = variant === 'full' ? fullStyles : compactStyles;
   return (
     <View style={styles.frameGrid}>
@@ -71,7 +77,10 @@ export function FrameGrid({ frames, variant }: { frames: ThrowEntry[]; variant: 
         // Show mini pin diagram for the state after the first ball (the leave)
         const leaveData = frame.pinsStanding?.[0] ?? null;
         return (
-          <View key={fi} style={[styles.frameBox, is10th && styles.frameBoxWide]}>
+          <View
+            key={fi}
+            style={[styles.frameBox, is10th && styles.frameBoxWide, fi === currentFrame && CURRENT_TINT]}
+          >
             <View style={styles.frameThrows}>
               {throws.map((t, ti) => (
                 <Text key={ti} style={[styles.frameThrowChip, t === 'X' && styles.strikeChip]}>
@@ -90,25 +99,28 @@ export function FrameGrid({ frames, variant }: { frames: ThrowEntry[]; variant: 
   );
 }
 
-// 'compact' — copied verbatim from log.tsx; only miniPinUp changed (was
-// '#FFFFFF', now the unified STANDING_PIN).
+const CURRENT_TINT = { backgroundColor: 'rgba(0, 206, 201, 0.12)' };
+
+// 'compact' — Log tab game rows. Phase 28 WP1: a connected box-score grid
+// (hairline dividers, one row of ten) instead of separate wrapping boxes.
 const compactStyles: FrameStyles = StyleSheet.create({
   frameGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 3,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#38383A',
+    borderRadius: 6,
+    overflow: 'hidden',
   },
   frameBox: {
-    width: 28,
-    backgroundColor: '#2C2C2E',
-    borderRadius: 4,
+    flex: 1,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: '#38383A',
     paddingVertical: 3,
-    paddingHorizontal: 2,
     alignItems: 'center',
     gap: 2,
   },
-  frameBoxWide: { width: 38 },
-  frameThrows: { flexDirection: 'row', gap: 1, flexWrap: 'wrap', justifyContent: 'center' },
+  frameBoxWide: { flex: 1.4, borderRightWidth: 0 },
+  frameThrows: { flexDirection: 'row', gap: 1, justifyContent: 'center', minHeight: 12 },
   frameThrowChip: { fontSize: 9, fontWeight: '500', color: '#FFFFFF' },
   strikeChip: { color: '#00CEC9' },
   frameNumberRow: { marginTop: 1 },
@@ -120,13 +132,12 @@ const compactStyles: FrameStyles = StyleSheet.create({
   miniPinDown: { backgroundColor: '#38383A' },
 });
 
-// 'full' — copied verbatim from history.tsx; miniPinUp value unchanged
-// (#00CEC9), now sourced from the shared STANDING_PIN constant.
+// 'full' — History's expanded card + share card: connected, bordered grid.
 const fullStyles: FrameStyles = StyleSheet.create({
   frameGrid: {
     flexDirection: 'row',
     marginTop: 6,
-    borderWidth: 0.5,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#38383A',
     borderRadius: 6,
     overflow: 'hidden',
