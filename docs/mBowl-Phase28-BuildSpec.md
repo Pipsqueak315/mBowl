@@ -1,6 +1,6 @@
 # mBowl — Phase 28 Build Spec (v2 redesign)
 **Locked:** November 10, 2026 · **Owner:** Marcus · **Builds on:** `phase27` (Expo SDK 58, native tabs, v2.0.0)
-**Read with:** `docs/mBowl-DuoPlan.md` → "Design spec" (the look) and REV25 → NEXT (current status).
+**Read with:** `docs/mBowl-DuoPlan.md` → "Design spec" (the look) and REV26 → NEXT (current status). Post-build audit + fix order: `docs/PHASE28-AUDIT.md`.
 
 ## Status (Nov 10, ~20:45) -- all WPs built and shipped OTA to the Duo (`master` @ `44af9ee`)
 
@@ -127,4 +127,4 @@ Metrics, `CELL_BANDS`, `filterSessions`, comparison logic **unchanged** — layo
 ---
 
 ## Friday 8pm go/no-go (unchanged)
-Duo bowls Saturday only if: (1) counts match the backup (40 / 125 / 174.1 + anything logged since), (2) a full practice game logs end to end on the cover screen in Pins mode, (3) Export Backup works. Otherwise: old phone.
+Duo bowls Saturday only if: (1) counts match (43 sessions / 134 games after the Nov 11 backfill, + anything logged since), (2) a full practice game logs end to end on the cover screen in Pins mode, (3) Export Backup works. Otherwise: old phone.
