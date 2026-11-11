@@ -5,9 +5,8 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  FlatList,
+  ScrollView,
   Alert,
-  Platform,
   useWindowDimensions,
 } from 'react-native';
 import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
@@ -24,6 +23,11 @@ import { KEYS } from '@/src/storage';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import PinDeck from '@/components/PinDeck';
+import SegmentedControl from '@/components/v2/SegmentedControl';
+import Scorecard from '@/components/v2/Scorecard';
+import Keypad from '@/components/v2/Keypad';
+import { useLayoutClass } from '@/src/v2/layout';
+import { color } from '@/src/v2/theme';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,8 +42,16 @@ type InputMode = 'pins' | 'quick';
 // Constants
 // ---------------------------------------------------------------------------
 
-const CHIPS: string[] = ['X', '/', '—', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
-const FRAME_ITEM_W = 52;
+const MODE_SEGMENTS = [
+  { key: 'live', label: 'Live' },
+  { key: 'post', label: 'Post-game' },
+] as const;
+const INPUT_SEGMENTS = [
+  { key: 'pins', label: 'Pins' },
+  { key: 'quick', label: 'Quick' },
+] as const;
+/** Open-landscape (two-page) width cap until WP6 pairs Log Frames with Stats. */
+const SPLIT_MAX_WIDTH = 600;
 // Window heights below this get the compact layout (26.5). The Duo cover screen
 // is 678pt; a standard 6.1" iPhone is 844pt.
 const COMPACT_HEIGHT = 760;
@@ -301,46 +313,6 @@ function getPinDeckProps(
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function FrameStripItem({
-  frame, index, score, isCurrent, onPress,
-}: {
-  frame: FrameData; index: number; score: number | null; isCurrent: boolean; onPress: () => void;
-}) {
-  const slotCount = index === 9 ? 3 : 2;
-  const hasPinData = !!(frame.pinsStanding && frame.pinsStanding.length > 0);
-  return (
-    <TouchableOpacity
-      activeOpacity={0.65}
-      onPress={onPress}
-      style={[styles.stripItem, isCurrent && styles.stripItemCurrent]}
-    >
-      <Text style={[styles.stripNum, isCurrent && styles.stripNumCurrent]}>{index + 1}</Text>
-      <View style={styles.stripThrows}>
-        {Array.from({ length: slotCount }).map((_, i) => {
-          const t = frame.throws[i];
-          return (
-            <View key={i} style={styles.stripThrowBox}>
-              <Text style={[
-                styles.stripThrowText,
-                t === 'X' && styles.strikeText,
-                isCurrent && !!t && styles.stripThrowTextActive,
-              ]}>
-                {t ?? ''}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
-      <View style={styles.stripBottomRow}>
-        <Text style={[styles.stripScore, isCurrent && styles.stripScoreActive]}>
-          {score !== null ? String(score) : ''}
-        </Text>
-        {hasPinData && <View style={styles.stripPinDot} />}
-      </View>
-    </TouchableOpacity>
-  );
-}
-
 // Per-frame note toggle — rendered inside ActiveFrameCard, available in both modes
 function FrameNoteField({
   value, onChange,
@@ -389,7 +361,7 @@ function ActiveFrameCard({
 
   return (
     <View style={[styles.activeCard, compact && styles.activeCardCompact]}>
-      <Text style={styles.activeFrameLabel}>FRAME {frameIndex + 1}</Text>
+      <Text style={styles.activeFrameLabel}>Frame {frameIndex + 1}</Text>
       <View style={styles.activeSlotsRow}>
         {Array.from({ length: slotCount }).map((_, i) => {
           const t = throws[i];
@@ -452,31 +424,6 @@ function ThrowNoteBar({
   );
 }
 
-function ChipBar({
-  available, onPress, bottomInset,
-}: {
-  available: Set<string>; onPress: (chip: string) => void; bottomInset: number;
-}) {
-  return (
-    <View style={[styles.chipBar, { paddingBottom: bottomInset + 8 }]}>
-      {CHIPS.map((chip) => {
-        const enabled = available.has(chip);
-        return (
-          <TouchableOpacity
-            key={chip}
-            style={[styles.chip, !enabled && styles.chipDisabled]}
-            onPress={() => onPress(chip)}
-            disabled={!enabled}
-            activeOpacity={0.55}
-          >
-            <Text style={[styles.chipText, !enabled && styles.chipTextDisabled]}>{chip}</Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
@@ -523,7 +470,12 @@ export default function LogFramesScreen() {
   // live from useWindowDimensions so it re-evaluates on fold / unfold.
   const { height: windowHeight } = useWindowDimensions();
   const compact = windowHeight < COMPACT_HEIGHT;
-  const stripRef = useRef<FlatList<FrameData>>(null);
+  // Phase 28 WP2: arrangement from the usable window (Duo rail excluded).
+  // compactWide = short + wide (cover landscape): input and frame info sit
+  // side by side. Everything else is the portrait stack.
+  const { layout } = useLayoutClass();
+  const wide = layout === 'compactWide';
+  const narrow = layout === 'compact';
 
   const [mode, setMode] = useState<Mode>('post');
   // Pins mode is the default for both Post-Game and Live.
@@ -555,15 +507,6 @@ export default function LogFramesScreen() {
   // Streak animation
   const streakAnim = useSharedValue(0);
   const prevStreakRef = useRef(0);
-
-  // Strip auto-scroll
-  useEffect(() => {
-    stripRef.current?.scrollToIndex({
-      index: Math.min(currentFrame, 9),
-      animated: true,
-      viewPosition: 0.5,
-    });
-  }, [currentFrame]);
 
   // When mode changes, reset inputMode to pins (default for both modes).
   useEffect(() => {
@@ -774,22 +717,43 @@ export default function LogFramesScreen() {
     navigation.goBack();
   };
 
-  // Header
+  // Header (Phase 28 WP2): ✕ leading, "Game N", and Done as the filled teal
+  // capsule trailing once the game is complete. Done/Cancel go through refs so
+  // the header never holds a stale closure.
+  const handleDoneRef = useRef<() => void>(() => {});
+  handleDoneRef.current = () => {
+    void handleDone();
+  };
   useLayoutEffect(() => {
     const gameNum = gameIndex !== undefined ? parseInt(gameIndex, 10) + 1 : '';
     navigation.setOptions({
-      title: gameNum ? `Game ${gameNum} Frames` : 'Log Frames',
+      title: gameNum ? `Game ${gameNum}` : 'Log Frames',
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => handleCancelRef.current()}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          style={{ marginLeft: Platform.OS === 'ios' ? 0 : 4 }}
+          style={styles.headerIconBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
         >
-          <Text style={styles.cancelText}>Cancel</Text>
+          <IconSymbol name="xmark" size={17} color={color.white} />
         </TouchableOpacity>
       ),
+      headerRight: allComplete
+        ? () => (
+            <TouchableOpacity
+              onPress={() => handleDoneRef.current()}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={styles.headerDone}
+              accessibilityRole="button"
+              accessibilityLabel="Done, save this game"
+            >
+              <Text style={styles.headerDoneText}>Done</Text>
+            </TouchableOpacity>
+          )
+        : undefined,
     });
-  }, [navigation, gameIndex]);
+  }, [navigation, gameIndex, allComplete]);
 
   // ---- Render -------------------------------------------------------------
 
@@ -801,116 +765,98 @@ export default function LogFramesScreen() {
   // (fully disabled) chip bar so the layout height stays stable.
   const pinDeckProps = inputMode === 'pins' ? getPinDeckProps(frames, currentFrame) : null;
 
-  return (
-    <View style={styles.container}>
-      {/* Mode + input toggles — stacked normally, side by side when compact */}
-      <View style={compact ? styles.compactToggleRow : undefined}>
-      {/* Mode toggle (Post-Game / Live) */}
-      <View style={[styles.toggleBar, compact && styles.toggleInRow]}>
-        {(['post', 'live'] as Mode[]).map((m) => (
-          <ScalePressable
-            key={m}
-            style={[styles.togglePill, mode === m && styles.togglePillActive]}
-            onPress={() => setMode(m)}
-          >
-            <Text style={[styles.toggleText, mode === m && styles.toggleTextActive]}>
-              {m === 'post' ? 'Post-Game' : 'Live'}
-            </Text>
-          </ScalePressable>
-        ))}
+  function selectFrame(index: number) {
+    if (index === currentFrame) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setCurrentFrame(index);
+  }
+
+  const isGameOver = allComplete && currentFrame === 9;
+
+  // --- Pieces shared by every arrangement ---------------------------------
+
+  const controls = (
+    <View style={styles.controlsRow}>
+      <View style={styles.controlCell}>
+        <SegmentedControl
+          segments={MODE_SEGMENTS}
+          value={mode}
+          onChange={(k) => setMode(k)}
+          accessibilityLabel="Scoring mode"
+        />
       </View>
-
-      {/* Input mode toggle (Pins / Quick) */}
-      <View style={[styles.inputModeBar, compact && styles.toggleInRow]}>
-        {(['pins', 'quick'] as InputMode[]).map((m) => (
-          <ScalePressable
-            key={m}
-            style={[styles.inputModePill, inputMode === m && styles.inputModePillActive]}
-            onPress={() => setInputMode(m)}
-          >
-            <Text style={[styles.inputModeText, inputMode === m && styles.inputModeTextActive]}>
-              {m === 'pins' ? 'Pins' : 'Quick'}
-            </Text>
-          </ScalePressable>
-        ))}
+      <View style={styles.controlCell}>
+        <SegmentedControl
+          segments={INPUT_SEGMENTS}
+          value={inputMode}
+          onChange={(k) => setInputMode(k)}
+          accessibilityLabel="Input mode"
+        />
       </View>
+    </View>
+  );
 
+  const scorecard = (
+    <Scorecard
+      frames={frames}
+      scores={scores}
+      currentFrame={currentFrame}
+      onSelect={selectFrame}
+      tall={!compact}
+    />
+  );
+
+  const totals = (
+    <View style={styles.totalRow}>
+      <View>
+        <Text style={styles.totalLabel}>Running total</Text>
+        {showSeries && <Text style={styles.seriesText}>Series {seriesTotal}</Text>}
       </View>
+      <View style={styles.totalRight}>
+        {maxScore !== null && <Text style={styles.maxLabel}>Max {maxScore}</Text>}
+        <Text style={[styles.totalValue, allComplete && styles.totalValueFinal]}>
+          {runningTotal !== null ? String(runningTotal) : '—'}
+        </Text>
+      </View>
+    </View>
+  );
 
-      {/* Top strip */}
-      <FlatList
-        ref={stripRef}
-        data={frames}
-        keyExtractor={(_, i) => String(i)}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        getItemLayout={(_, index) => ({ length: FRAME_ITEM_W, offset: FRAME_ITEM_W * index, index })}
-        onScrollToIndexFailed={() => {}}
-        renderItem={({ item, index }) => (
-          <FrameStripItem
-            frame={item}
-            index={index}
-            score={scores[index]}
-            isCurrent={index === currentFrame}
-            onPress={() => {
-              if (index === currentFrame) return;
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setCurrentFrame(index);
-            }}
-          />
-        )}
-        style={styles.strip}
-        contentContainerStyle={styles.stripContent}
-      />
+  const streak = showStreak ? (
+    <Animated.View style={[styles.streakBadge, streakAnimStyle]}>
+      <Text style={styles.streakText}>🔥 {strikeStreak} in a row</Text>
+    </Animated.View>
+  ) : null;
 
-      {/* Running total */}
-      <View style={styles.totalRow}>
-        <View>
-          <Text style={styles.totalLabel}>Running Total</Text>
-          {showSeries && (
-            <Text style={styles.seriesText}>SERIES  {seriesTotal}</Text>
-          )}
-        </View>
-        <View style={styles.totalRight}>
-          {maxScore !== null && (
-            <Text style={styles.maxLabel}>MAX  {maxScore}</Text>
-          )}
-          <Text style={[styles.totalValue, allComplete && styles.totalValueFinal]}>
-            {runningTotal !== null ? String(runningTotal) : '—'}
+  // The middle scrolls instead of overlapping when a short window can't fit
+  // everything (Nov 10 Duo check F4: FRAME 1 / Running Total and Frame note /
+  // Delete Last Throw collided on the cover screen).
+  const middle = (
+    <ScrollView
+      style={styles.middle}
+      contentContainerStyle={styles.middleContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      {streak}
+      {isGameOver ? (
+        <View style={styles.completeCard}>
+          <Text style={styles.completeTitle}>Final score</Text>
+          <Text style={[styles.completeFinalScore, compact && styles.completeFinalScoreCompact]}>
+            {scores[9]}
           </Text>
+          <ScalePressable style={styles.doneButton} onPress={handleDone}>
+            <Text style={styles.doneButtonText}>Done</Text>
+          </ScalePressable>
         </View>
-      </View>
-
-      {/* Strike streak badge */}
-      {showStreak && (
-        <Animated.View style={[styles.streakBadge, streakAnimStyle]}>
-          <Text style={styles.streakText}>🔥 {strikeStreak} IN A ROW</Text>
-        </Animated.View>
+      ) : (
+        <ActiveFrameCard
+          key={currentFrame}
+          frame={frames[currentFrame]}
+          frameIndex={currentFrame}
+          onNoteChange={(note) => updateFrameNote(currentFrame, note)}
+          compact={compact}
+        />
       )}
-
-      {/* Active frame card or complete state */}
-      <View style={styles.cardArea}>
-        {(allComplete && currentFrame === 9) ? (
-          <View style={styles.completeCard}>
-            <Text style={styles.completeTitle}>All Frames Complete</Text>
-            <Text style={[styles.completeFinalScore, compact && styles.completeFinalScoreCompact]}>{scores[9]}</Text>
-            <Text style={styles.completeLabel}>Final Score</Text>
-            <ScalePressable style={styles.doneButton} onPress={handleDone}>
-              <Text style={styles.doneButtonText}>Done</Text>
-            </ScalePressable>
-          </View>
-        ) : (
-          <ActiveFrameCard
-            key={currentFrame}
-            frame={frames[currentFrame]}
-            frameIndex={currentFrame}
-            onNoteChange={(note) => updateFrameNote(currentFrame, note)}
-            compact={compact}
-          />
-        )}
-      </View>
-
-      {/* Per-throw note — Live mode only */}
       {showThrowNoteBar && (
         <ThrowNoteBar
           key={`${currentFrame}-${frames[currentFrame].throws.length}`}
@@ -918,34 +864,94 @@ export default function LogFramesScreen() {
           onThrowNoteChange={(ti, note) => updateThrowNote(currentFrame, ti, note)}
         />
       )}
+    </ScrollView>
+  );
 
-      {/* Delete last throw — always visible so layout is stable */}
-      <TouchableOpacity
-        style={[styles.deleteRow, !canDelete && styles.deleteRowDisabled]}
-        onPress={deleteLastThrow}
-        disabled={!canDelete}
-        activeOpacity={0.6}
-      >
-        <Text style={[styles.deleteRowText, !canDelete && styles.deleteRowTextDisabled]}>
-          ⌫  Delete Last Throw
-        </Text>
-      </TouchableOpacity>
+  // Pins mode: delete-last-throw is its own row. Quick mode: the ⌫ key.
+  const deleteRow = (
+    <TouchableOpacity
+      style={[styles.deleteRow, !canDelete && styles.deleteRowDisabled]}
+      onPress={deleteLastThrow}
+      disabled={!canDelete}
+      activeOpacity={0.6}
+      accessibilityRole="button"
+    >
+      <Text style={[styles.deleteRowText, !canDelete && styles.deleteRowTextDisabled]}>
+        ⌫  Delete last throw
+      </Text>
+    </TouchableOpacity>
+  );
 
-      {/* Input area: chip bar (Quick mode or complete) — pin deck (Pins mode, not complete) */}
-      {!pinDeckProps ? (
-        <ChipBar available={available} onPress={addThrow} bottomInset={insets.bottom} />
-      ) : (
-        <View style={[styles.pinDeckContainer, { paddingBottom: insets.bottom + 8 }]}>
-          <PinDeck
-            key={`pd-${currentFrame}-${frames[currentFrame].throws.length}`}
-            availablePins={pinDeckProps.availablePins}
-            isFirstThrow={pinDeckProps.isFirstThrow}
-            prevPinsStanding={pinDeckProps.prevPinsStanding}
-            onConfirm={(ps, notation) => addThrowWithPins(notation, ps)}
-            compact={compact}
-          />
+  const pinDeck = pinDeckProps ? (
+    <PinDeck
+      key={`pd-${currentFrame}-${frames[currentFrame].throws.length}`}
+      availablePins={pinDeckProps.availablePins}
+      isFirstThrow={pinDeckProps.isFirstThrow}
+      prevPinsStanding={pinDeckProps.prevPinsStanding}
+      onConfirm={(ps, notation) => addThrowWithPins(notation, ps)}
+      compact={compact}
+      side={wide}
+    />
+  ) : null;
+
+  // Quick mode, or a finished game in Pins mode (keys all disabled, ⌫ live).
+  const keypad = (
+    <Keypad
+      columns={narrow ? 7 : 4}
+      available={currentFrameComplete ? new Set<string>() : available}
+      canDelete={canDelete}
+      onKey={addThrow}
+      onDelete={deleteLastThrow}
+      keyHeight={narrow ? 48 : wide ? 46 : 60}
+    />
+  );
+
+  const padSides = { paddingLeft: insets.left, paddingRight: insets.right };
+
+  // --- Cover landscape: input on the left, frame info on the right ---------
+  if (wide) {
+    return (
+      <View style={[styles.container, padSides]}>
+        <View style={styles.wideTop}>
+          {controls}
+          {scorecard}
         </View>
-      )}
+        <View style={[styles.wideBody, { paddingBottom: insets.bottom + 8 }]}>
+          <View style={styles.wideInput}>
+            {pinDeck ?? <View style={styles.wideKeypad}>{keypad}</View>}
+          </View>
+          <View style={styles.wideInfo}>
+            {totals}
+            {middle}
+            {pinDeck && deleteRow}
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // --- Portrait stack (cover portrait, phones, open screen) ----------------
+  const isSplit = layout === 'splitSideBySide';
+  return (
+    <View style={[styles.container, padSides]}>
+      <View style={[styles.stack, isSplit && styles.stackSplit]}>
+        <View style={styles.top}>
+          {controls}
+          {scorecard}
+        </View>
+        {totals}
+        {middle}
+        {pinDeck ? (
+          <>
+            {deleteRow}
+            <View style={[styles.inputArea, { paddingBottom: insets.bottom + 8 }]}>{pinDeck}</View>
+          </>
+        ) : (
+          <View style={[styles.inputArea, styles.keypadArea, { paddingBottom: insets.bottom + 8 }]}>
+            {keypad}
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -957,50 +963,47 @@ export default function LogFramesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000000' },
 
-  // Mode toggle
-  toggleBar: {
-    flexDirection: 'row',
+  // Phase 28 WP2 arrangement
+  stack: { flex: 1 },
+  stackSplit: { width: '100%', maxWidth: SPLIT_MAX_WIDTH, alignSelf: 'center' },
+  top: { paddingHorizontal: 12, paddingTop: 10, gap: 10, paddingBottom: 10 },
+  controlsRow: { flexDirection: 'row', gap: 10 },
+  controlCell: { flex: 1 },
+  middle: { flex: 1 },
+  middleContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 8 },
+  inputArea: {
     backgroundColor: '#1C1C1E',
-    borderRadius: 10,
-    padding: 3,
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#38383A',
   },
-  togglePill: { flex: 1, paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
-  togglePillActive: { backgroundColor: '#2C2C2E' },
-  toggleText: { fontSize: 14, color: '#8E8E93', fontWeight: '500' },
-  toggleTextActive: { color: '#FFFFFF', fontWeight: '600' },
+  keypadArea: { paddingTop: 10, paddingHorizontal: 10 },
+  wideTop: { paddingHorizontal: 12, paddingTop: 8, gap: 8, paddingBottom: 8 },
+  wideBody: { flex: 1, flexDirection: 'row' },
+  wideInput: { justifyContent: 'center', paddingHorizontal: 4 },
+  wideKeypad: { width: 300, paddingHorizontal: 8 },
+  wideInfo: {
+    flex: 1,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: '#38383A',
+  },
 
-  // Strip
-  strip: { flexGrow: 0 },
-  stripContent: { paddingHorizontal: 8 },
-  stripItem: {
-    width: FRAME_ITEM_W,
-    height: 72,
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  // Header buttons
+  headerIconBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  headerDone: {
+    backgroundColor: '#00CEC9',
+    borderRadius: 999,
     paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 16,
   },
-  stripItemCurrent: { backgroundColor: '#1C1C1E' },
-  stripNum: { fontSize: 10, fontWeight: '500', color: '#48484A', letterSpacing: 0.3 },
-  stripNumCurrent: { color: '#00CEC9' },
-  stripThrows: { flexDirection: 'row', gap: 2, alignItems: 'center' },
-  stripThrowBox: { minWidth: 13, alignItems: 'center' },
-  stripThrowText: { fontSize: 13, fontWeight: '500', color: '#48484A' },
-  stripThrowTextActive: { color: '#FFFFFF' },
-  strikeText: { color: '#00CEC9' },
-  stripScore: { fontSize: 11, fontWeight: '500', color: '#8E8E93' },
-  stripScoreActive: { color: '#FFFFFF' },
+  headerDoneText: { fontSize: 15, fontWeight: '600', color: '#000000' },
 
   // Total row
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#38383A',
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -1010,8 +1013,8 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 13, color: '#8E8E93', fontWeight: '500' },
   totalValue: { fontSize: 22, fontWeight: '300', color: '#FFFFFF' },
   totalValueFinal: { color: '#00CEC9' },
-  maxLabel: { fontSize: 11, fontWeight: '500', color: '#8E8E93', letterSpacing: 0.5, textAlign: 'right' },
-  seriesText: { fontSize: 12, fontWeight: '500', color: '#8E8E93', letterSpacing: 0.8, marginTop: 2 },
+  maxLabel: { fontSize: 12, fontWeight: '500', color: '#8E8E93', textAlign: 'right' },
+  seriesText: { fontSize: 12, fontWeight: '500', color: '#8E8E93', marginTop: 2 },
 
   // Strike streak badge
   streakBadge: {
@@ -1025,18 +1028,10 @@ const styles = StyleSheet.create({
   },
   streakText: { fontSize: 13, fontWeight: '600', color: '#FFD60A' },
 
-  // Card area
-  cardArea: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-
   // Active frame card
   activeCard: { alignItems: 'center', gap: 20, width: '100%' },
   activeCardCompact: { gap: 10 },
-  activeFrameLabel: { fontSize: 11, fontWeight: '500', color: '#8E8E93', letterSpacing: 1.5 },
+  activeFrameLabel: { fontSize: 13, fontWeight: '500', color: '#8E8E93' },
   activeSlotsRow: { flexDirection: 'row', gap: 16 },
   activeSlot: {
     width: 80, height: 80, borderRadius: 14,
@@ -1073,10 +1068,9 @@ const styles = StyleSheet.create({
 
   // Complete card
   completeCard: { alignItems: 'center', gap: 8 },
-  completeTitle: { fontSize: 15, color: '#8E8E93', fontWeight: '500', letterSpacing: 0.5 },
+  completeTitle: { fontSize: 15, color: '#8E8E93', fontWeight: '500' },
   completeFinalScore: { fontSize: 80, fontWeight: '200', color: '#00CEC9' },
   completeFinalScoreCompact: { fontSize: 60 },
-  completeLabel: { fontSize: 13, color: '#48484A', fontWeight: '500' },
   doneButton: {
     marginTop: 16,
     backgroundColor: '#00CEC9',
@@ -1108,9 +1102,6 @@ const styles = StyleSheet.create({
     minHeight: 36,
   },
 
-  // Cancel header button
-  cancelText: { fontSize: 17, color: '#00CEC9' },
-
   // Delete row
   deleteRow: {
     flexDirection: 'row',
@@ -1125,70 +1116,4 @@ const styles = StyleSheet.create({
   deleteRowText: { fontSize: 15, fontWeight: '600', color: '#FF453A' },
   deleteRowTextDisabled: { color: '#8E8E93' },
 
-  // Chip bar
-  chipBar: {
-    flexDirection: 'row',
-    backgroundColor: '#1C1C1E',
-    paddingTop: 10,
-    paddingHorizontal: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#38383A',
-  },
-  chip: {
-    flex: 1, marginHorizontal: 2, paddingVertical: 14,
-    borderRadius: 8, backgroundColor: '#2C2C2E',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  chipDisabled: { backgroundColor: '#1C1C1E' },
-  chipText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
-  chipTextDisabled: { color: '#38383A' },
-
-  // Input mode toggle (Pins / Quick)
-  compactToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  toggleInRow: { flex: 1, marginHorizontal: 0, marginTop: 0, marginBottom: 0 },
-  inputModeBar: {
-    flexDirection: 'row',
-    backgroundColor: '#000000',
-    borderRadius: 8,
-    padding: 2,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    gap: 2,
-  },
-  inputModePill: {
-    flex: 1,
-    paddingVertical: 5,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  inputModePillActive: { backgroundColor: '#2C2C2E' },
-  inputModeText: { fontSize: 12, color: '#48484A', fontWeight: '500' },
-  inputModeTextActive: { color: '#FFFFFF', fontWeight: '600' },
-
-  // Pin deck container (replaces chip bar area)
-  pinDeckContainer: {
-    backgroundColor: '#1C1C1E',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#38383A',
-  },
-
-  // Frame strip bottom row (score + optional pin dot)
-  stripBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  stripPinDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#00CEC9',
-  },
 });
