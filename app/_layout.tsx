@@ -21,9 +21,12 @@ import type { Session, Ball } from '../src/types';
 import { SEED_SESSIONS } from '../src/seeds';
 import { INITIAL_BALLS } from '../src/balls';
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+// M2 (Nov 11 audit): no `unstable_settings.anchor` here. In expo-router 58 the
+// anchor seeds the root stack as [(tabs), index]; app/index.tsx's Redirect then
+// REPLACEs index with a NEW (tabs) route, so every cold launch mounted two tab
+// navigators (two LogPages, the hidden one answering Live game taps). Without
+// an anchor the seeded state is just [index] and the Redirect leaves exactly
+// one (tabs). app/index.tsx stays -- Expo Go needs it.
 
 // 27.0 M1: app.json allows every orientation (native). The JS portrait lock
 // that held the app upright until the Phase 28 landscape layouts existed was

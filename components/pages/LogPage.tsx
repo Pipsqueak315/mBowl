@@ -20,7 +20,7 @@ import { BlurView } from 'expo-blur';
 import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import HeaderIconButton from '@/components/v2/HeaderIconButton';
@@ -584,6 +584,10 @@ export default function LogPage() {
   // ---- Live game button (Phase 28 WP7) --------------------------------------
   // The button (any tab) asks; this page answers once the draft is loaded and
   // any resume prompt is settled, using its own game list.
+  // M2: only the FOCUSED Log page answers. A Log page that isn't on screen
+  // (e.g. a stale second copy) must never take the request -- it would open
+  // Log Frames for its own empty form and then stay latched.
+  const isFocused = useIsFocused();
   useEffect(() => onLiveGameRequest(() => setLiveTick((t) => t + 1)), []);
   useFocusEffect(
     useCallback(() => {
@@ -595,12 +599,12 @@ export default function LogPage() {
     }, [])
   );
   useEffect(() => {
-    if (!ready || draftResumeVisible || !hasLiveGameRequest()) return;
+    if (!isFocused || !ready || draftResumeVisible || !hasLiveGameRequest()) return;
     clearLiveGameRequest();
     const idx = firstUnscoredGame(games);
     if (idx >= 0) openLogFrames(idx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveTick, ready, draftResumeVisible]);
+  }, [liveTick, ready, draftResumeVisible, isFocused]);
 
   const showWeek = sessionType === 'league' || sessionType === 'makeup';
   const showOpponent = sessionType === 'league' || sessionType === 'makeup';
