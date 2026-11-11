@@ -4,7 +4,7 @@
 **Session state:** `mBowl-SessionBrief-REV25.md` — check this for current phase and notes.
 **Duo roadmap + design spec:** `docs/mBowl-DuoPlan.md` (v1.8) — Phases 25–28. Read the brief's START HERE section first.
 **Phase 28 (v2 redesign):** `docs/mBowl-Phase28-BuildSpec.md` — WP1–WP7 all built and shipped Nov 10 night; v2 tokens + layout/page/live-game helpers in `src/v2/`, shared controls in `components/v2/`, tab pages in `components/pages/`.
-**Status (Nov 10, ~20:45):** `master` = **2.0.0 / SDK 58** = `phase27` merged + Phase 28 WP1–WP7 (`44af9ee`), all shipped over the air to the Duo. OTAs from `master` reach only 2.0.0 builds (runtime policy `appVersion`); the old phone stays on 1.0.0 as the fallback. Next: Marcus checks the Duo → fixes → Fri go/no-go — REV25 → **NEXT**. Phase 28 is Level 1 (presentation only). Run `npm run check` (CI runs it on every push) before calling anything done.
+**Status (Nov 10, ~21:05):** `master` = **2.0.0 / SDK 58** = `phase27` merged + Phase 28 WP1–WP7 (`44af9ee`) + right-column/settings polish (`75a430e`), all shipped over the air to the Duo. OTAs from `master` reach only 2.0.0 builds (runtime policy `appVersion`); the old phone stays on 1.0.0 as the fallback. Next: Marcus checks the Duo → fixes → Fri go/no-go — REV25 → **NEXT**. Phase 28 is Level 1 (presentation only). Run `npm run check` (CI runs it on every push) before calling anything done.
 
 ---
 
@@ -49,7 +49,8 @@ This is an **Expo Router** project — NOT bare React Navigation.
 - `app/(tabs)/_layout.tsx` controls the tab bar: `NativeTabs` from `expo-router/native-tabs` (Phase 27.4) + the Live game bottom accessory (Phase 28 WP7). NativeTabs draw no header, so each tab is a folder with its own Stack (`components/TabStack.tsx`) — pages set header buttons with `navigation.setOptions` as before (skipped when `embedded`).
 - **Phase 28 WP6:** `app/(tabs)/{log,stats,history}/index.tsx` are thin route wrappers. The real pages live in `components/pages/` (`LogPage`, `StatsPage`, `HistoryPage`); `components/v2/SplitPages.tsx` shows one page (cover screen) or a pair (open screen) and keeps both mounted so fold/unfold never resets state. Pages size themselves with `usePageWidth()` / `useSideInsets()` (`src/v2/page.tsx`), never the raw window. Every page pads by the side safe-area insets (the Duo's tab rail + clock column).
 - **Live game (WP7):** the button only requests (`src/v2/liveGame.ts`); `LogPage` opens Log Frames itself. Never push `/log-frames` for a draft game from anywhere else — the Log page consumes `KEYS.FRAME_RESULT` on focus.
-- **Controls feel native (Marcus):** every tappable control ≥ 44pt and never inside a horizontal ScrollView (Nov 10: 28pt pills in nested scroll views were hard to tap). Use `components/v2/SegmentedControl` / `SeasonMenu` / `FilterHeader`.
+- **Controls feel native (Marcus):** every tappable control ≥ 44pt and never inside a horizontal ScrollView (Nov 10: 28pt pills in nested scroll views were hard to tap). Use `components/v2/SegmentedControl` / `SeasonMenu` / `FilterHeader`. Header buttons: `components/v2/HeaderIconButton` (no margins — iOS 26 draws the glass pill).
+- **Duo rail:** boxed backgrounds may run to the screen edge under the rail via `useBleed()` (`src/v2/page.tsx`); text and controls never sit under it. On the rail, the Live game button is `components/v2/LiveGameRailButton` (above the tab capsule); with a bottom tab bar it's the native `NativeTabs.BottomAccessory`.
 - `app/index.tsx` exists as a redirect to `/(tabs)/log` — required because `unstable_settings` alone doesn't handle root in Expo Go.
 - React Navigation is included via Expo Router — do NOT reinstall it separately.
 
@@ -176,7 +177,7 @@ mBowl/
 │   │   ├── LogPage.tsx          — Log page (session form + games + submit + draft + Live game answer)
 │   │   ├── StatsPage.tsx        — Stats page (metrics + CELL_BANDS + charts + leave stats); `embedded` prop
 │   │   └── HistoryPage.tsx      — History page (rows + filter + expand/edit/share/delete); `embedded` prop
-│   ├── v2/                      — Phase 28 controls: SegmentedControl, SeasonMenu, FilterHeader, Scorecard, Keypad, SplitPages, LiveGameButton
+│   ├── v2/                      — Phase 28 controls: SegmentedControl, SeasonMenu, FilterHeader, Scorecard, Keypad, SplitPages, LiveGameButton, LiveGameRailButton, HeaderIconButton
 │   ├── ScalePressable.tsx       — animated press-scale wrapper
 │   ├── SettingsContent.tsx      — Settings modal content (dates + ball roster + goals + restore)
 │   ├── EditSessionModal.tsx     — session edit sheet (buildSession shared builder)
@@ -196,7 +197,7 @@ mBowl/
 │   ├── sessionFilter.ts     — filterSessions, shared by Stats + History (Phase 24)
 │   ├── types.ts             — canonical shared types (do not redefine locally)
 │   ├── backup.ts            — writeBackup / restoreBackup + exportBackup (mBowl-backup.json)
-│   ├── v2/                  — Phase 28: theme.ts (tokens), layout.ts (useLayoutClass), page.tsx (PageContext, usePageWidth, useSideInsets), liveGame.ts
+│   ├── v2/                  — Phase 28: theme.ts (tokens), layout.ts (useLayoutClass), page.tsx (PageContext, usePageWidth, useSideInsets, useBleed), liveGame.ts
 │   ├── notifications.ts     — SideStore cert reminder (6-day repeating, iOS only)
 │   ├── seeds.js             — 18 historical sessions (ids 1001–1018)
 │   ├── balls.js             — 9-ball roster
