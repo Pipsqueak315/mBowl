@@ -1,7 +1,6 @@
 import { DarkTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -26,11 +25,11 @@ export const unstable_settings = {
   anchor: '(tabs)',
 };
 
-// 27.0 M1: app.json allows every orientation (native), and this asks for
-// portrait from JS until the Phase 28 layouts handle landscape -- then delete
-// it over the air. iOS 27 treats the lock as a preference and may refuse it
-// while the app is resizable (the Duo), so a rejection is expected, not an error.
-ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+// 27.0 M1: app.json allows every orientation (native). The JS portrait lock
+// that held the app upright until the Phase 28 landscape layouts existed was
+// removed Nov 11 (Marcus: no rotation folded or unfolded) -- the app now
+// follows the phone, and iOS's own Rotation Lock (Control Center) is the
+// switch. expo-screen-orientation stays in the binary, unused.
 
 export default function RootLayout() {
   useEffect(() => {
