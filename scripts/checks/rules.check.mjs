@@ -45,8 +45,14 @@ for (const file of files) {
   check(!/expo-sqlite|react-native-mmkv|realm/.test(src), `AsyncStorage only in ${r}`);
 }
 
-// 5. Exactly four tabs.
-const tabs = readdirSync(join(ROOT, 'app', '(tabs)')).filter(n => /\.tsx$/.test(n) && n !== '_layout.tsx');
+// 5. Exactly four tabs. A tab is a screen file in app/(tabs)/ or, since the
+// native-tabs switch (27.4), a folder holding the tab's own stack + index.tsx.
+const TABS_DIR = join(ROOT, 'app', '(tabs)');
+const tabs = readdirSync(TABS_DIR).filter(n =>
+  statSync(join(TABS_DIR, n)).isDirectory()
+    ? readdirSync(join(TABS_DIR, n)).includes('index.tsx')
+    : /\.tsx$/.test(n) && n !== '_layout.tsx'
+);
 check(tabs.length === 4, 'exactly 4 tab screens', `found ${tabs.join(', ')}`);
 
 // 6. Bundle id never changes.

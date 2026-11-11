@@ -18,7 +18,7 @@
 //
 // computeLeaveStats is imported from real source (leaveUtils.js) so Makeable %
 // cannot diverge. calcMetrics / calcAdvancedStats are copied verbatim from
-// app/(tabs)/stats.tsx (RN component, not importable in Node); the season
+// app/(tabs)/stats/index.tsx (RN component, not importable in Node); the season
 // helpers mirror src/seasons.ts.
 
 import { readFileSync, existsSync } from 'node:fs';
@@ -95,7 +95,7 @@ function seasonForDate(date, seasons) {
   return null;
 }
 
-// --- Metric functions (verbatim from app/(tabs)/stats.tsx) ------------------
+// --- Metric functions (verbatim from app/(tabs)/stats/index.tsx) ------------
 function calcMetrics(sessions) {
   if (sessions.length === 0) return null;
   const allGames = sessions.flatMap(s => s.games.filter(g => g.score != null));

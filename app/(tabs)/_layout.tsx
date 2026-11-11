@@ -1,64 +1,38 @@
-import { Tabs } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { NativeTabs } from 'expo-router/native-tabs';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-
+// Phase 27.4: native iOS tabs (UITabBarController). iOS places the bar itself:
+// a side column on the Duo's cover screen and open-landscape, floating at the
+// bottom when open in portrait (iOS 27 `preferredPlacement`), with the system
+// Liquid Glass look. Each tab is its own stack (see components/TabStack.tsx),
+// which supplies the header the old JS tab bar used to draw.
 export default function TabLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: '#00CEC9',
-        tabBarInactiveTintColor: '#8E8E93',
-        tabBarButton: HapticTab,
-        tabBarStyle: {
-          backgroundColor: '#1C1C1E',
-          borderTopColor: '#38383A',
-          borderTopWidth: 0.5,
+    <NativeTabs
+      tintColor="#00CEC9"
+      preferredPlacement="automatic"
+      screenListeners={{
+        tabPress: () => {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         },
-        headerStyle: {
-          backgroundColor: '#000000',
-        },
-        headerTintColor: '#FFFFFF',
-        headerShadowVisible: false,
-        headerShown: true,
       }}
     >
-      <Tabs.Screen
-        name="log"
-        options={{
-          title: 'Log',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={24} name="square.and.pencil" color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="stats"
-        options={{
-          title: 'Stats',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={24} name="chart.bar.fill" color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="history"
-        options={{
-          title: 'History',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={24} name="list.bullet" color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="reference"
-        options={{
-          title: 'Reference',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={24} name="book.fill" color={color} />
-          ),
-        }}
-      />
-    </Tabs>
+      <NativeTabs.Trigger name="log">
+        <NativeTabs.Trigger.Icon sf="square.and.pencil" />
+        <NativeTabs.Trigger.Label>Log</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="stats">
+        <NativeTabs.Trigger.Icon sf="chart.bar.fill" />
+        <NativeTabs.Trigger.Label>Stats</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="history">
+        <NativeTabs.Trigger.Icon sf="list.bullet" />
+        <NativeTabs.Trigger.Label>History</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="reference">
+        <NativeTabs.Trigger.Icon sf="book.fill" />
+        <NativeTabs.Trigger.Label>Reference</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }

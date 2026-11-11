@@ -24,14 +24,15 @@ At the top of each session Marcus will tell you which phase he's on. Read the Sp
 
 ## Tech Stack
 
-- **React Native via Expo** (SDK 54, Expo Router 6)
+- **React Native via Expo** (SDK 58 / RN 0.88 / Expo Router 58 on `phase27`; `master` is still SDK 54 until the merge)
 - **AsyncStorage** (`@react-native-async-storage/async-storage`) — only storage solution
-- **Expo Router** — file-based routing (NOT bare React Navigation)
+- **Expo Router** — file-based routing (NOT bare React Navigation). Since SDK 56, never import `@react-navigation/*`: use `expo-router/react-navigation` (hooks, theme) and `expo-router/js-tabs`.
 - **expo-haptics** — haptic feedback
 - **expo-blur** — modal overlays
 - **expo-symbols** — SF Symbols icons
-- **react-native-reanimated** (~4.1.1) — animations
-- **react-native-gesture-handler** — swipe gestures
+- **react-native-reanimated** (4.7) — animations
+- **react-native-gesture-handler** (3.x) — swipe gestures via `ReanimatedSwipeable` (the legacy `Swipeable` is gone)
+- **Phase 27 native add-ons** — `expo-screen-orientation` (portrait request at startup), `expo-keep-awake` (Log Frames), `expo-document-picker` + `@expo/ui` (in the binary for later OTA features)
 - **react-native-chart-kit** — Stats tab line charts
 - **react-native-svg** — required by chart-kit + PinDeck visuals
 - **@react-native-community/datetimepicker** — native iOS date pickers
@@ -45,7 +46,7 @@ This is an **Expo Router** project — NOT bare React Navigation.
 
 - File-based routing. Tabs live in `app/(tabs)/`. Screens are files, not components registered manually.
 - `app/_layout.tsx` is the root layout. Seed logic and dark theme forced here.
-- `app/(tabs)/_layout.tsx` controls the bottom tab bar.
+- `app/(tabs)/_layout.tsx` controls the tab bar: `NativeTabs` from `expo-router/native-tabs` (Phase 27.4). NativeTabs draw no header, so each tab is a folder with its own Stack (`components/TabStack.tsx`) — screens set header buttons with `navigation.setOptions` as before.
 - `app/index.tsx` exists as a redirect to `/(tabs)/log` — required because `unstable_settings` alone doesn't handle root in Expo Go.
 - React Navigation is included via Expo Router — do NOT reinstall it separately.
 
@@ -136,7 +137,7 @@ bad:       #FF453A
 - Game vs session average: +5 or better -> green · within 5 -> orange · below -> red
 - Series: > 550 -> green · >= 500 -> orange · below -> red
 - Overall average: >= 180 -> green · >= 166 -> orange · below -> red
-- Seven Stats grid cells: goal-based bands (green = 190-average level) in `CELL_BANDS`, stats.tsx — table in REV24. No color below 10 games with frame data.
+- Seven Stats grid cells: goal-based bands (green = 190-average level) in `CELL_BANDS`, `app/(tabs)/stats/index.tsx` — table in REV24. No color below 10 games with frame data.
 - Makeable % (aggregate): green >= 80 · orange >= 60 — locked. Split leaves: green >= 40 · orange >= 15 · else grey (never red).
 
 ---
@@ -161,11 +162,12 @@ mBowl/
 │   ├── index.tsx            — redirect to /(tabs)/log
 │   ├── log-frames.tsx       — frame entry screen (chip bar + pin deck)
 │   └── (tabs)/
-│       ├── _layout.tsx      — 4-tab bottom bar config
-│       ├── log.tsx          — Log tab (full session form + submit + draft)
-│       ├── stats.tsx        — Stats tab (metrics + charts + leave stats)
-│       ├── history.tsx      — History tab (cards + filter + delete)
-│       └── reference.tsx    — Reference tab (5 sub-tabs)
+│       ├── _layout.tsx      — NativeTabs: 4 native iOS tabs (Phase 27.4)
+│       ├── log/             — each tab = its own stack: _layout.tsx (TabStack header) + index.tsx (screen)
+│       │   └── index.tsx    — Log tab (full session form + submit + draft)
+│       ├── stats/index.tsx  — Stats tab (metrics + charts + leave stats)
+│       ├── history/index.tsx — History tab (cards + filter + delete)
+│       └── reference/index.tsx — Reference tab (5 sub-tabs)
 ├── components/
 │   ├── ScalePressable.tsx       — animated press-scale wrapper
 │   ├── SettingsContent.tsx      — Settings modal content (dates + ball roster + goals + restore)
@@ -175,7 +177,8 @@ mBowl/
 │   ├── PatternsTab.tsx          — Reference: Patterns sub-tab
 │   ├── PinDeck.tsx              — visual pin deck input component
 │   ├── FrameGrid.tsx            — shared mini-scorecard (compact | full)
-│   ├── haptic-tab.tsx           — tab bar haptic wrapper (active, do not delete)
+│   ├── TabStack.tsx             — per-tab native stack + header (title, Settings gear via setOptions)
+│   ├── haptic-tab.tsx           — JS tab-bar haptic button: unused since native tabs (haptic now via screenListeners); kept for a JS-tabs fallback
 │   └── ui/
 │       ├── icon-symbol.ios.tsx  — SF Symbol routing (active, do not delete)
 │       └── icon-symbol.tsx      — TS resolution stub; Metro resolves .ios.tsx at runtime
