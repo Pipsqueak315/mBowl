@@ -9,6 +9,16 @@ Then one separate verification agent re-read every cited line: **13 CONFIRMED, 4
 
 ---
 
+## 🟢 PRE-LEAGUE BATCH STATUS (Nov 11, ~12:00) — SHIPPED
+
+**Built and shipped.** Branch `fix/pre-league` @ `20bfa97` (from `master` `75b485c`), CI green (run 43090245383), Marcus "ship" → fast-forwarded to `master` @ `20bfa97` → **OTA run 43091822546, Published, runtime 2.0.0, update group ee0882ee** (the first run, 43091230711, failed upstream installing eas-cli — Babel 7.29.14 gap; fixed by the `eas_before` input in `ota.yml`, `c20bc8c`). One commit per item: M2 `29b6ae6` · S17 `72f8744` · S18 `6ea59fa` · S19 `f7271cc` · S20 `0956de6` · reviewer fixes `20bfa97`.
+**Reviewer pass:** PASS WITH WARNINGS, no blockers. Three warnings fixed in `20bfa97`: (1) S18 — after a successful save the Submit guard stays set until the Log page is focused again (closes a post-save double-tap window); (2) S19 — the 12h stale floor counts from the last time the date was seen to be today (a night crossing midnight can't jump to Sunday); (3) dead try/catch removed (`readSettings` never throws).
+**Notes kept (no change):** a picked date turns off the S19 auto-refresh until the next Submit (by design: protects backfill); with no anchor, a hand-typed cold deep link to a non-tab route (e.g. `mbowl:///log-frames`) would start without tabs underneath — nothing in the app makes such links.
+**How the fixes work:** M2 = `unstable_settings.anchor` removed (expo-router sdk-58 source: `getValidInitialRouteName` → `getLayoutAnchor`, so no anchor = seeded `[index]` → Redirect leaves one `(tabs)`) + LogPage's Live effect gated on `useIsFocused()` (from `'expo-router'`). S17 = `ScalePressable` is one `Animated.createAnimatedComponent(Pressable)` wrapping its children. S18 = `submittingRef` + draft timer cleared right before the write sequence (N20) + fire-and-forget haptic. S19 = `refreshFormDate()` on Log focus / app foreground / Settings close: re-reads settings; only for an empty, unblocked form whose date the app set, moves a date that is on another day AND ≥12h past its last confirmation to today. S20 = `supportedOrientations={['portrait','landscape']}` on all 8 RN Modals.
+**Next:** Marcus's device checks (REV27 → NEXT step 2; the M2 / S17 / S20 tests are in each item below) → Fri go/no-go. Then after league: S21 → S22 → S23 → NICE (N20 is done — folded into S18).
+
+---
+
 ## ⭐ AGREED TRIAGE — start here
 
 **Agreed by Marcus, Nov 11 ~08:12.** Build order for the pre-league batch: **1. M2 → 2. S17 → 3. S18 → 4. S19 → 5. S20** (one branch, one commit per item, CI + `reviewer`, then the device checks at the bottom and "ship it"). After league: **S21 → S22 → S23 → NICE batch**. Fixes were deferred to a new chat; the trigger phrase "let's fix all the things needed before this week's league session" = the pre-league batch (see `mBowl-SessionBrief-REV26.md` → NEXT step 1, which has the implementation notes per item).
@@ -81,7 +91,7 @@ An app kill/crash in Log Frames loses that game's throws. Plus a ~400ms window a
 | N17 | `LogPage.tsx:340-357` | `FRAME_RESULT` consumed by Log without a source check (leftover key at launch, tab switch during History's load). Fix: tag the result with its source. |
 | N18 | `log-frames.tsx:637-663` | ⌫ in a mixed Pins/Quick frame deletes the wrong throw's pin data (leave stats only). Fix: `slice(0, f.throws.length - 1)`. |
 | N19 | `log-frames.tsx:~799` | Re-entering an earlier frame on a complete game hides Done until frame 10 is tapped. |
-| N20 | `LogPage.tsx:~380-386, 555` | Armed draft timer can re-write a phantom draft during Submit's haptic await (folded into the S18 fix). |
+| ~~N20~~ | `LogPage.tsx:~380-386, 555` | **Done in S18 (`6ea59fa`).** Armed draft timer can re-write a phantom draft during Submit's haptic await. |
 | N21 | `HistoryPage.tsx:661-665, 591-601` | Edit sheet reopens during the native pop (PLAUSIBLE; flow predates SDK 58). Test: History → Edit → Edit Frames → Done ×5. |
 | N22 | `HistoryPage.tsx` | Edit finished while History is the hidden pane presents over Stats (PLAUSIBLE, arguably fine). |
 | N23 | `LogPage.tsx:566-567`, `HistoryPage.tsx:596-599` | Notes inside the `initialFrames` route param are decoded twice; a note containing a literal `%22`-style escape opens Log Frames empty (nothing overwritten unless re-scored + Done). |

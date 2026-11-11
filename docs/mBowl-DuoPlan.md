@@ -1,5 +1,5 @@
 # mBowl — iPhone Duo Plan
-**Stamped:** October 23, 2026 · **Updated:** November 10, 2026 (~20:45) · **Version:** v1.8 (Nov 10 night: v2 on the Duo with the real data; `phase27` merged; Phase 28 WP1-WP7 built and shipped over the air) · **Owner:** Marcus
+**Stamped:** October 23, 2026 · **Updated:** November 11, 2026 (~12:00) · **Version:** v1.8 (Nov 10 night: v2 on the Duo with the real data; `phase27` merged; Phase 28 WP1-WP7 built and shipped over the air · Nov 11: hang fix, rotation, audit + pre-league fix batch shipped) · **Owner:** Marcus
 **Read with:** the latest `mBowl-SessionBrief-REVXX.md` and `mBowl-SPEC.md`. This plan covers the next four phases; the brief still tracks session-by-session state.
 
 ---
@@ -10,6 +10,7 @@
 - **Phase 25 done:** v2.0.0 installed on the Duo (iloader; Developer Mode had to be turned on) and the backup restored -- 40 sessions confirmed, swipe rows work.
 - **Phase 26 + 26A + 27 merged into `master`** -- `master` is 2.0.0 / SDK 58. OTAs from it reach only the Duo; the old phone stays on 1.0.0 as the fallback.
 - **Phase 28 WP1-WP7 built and shipped over the air** (`master` @ `44af9ee`), after a Duo screen check (findings F1-F6, Claude.ai project doc `mBowl-DuoScreenCheck-Nov10.md`) and an independent reviewer pass. **Next: Marcus checks it on the Duo, fixes ship over the air, Fri 8pm go/no-go. Step-by-step: REV25 → NEXT.**
+- **Nov 11:** backfill done on the Duo (43 sessions / 134 games); Log Frames game-over hang fixed (`97de587`); rotation unlocked; targeted post-SDK 58 audit (`docs/PHASE28-AUDIT.md`); **pre-league fix batch M2, S17-S20 shipped** (`master` @ `20bfa97`, OTA run 43091822546). **Next: Marcus's device checks, Fri 8pm go/no-go. Step-by-step: REV27 → NEXT.**
 - **Next league night: Sat, Nov 14.**
 
 ---

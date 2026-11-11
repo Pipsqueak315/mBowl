@@ -1,6 +1,6 @@
 # mBowl — Phase 28 Build Spec (v2 redesign)
 **Locked:** November 10, 2026 · **Owner:** Marcus · **Builds on:** `phase27` (Expo SDK 58, native tabs, v2.0.0)
-**Read with:** `docs/mBowl-DuoPlan.md` → "Design spec" (the look) and REV26 → NEXT (current status). Post-build audit + fix order: `docs/PHASE28-AUDIT.md`.
+**Read with:** `docs/mBowl-DuoPlan.md` → "Design spec" (the look) and REV27 → NEXT (current status). Post-build audit + fix order: `docs/PHASE28-AUDIT.md`.
 
 ## Status (Nov 10, ~20:45) -- all WPs built and shipped OTA to the Duo (`master` @ `44af9ee`)
 
