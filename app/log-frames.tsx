@@ -985,12 +985,19 @@ function LogFramesBody() {
   );
 }
 
+// Phase 28 WP6: on the open screen in landscape, Log Frames | Stats. Open
+// portrait gives Log Frames the whole screen (spec); the cover screen and
+// phones show Log Frames alone. LogFramesBody keeps its place in the tree in
+// every case, so a game in progress survives fold / unfold / rotate.
 export default function LogFramesScreen() {
   const { layout } = useLayoutClass();
-  if (layout === 'splitSideBySide') {
-    return <SplitPages first={<LogFramesBody />} second={<StatsPage embedded />} />;
-  }
-  return <LogFramesBody />;
+  return (
+    <SplitPages
+      split={layout === 'splitSideBySide'}
+      primary={<LogFramesBody />}
+      secondary={<StatsPage embedded />}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
