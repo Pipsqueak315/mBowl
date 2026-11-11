@@ -719,9 +719,17 @@ function LogFramesBody() {
   // once, on the first render, from the initial `frames`).
   const [initialFramesJson] = useState(() => JSON.stringify(frames));
   const isDirty = useMemo(() => JSON.stringify(frames) !== initialFramesJson, [frames, initialFramesJson]);
-  usePreventRemove(isDirty, ({ data }) => {
+  // Nov 11 fix (SDK 58): Expo Router 58 ships its own usePreventRemove, where
+  // prevention lives in router state. Re-dispatching `data.action` (the React
+  // Navigation 7 pattern this was written against) is simply blocked again
+  // while `isDirty` is still true -> the callback runs again -> dispatch ->
+  // blocked... an endless loop: Done (savedRef true) and Discard never left
+  // the screen, ✕ after Done looped too, and the app eventually aborted (Duo
+  // crash log 2026-11-11 06:29). `repeat()` is the SDK 58 way: it turns the
+  // prevention off, then re-dispatches the blocked action.
+  usePreventRemove(isDirty, ({ repeat }) => {
     if (savedRef.current) {
-      navigation.dispatch(data.action);
+      repeat();
       return;
     }
     Alert.alert(
@@ -734,7 +742,7 @@ function LogFramesBody() {
           style: 'destructive',
           onPress: () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            navigation.dispatch(data.action);
+            repeat();
           },
         },
       ]
@@ -750,14 +758,10 @@ function LogFramesBody() {
 
   // Header (Phase 28 WP2): ✕ leading and "Game N". Set once per screen and
   // never changed while the screen is open.
-  // Nov 11 fix: WP2 also added a teal Done capsule as headerRight, inserted
-  // into the native header the moment the game completed. On the Duo that
-  // mid-screen header change wedged the screen at game over -- Done, the
-  // capsule and ✕ all stopped responding, then the app aborted (SIGABRT on the
-  // TurboModule queue, crash log 2026-11-11 06:29). The pre-v2 header never
-  // changed mid-screen and never hung, so the header is static again and Done
-  // lives only in the "Final score" card. Cancel goes through a ref so the
-  // header never holds a stale closure.
+  // WP2's teal Done capsule (headerRight, shown at game over) was removed Nov 11
+  // while chasing the game-over hang; the real cause turned out to be the leave
+  // guard below. Done lives in the "Final score" card. Cancel goes through a
+  // ref so the header never holds a stale closure.
   useLayoutEffect(() => {
     const gameNum = gameIndex !== undefined ? parseInt(gameIndex, 10) + 1 : '';
     navigation.setOptions({
