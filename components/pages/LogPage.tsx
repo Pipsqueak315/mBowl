@@ -229,7 +229,11 @@ const SESSION_TYPE_SEGMENTS = [
   { key: 'practice', label: 'Practice' },
 ] as const satisfies readonly { key: SessionType; label: string }[];
 
-const MADE_CUT_OPTIONS: MadeCut[] = ['Yes', 'No', 'N/A'];
+const MADE_CUT_SEGMENTS = [
+  { key: 'Yes', label: 'Yes' },
+  { key: 'No', label: 'No' },
+  { key: 'N/A', label: 'N/A' },
+] as const satisfies readonly { key: MadeCut; label: string }[];
 
 // ---------------------------------------------------------------------------
 // Main screen
@@ -745,27 +749,14 @@ export default function LogPage() {
               </View>
               <View style={[styles.groupRow, bleed.inner]}>
                 <View style={[styles.fieldRow, { borderBottomWidth: 0 }]}>
-                  <Text style={styles.fieldLabel}>Made Cut</Text>
+                  <Text style={styles.fieldLabel}>Made cut</Text>
                   <View style={styles.madeCutBar}>
-                    {MADE_CUT_OPTIONS.map((opt) => (
-                      <TouchableOpacity
-                        key={opt}
-                        style={[
-                          styles.madeCutPill,
-                          madeCut === opt && styles.madeCutPillActive,
-                        ]}
-                        onPress={() => setMadeCut(opt)}
-                      >
-                        <Text
-                          style={[
-                            styles.madeCutText,
-                            madeCut === opt && styles.madeCutTextActive,
-                          ]}
-                        >
-                          {opt}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                    <SegmentedControl
+                      segments={MADE_CUT_SEGMENTS}
+                      value={madeCut}
+                      onChange={setMadeCut}
+                      accessibilityLabel="Made cut"
+                    />
                   </View>
                 </View>
               </View>
@@ -1030,20 +1021,7 @@ const styles = StyleSheet.create({
   },
 
   // Made Cut
-  madeCutBar: {
-    flexDirection: 'row',
-    backgroundColor: '#2C2C2E',
-    borderRadius: 8,
-    padding: 2,
-  },
-  madeCutPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderRadius: 6,
-  },
-  madeCutPillActive: { backgroundColor: '#1C1C1E' },
-  madeCutText: { fontSize: 13, color: '#8E8E93', fontWeight: '500' },
-  madeCutTextActive: { color: '#FFFFFF', fontWeight: '600' },
+  madeCutBar: { width: 170 },
 
 
   // Game card

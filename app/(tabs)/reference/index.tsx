@@ -557,8 +557,8 @@ export default function ReferenceScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={styles.subTabBar}
-          contentContainerStyle={styles.subTabBarContent}
+          style={[styles.subTabBar, { marginLeft: -sideInsets.left, marginRight: -sideInsets.right }]}
+          contentContainerStyle={[styles.subTabBarContent, { paddingLeft: 4 + sideInsets.left, paddingRight: 4 + sideInsets.right }]}
           bounces={false}
         >
           {SUB_TABS.map(tab => (
