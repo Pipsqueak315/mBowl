@@ -1,7 +1,7 @@
 # mBowl -- Session Brief REV25
 **Full spec lives in:** mBowl-SPEC.md -- read it before writing any code.
 **Duo roadmap + locked design spec:** `docs/mBowl-DuoPlan.md` (v1.8) -- Phases 25-28. **Phase 28 build spec:** `docs/mBowl-Phase28-BuildSpec.md` (all WPs built -- see its status table).
-**Last updated:** November 10, 2026, ~21:05 (Tue night)
+**Last updated:** November 11, 2026, ~07:15 (Wed morning) -- Log Frames game-over hang fixed + verified (`97de587`), see DONE log (Nov 11)
 
 ---
 
@@ -32,7 +32,7 @@
 
 **1. Marcus, on the Duo -- check the Phase 28 OTA (needs one or two cold launches to pick it up: swipe mBowl closed, reopen; if nothing changed, once more).** Screenshot anything off and send it. Cover screen portrait + landscape, and the open screen:
 - **Log tab:** title "New session"; League/Makeup/Tourney/Practice segmented control; Date/Week/Opponent in one grouped card (Tournament fields when Tourney); "Games" header with teal "Add game"; game cards ("Game 1", score, ball, "Log frames / No frames yet"); "Notes"; teal capsule "Submit session". Landscape: details left, games right.
-- **Log Frames:** ✕ + "Game N" header, teal Done capsule when complete; one row of Live/Post-game + Pins/Quick; full-width scorecard (current frame teal tint, tap to select); compact active row "Frame N · ball k" with the Frame note visible below on the cover screen; Pins: white pins, Strike/Confirm, delete row; Quick: keypad with ⌫; landscape: pins/keypad left, totals right. **Score a full practice game incl. a 10th-frame fill, Done, then delete the practice session.**
+- **Log Frames:** ✕ + "Game N" header (static -- Done capsule removed Nov 11; Done is in the "Final score" card); one row of Live/Post-game + Pins/Quick; full-width scorecard (current frame teal tint, tap to select); compact active row "Frame N · ball k" with the Frame note visible below on the cover screen; Pins: white pins, Strike/Confirm, delete row; Quick: keypad with ⌫; landscape: pins/keypad left, totals right. **Score a full practice game incl. a 10th-frame fill, Done, then delete the practice session.** (Nov 11: Quick-mode practice game Done + ✕/Discard verified after `97de587`; still do one in **Pins** mode for go/no-go.)
 - **Stats:** "Winners 26 ⌄" season menu (action sheet) + All/League/Tourney/Practice/Makeup control (first-tap reliable?); big white average, delta, counts; High game | High series rows; Striking / Spares & recovery as 4-up values on black; charts without boxes; tallest distribution bar teal. Landscape: hero left, metrics right.
 - **History:** same filter header; "Winners 2026 · 176.x avg" header; rows = date + "League · Week N", grey game scores, white series with colored dot, chevron; expand / edit / share / swipe unchanged. **Polish round 2 (`db5923c`, shipped 21:33 in OTA run 42966234484):** plain list on black with dividers (no cards); press-and-hold = solid dark-grey highlight, no red/blue; swipe = flat blue Edit + red Delete sliding in with the row (Delete runs under the rail); expand animates; tab switches never flash a spinner after the first load.
 - **Nothing under the side tab rail or the clock column** on any tab (Reference "Patterns" visible).
@@ -64,6 +64,16 @@
 | **Marcus only** | iloader installs + 7-day cert refreshes, checking screens on the Duo, "ship it", Friday go/no-go, Xcode signing/Archive clicks. | -- |
 
 ---
+
+## DONE log (Nov 11 morning) -- Log Frames game-over hang fixed
+
+- **Bug (Marcus, Duo folded, backfilling 10/17 with frames):** after a full game, Done did nothing; ✕ stopped working after Done; the app eventually aborted. Crash log `mBowl-2026-11-11-062917.ips`: SIGABRT, NSException rethrown in `ObjCTurboModule::performVoidMethodInvocation` on `com.meta.react.turbomodulemanager.queue` (no module/reason in the log). Isolation: ✕ with no frames closes; one throw + ✕ shows "Discard Frames?"; full game + Done hangs.
+- **Root cause:** Expo Router 58 ships its OWN `usePreventRemove` (`expo-router/src/react-navigation/core/usePreventRemove.tsx`): prevention lives in router state and the callback gets `repeat()`. The 26.3 leave guard used the React Navigation 7 pattern `navigation.dispatch(data.action)`, which on SDK 58 is blocked again while `isDirty` is still true -> callback -> dispatch -> blocked... endless (Done via `savedRef`, and Discard). The guard was built Nov 10 in a cloud session and never run on a device before.
+- **Fix:** `97de587` -- both paths call `repeat()`. CI green, OTA run 43045461171. **Verified by Marcus on the Duo 07:14** (practice game Done + ✕/Discard).
+- **Side change:** `89957d8` (OTA run 43043623284) removed WP2's teal Done capsule from the Log Frames header (first, wrong theory: mid-screen headerRight insert). Header is now static (✕ + "Game N"); Done = the "Final score" card. Can come back after league if Marcus misses it.
+- **LESSON:** after an SDK bump, re-check every vendored navigation hook against the NEW package source, not React Navigation's docs. Expo Router 58 vendors React Navigation and changed APIs (`usePreventRemove` -> `repeat`/`disablePrevention`). And every guard/exit path needs one on-device run before it counts as done.
+- **Backfill (Marcus):** 9/26 entered scores-only (242/192/178). 10/17 in progress with frames (220/245/177 = 642 series, new high series over 620). 10/31 to enter scores-only (168/147/201). 10/3, 10/24 (averages) and 11/7 (makeup pending) not entered by design.
+- Watermark/"on air" OTA badge idea: proposed, **Marcus nixed it** (extra step).
 
 ## DONE log (Nov 10 night, after the Mac build)
 
