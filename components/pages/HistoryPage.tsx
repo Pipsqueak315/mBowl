@@ -396,41 +396,42 @@ function SessionCard({
         onPress={() => setExpanded((e) => !e)}
         style={styles.card}
       >
-        {/* Collapsed header */}
+        {/* Collapsed header (Phase 28 WP5): date + "League · Week 6" on the
+            left; game scores in grey, the series in white with a band dot,
+            and a chevron on the right. */}
         <View style={styles.cardHeader}>
           <View style={styles.cardLeft}>
             <Text style={styles.cardDate}>{formatDate(session.date)}</Text>
-            <View
-              style={[
-                styles.typeBadge,
-                { backgroundColor: typeBadgeColor(session.type) },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.typeBadgeText,
-                  { color: typeBadgeTextColor(session.type) },
-                ]}
-              >
-                {typeLabel(session.type)}
-              </Text>
-            </View>
-            {seasonShort ? <Text style={styles.cardSeason}>{seasonShort}</Text> : null}
+            <Text style={styles.cardSub} numberOfLines={1}>
+              {[
+                typeLabel(session.type),
+                session.week != null ? `Week ${session.week}` : null,
+                seasonShort ?? null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
           </View>
 
           <View style={styles.cardRight}>
             <View style={styles.scoresRow}>
               {session.games.filter(g => g.score != null).map((g, i) => (
-                <Text key={i} style={[styles.gameScore, { color: scoreColor(g.score as number, avg) }]}>
+                <Text key={i} style={styles.gameScore}>
                   {g.score}
                 </Text>
               ))}
             </View>
             {!isPractice && (
-              <Text style={[styles.seriesTotal, { color: seriesColor(series) }]}>
-                {series} series
-              </Text>
+              <View style={styles.seriesWrap}>
+                <View style={[styles.seriesDot, { backgroundColor: seriesColor(series) }]} />
+                <Text style={styles.seriesTotal}>{series}</Text>
+              </View>
             )}
+            <IconSymbol
+              name={expanded ? 'chevron.down' : 'chevron.right'}
+              size={13}
+              color="#48484A"
+            />
           </View>
         </View>
 
@@ -715,6 +716,13 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
   };
 
   const filtered = filterSessions(sessions, seasonSel, seasons, filter);
+  // Average of every scored game in the list (Phase 28 WP5 list header).
+  const listScores = filtered.flatMap((x) =>
+    x.games.map((g) => g.score).filter((v): v is number => v != null)
+  );
+  const listAvg = listScores.length
+    ? listScores.reduce((a, b) => a + b, 0) / listScores.length
+    : null;
 
   return (
     <>
@@ -744,6 +752,20 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
           </View>
         ) : (
           <FlatList
+            ListHeaderComponent={
+              filtered.length > 0 ? (
+                <View style={styles.listHeader}>
+                  <Text style={styles.listHeaderTitle}>
+                    {seasonSel === ALL_TIME
+                      ? 'All-Time'
+                      : seasons.find((x) => x.id === seasonSel)?.label ?? 'Sessions'}
+                  </Text>
+                  {listAvg != null && (
+                    <Text style={styles.listHeaderAvg}>{listAvg.toFixed(1)} avg</Text>
+                  )}
+                </View>
+              ) : null
+            }
             data={filtered}
             keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
@@ -751,7 +773,7 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
                 session={item}
                 onDelete={handleDelete}
                 onEdit={handleEdit}
-                seasonShort={seasonShortForDate(item.date)}
+                seasonShort={seasonSel === ALL_TIME ? seasonShortForDate(item.date) : undefined}
               />
             )}
             contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 16 }]}
@@ -820,7 +842,8 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#1C1C1E',
     borderRadius: 13,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -829,43 +852,50 @@ const styles = StyleSheet.create({
   },
   cardLeft: {
     flex: 1,
-    gap: 6,
+    gap: 2,
   },
   cardDate: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  cardSeason: {
-    color: '#8E8E93',
-    fontSize: 11,
+    fontSize: 17,
     fontWeight: '400',
   },
-  typeBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+  cardSub: {
+    color: '#8E8E93',
+    fontSize: 13,
+    fontWeight: '400',
   },
-  typeBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
+  listHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    paddingHorizontal: 4,
+    paddingBottom: 2,
   },
+  listHeaderTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', flexShrink: 1 },
+  listHeaderAvg: { color: '#8E8E93', fontSize: 15, fontVariant: ['tabular-nums'] },
+  seriesWrap: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 4 },
+  seriesDot: { width: 7, height: 7, borderRadius: 3.5 },
   cardRight: {
-    alignItems: 'flex-end',
-    gap: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'center',
   },
   scoresRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   gameScore: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '400',
+    color: '#8E8E93',
+    fontVariant: ['tabular-nums'],
   },
   seriesTotal: {
-    fontSize: 12,
-    fontWeight: '400',
+    fontSize: 22,
+    fontWeight: '300',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'],
   },
 
   // Expanded
