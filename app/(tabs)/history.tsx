@@ -12,12 +12,13 @@ import {
   ScrollView,
   ActivityIndicator,
   Platform,
+  type ViewInstance,
 } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from 'expo-router/react-navigation';
-import { Swipeable } from 'react-native-gesture-handler';
+import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
@@ -332,8 +333,8 @@ function SessionCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const swipeRef = useRef<Swipeable>(null);
-  const shareCardRef = useRef<View>(null);
+  const swipeRef = useRef<SwipeableMethods>(null);
+  const shareCardRef = useRef<ViewInstance>(null);
   const avg = sessionAvg(session.games);
   const series = seriesTotal(session.games);
   const isPractice = session.type === 'practice';
@@ -391,7 +392,7 @@ function SessionCard({
   );
 
   return (
-    <Swipeable
+    <ReanimatedSwipeable
       ref={swipeRef}
       renderRightActions={renderRightActions}
       friction={2}
@@ -538,7 +539,7 @@ function SessionCard({
           </View>
         )}
       </TouchableOpacity>
-    </Swipeable>
+    </ReanimatedSwipeable>
   );
 }
 

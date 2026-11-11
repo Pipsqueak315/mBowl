@@ -16,7 +16,7 @@ import {
 import { BlurView } from 'expo-blur';
 import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Swipeable } from 'react-native-gesture-handler';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -700,7 +700,7 @@ export default function LogScreen() {
           {/* ---- Games ---- */}
           <Text style={styles.sectionLabel}>GAMES</Text>
           {games.map((game, index) => (
-            <Swipeable
+            <ReanimatedSwipeable
               key={game.id}
               renderRightActions={() =>
                 games.length > 1 ? (
@@ -730,7 +730,7 @@ export default function LogScreen() {
                   },
                 })}
               />
-            </Swipeable>
+            </ReanimatedSwipeable>
           ))}
           <ScalePressable style={styles.addGameButton} onPress={addGame}>
             <Text style={styles.addGameText}>+ Add Game</Text>

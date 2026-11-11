@@ -115,7 +115,10 @@ export default function RootLayout() {
       <ThemeProvider value={DarkTheme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="log-frames" options={{ title: 'Log Frames' }} />
+          {/* SDK 58: iOS 26+ stack headers default to transparent Liquid Glass
+              with content underneath. Keep Log Frames' opaque header (and its
+              layout below it) until the Phase 28 WP2 header lands. */}
+          <Stack.Screen name="log-frames" options={{ title: 'Log Frames', headerTransparent: false }} />
         </Stack>
         <StatusBar style="light" />
       </ThemeProvider>
