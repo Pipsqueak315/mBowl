@@ -58,7 +58,7 @@
 | Who | Can do | Can't do |
 |---|---|---|
 | **Claude (Claude.ai project session, cloud)** | `add_repo` the GitHub repo (push access) -> clone, branch, commit, push; read CI and dispatch `ota.yml` with `gh api` (**unset `GH_TOKEN` first: `env -u GH_TOKEN gh api ...`** -- the session proxy supplies auth); update project docs; run the `reviewer` agent; read backups. | `npm install` (no package network in cloud sessions) -- so no local `tsc`: **CI is the type check** (~2 min per push). The PC link (device_bash) **cannot reach GitHub** (proxy 403) -- use it only to read the PC's `node_modules` for API types. |
-| **Claude Code on the PC** | Everything above plus npm installs, local `tsc`, `npm run ship:ota`. | iloader, the Mac, looking at the phone. |
+| **Claude Code on the PC** | Everything above plus npm installs, local `tsc`, `npm run ship:ota`. **The PC repo is stale** (last on `phase27` @ `6d54a31`): first `git fetch`, then `git checkout master`, then `git pull` (one PowerShell command at a time). `package.json` hasn't changed since `phase27`, so `node_modules` is still good. | iloader, the Mac, looking at the phone. |
 | **The Mac (no Claude Code there)** | `scripts/mac-build.sh` -- only for the next native rebuild. | Anything else. |
 | **Marcus only** | iloader installs + 7-day cert refreshes, checking screens on the Duo, "ship it", Friday go/no-go, Xcode signing/Archive clicks. | -- |
 
