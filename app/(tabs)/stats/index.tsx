@@ -9,14 +9,14 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
 import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 import SettingsContent from '@/components/SettingsContent';
+import FilterHeader from '@/components/v2/FilterHeader';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineChart } from 'react-native-chart-kit';
 import { readSessions, readSettings } from '@/src/storage';
 import type { Session, Settings, ThrowEntry } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import ScalePressable from '@/components/ScalePressable';
 import { computeLeaveStats } from '@/src/leaveUtils';
 import { filterSessions, ALL_TIME, type SeasonSelection, type TypeFilter } from '@/src/sessionFilter';
 import { getSeasons, currentSeason, resolveSeasonRanges } from '@/src/seasons';
@@ -82,14 +82,6 @@ const CHART_CONFIG = {
   },
 };
 
-// --- Session-type filter pills (Phase 22) ---
-const TYPE_PILLS: { key: TypeFilter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'league', label: 'Lg' },
-  { key: 'tournament', label: 'Trn' },
-  { key: 'practice', label: 'Prc' },
-  { key: 'makeup', label: 'Mk' },
-];
 
 const TYPE_FULL_LABEL: Record<Exclude<TypeFilter, 'all'>, string> = {
   league: 'League',
@@ -623,8 +615,11 @@ export default function StatsScreen() {
   const [leaveSort, setLeaveSort] = useState<LeaveSort>('frequency');
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
+  // Duo rail + status column live in the side safe areas (Nov 10 Duo check
+  // F1/F2): pad the page by them and size the charts to what's left.
+  const insets = useSafeAreaInsets();
   // Chart fills the card edge-to-edge; card sits inside 16px scroll padding each side
-  const chartWidth = width - 32;
+  const chartWidth = width - insets.left - insets.right - 32;
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -796,57 +791,20 @@ export default function StatsScreen() {
     <>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingLeft: 16 + insets.left, paddingRight: 16 + insets.right },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Season selector — each season by short label, plus All-Time */}
-        <View style={[styles.controlsRow, styles.seasonSelectorRow]}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.pillsScroll}
-            contentContainerStyle={styles.pillsContent}
-          >
-            {seasonPills.map(p => (
-              <ScalePressable
-                key={p.key}
-                style={[styles.pill, seasonSel === p.key && styles.pillActive]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setSeasonSel(p.key);
-                }}
-              >
-                <Text style={[styles.pillText, seasonSel === p.key && styles.pillTextActive]}>
-                  {p.label}
-                </Text>
-              </ScalePressable>
-            ))}
-          </ScrollView>
-        </View>
-        {/* Type filter pills */}
-        <View style={styles.controlsRow}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.pillsScroll}
-            contentContainerStyle={styles.pillsContent}
-          >
-            {TYPE_PILLS.map(p => (
-              <ScalePressable
-                key={p.key}
-                style={[styles.pill, typeFilter === p.key && styles.pillActive]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setTypeFilter(p.key);
-                }}
-              >
-                <Text style={[styles.pillText, typeFilter === p.key && styles.pillTextActive]}>
-                  {p.label}
-                </Text>
-              </ScalePressable>
-            ))}
-          </ScrollView>
-        </View>
+        {/* Phase 28 WP4: season menu + type segmented control (replaces the pills). */}
+        <FilterHeader
+          seasonOptions={seasonPills}
+          season={seasonSel}
+          onSeasonChange={setSeasonSel}
+          type={typeFilter}
+          onTypeChange={setTypeFilter}
+        />
 
         {loading ? (
           <View style={styles.centered}>
@@ -1220,46 +1178,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 40,
-  },
-
-  // --- Controls rows: season selector + type pills ---
-  controlsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  seasonSelectorRow: {
-    marginBottom: 8,
-  },
-  pillsScroll: {
-    flex: 1,
-  },
-  pillsContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingRight: 2,
-  },
-  pill: {
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: '#1C1C1E',
-    borderWidth: 1,
-    borderColor: '#38383A',
-  },
-  pillActive: {
-    backgroundColor: 'rgba(0, 206, 201, 0.16)',
-    borderColor: '#00CEC9',
-  },
-  pillText: {
-    fontSize: 12.5,
-    fontWeight: '500',
-    color: '#8E8E93',
-  },
-  pillTextActive: {
-    color: '#00CEC9',
-    fontWeight: '600',
   },
 
   // States

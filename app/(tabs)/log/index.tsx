@@ -13,6 +13,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -218,6 +219,9 @@ const MADE_CUT_OPTIONS: MadeCut[] = ['Yes', 'No', 'N/A'];
 // ---------------------------------------------------------------------------
 
 export default function LogScreen() {
+  // Phase 28: pad by the side safe areas so nothing sits under the Duo's tab
+  // rail or status column (Nov 10 Duo check F1/F2).
+  const sideInsets = useSafeAreaInsets();
   const navigation = useNavigation();
   const initialized = useRef(false);
   // Tracks the loaded season start ISO string for week calculation without a settings state
@@ -521,7 +525,7 @@ export default function LogScreen() {
   return (
     <>
       <KeyboardAvoidingView
-        style={styles.flex}
+        style={[styles.flex, { paddingLeft: sideInsets.left, paddingRight: sideInsets.right }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={88}
       >

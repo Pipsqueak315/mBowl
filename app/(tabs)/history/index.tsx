@@ -9,7 +9,6 @@ import {
   StyleSheet,
   Modal,
   Alert,
-  ScrollView,
   ActivityIndicator,
   Platform,
   type ViewInstance,
@@ -26,8 +25,8 @@ import { readSessions, writeSessions, readSettings, KEYS } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
 import type { ThrowEntry, GameEntry, Session, Settings } from '@/src/types';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import ScalePressable from '@/components/ScalePressable';
 import { FrameGrid } from '@/components/FrameGrid';
+import FilterHeader from '@/components/v2/FilterHeader';
 import { filterSessions, ALL_TIME, type SeasonSelection, type TypeFilter } from '@/src/sessionFilter';
 import { getSeasons, currentSeason, resolveSeasonRanges, seasonForDate } from '@/src/seasons';
 
@@ -36,13 +35,6 @@ import { getSeasons, currentSeason, resolveSeasonRanges, seasonForDate } from '@
 // type-only, identical to the pre-Part-0 inline filter.
 type FilterType = TypeFilter;
 
-const FILTERS: { key: FilterType; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'league', label: 'League' },
-  { key: 'makeup', label: 'Makeup' },
-  { key: 'practice', label: 'Practice' },
-  { key: 'tournament', label: 'Tournament' },
-];
 
 const EMPTY_LABELS: Record<FilterType, string> = {
   all: 'No sessions yet',
@@ -721,68 +713,19 @@ export default function HistoryScreen() {
 
   return (
     <>
-      <View style={styles.container}>
-        {/* Season selector — each season by short label, plus All-Time */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.seasonBar}
-          contentContainerStyle={styles.filterBarContent}
-        >
-          {seasonPills.map((p) => (
-            <ScalePressable
-              key={p.key}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setSeasonSel(p.key);
-              }}
-              style={[
-                styles.filterPill,
-                seasonSel === p.key && styles.filterPillActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterPillText,
-                  seasonSel === p.key && styles.filterPillTextActive,
-                ]}
-              >
-                {p.label}
-              </Text>
-            </ScalePressable>
-          ))}
-        </ScrollView>
-
-        {/* Type filter pills */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterBar}
-          contentContainerStyle={styles.filterBarContent}
-        >
-          {FILTERS.map((f) => (
-            <ScalePressable
-              key={f.key}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setFilter(f.key);
-              }}
-              style={[
-                styles.filterPill,
-                filter === f.key && styles.filterPillActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterPillText,
-                  filter === f.key && styles.filterPillTextActive,
-                ]}
-              >
-                {f.label}
-              </Text>
-            </ScalePressable>
-          ))}
-        </ScrollView>
+      {/* Pad by the side safe areas so nothing sits under the Duo's tab rail or
+          status column (Nov 10 Duo check F1/F2). */}
+      <View style={[styles.container, { paddingLeft: insets.left, paddingRight: insets.right }]}>
+        {/* Phase 28 WP5: season menu + type segmented control (replaces the pills). */}
+        <View style={styles.filterHeader}>
+          <FilterHeader
+            seasonOptions={seasonPills}
+            season={seasonSel}
+            onSeasonChange={setSeasonSel}
+            type={filter}
+            onTypeChange={setFilter}
+          />
+        </View>
 
         {/* Sessions list or empty state */}
         {!loaded ? (
@@ -845,43 +788,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
 
-  // Filter bar
-  seasonBar: {
-    flexGrow: 0,
-    paddingTop: 12,
-  },
-  filterBar: {
-    // Second bar (type filter) — sits directly under the season bar, so no top
-    // padding of its own; the season bar's content paddingBottom is the gap.
-    flexGrow: 0,
-    paddingTop: 0,
-  },
-  filterBarContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-    paddingBottom: 12,
-  },
-  filterPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: '#1C1C1E',
-    borderWidth: 1,
-    borderColor: '#38383A',
-  },
-  filterPillActive: {
-    backgroundColor: '#00CEC9',
-    borderColor: '#00CEC9',
-  },
-  filterPillText: {
-    color: '#8E8E93',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  filterPillTextActive: {
-    color: '#000000',
-    fontWeight: '600',
-  },
+  // Filter header (Phase 28 WP5)
+  filterHeader: { paddingHorizontal: 16, paddingTop: 12 },
 
   // List
   listContent: {

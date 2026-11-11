@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 
@@ -241,6 +242,9 @@ function mergeWithDefaults(stored: Record<string, unknown>): ReferenceData {
 // ---------------------------------------------------------------------------
 
 export default function ReferenceScreen() {
+  // Phase 28: pad by the side safe areas so nothing sits under the Duo's tab
+  // rail or status column (Nov 10 Duo check F1/F2).
+  const sideInsets = useSafeAreaInsets();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<SubTab>('Position');
   const [data, setData] = useState<ReferenceData>(DEFAULT_DATA);
@@ -548,7 +552,7 @@ export default function ReferenceScreen() {
   return (
     <>
       <KeyboardAvoidingView
-        style={styles.container}
+        style={[styles.container, { paddingLeft: sideInsets.left, paddingRight: sideInsets.right }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={88}
       >
