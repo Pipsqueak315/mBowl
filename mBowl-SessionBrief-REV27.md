@@ -67,16 +67,18 @@ Duo bowls Saturday only if: (1) counts match **43 sessions / 134 games** (+ anyt
 - If the old phone was used: after league, **hand-enter Saturday's session on the Duo** (do NOT Export old -> Restore Duo -- the Duo has the backfill the old phone doesn't). Set Target Average 190 / Series 570 on whichever phone is used.
 - After any Settings -> Restore: **relaunch the app before touching anything** (until S21 ships).
 
-### 5. After league (in this order)
-1. **S21** (Level 2) -- History delete/edit, Settings and Reference write stale in-memory lists; fresh `readSessionsResult()` + refuse invalid/error + write outside the `setSessions` updater; force a reload after Restore.
-2. **S22** (Level 2) -- `src/storage.ts` writers swallow errors; return success, Submit keeps the draft + alerts on failure.
-3. **S23** -- open-screen Stats refresh after a History edit (sessions-changed notifier).
-4. **NICE batch N16-N28** (`docs/PHASE28-AUDIT.md`).
-5. Older after-league list: 28.5 Reference + Settings v2 restyle; "Restore from file…" (Level 2); mid-game resume for Log Frames (Level 2, = S24/D5); PocketDiagnostics split-leave color alignment; N1/N9/N13; maybe bring back the Log Frames header Done capsule (removed Nov 11) if Marcus misses it; retire the old phone after one good league night on v2; delete merged branches.
-6. **Phase 26A leftovers:** 26A.7 **rollback** (a written, tested way to put the previous OTA back -- not set up yet, so an undo today = revert on `master` + a new OTA) and 26A.8 **dry run** of the full ship loop (`docs/mBowl-DuoPlan.md` → Phase 26A). On the next OTA, try the normal eas-cli install first (the `eas_before` escape hatch is only for an upstream break).
-7. **Data:** log the 11/7 makeup (type Makeup) once it's bowled.
-
-> **Suggested order (Claude, Nov 11 evening -- NOT decided; Marcus to confirm):** S21 + S22 together as one careful Level 2 session → 26A.7 rollback before the next round of OTAs → **mid-game resume moved up ahead of S23 / the NICE batch** (the only remaining item that can lose a game during league) → S23 + NICE → the rest. Until Marcus confirms, the agreed order above stands.
+### 5. After league (in this order -- **confirmed by Marcus Nov 11 evening**)
+1. **S21 + S22 together** (Level 2, one careful session: audit + fresh backup off the phone + "ship it").
+   - **S21** -- History delete/edit, Settings and Reference write stale in-memory lists; fresh `readSessionsResult()` + refuse invalid/error + write outside the `setSessions` updater; force a reload after Restore.
+   - **S22** -- `src/storage.ts` writers swallow errors; return success, Submit keeps the draft + alerts on failure.
+2. **26A.7 rollback** -- a written, tested way to put the previous OTA back, before the next round of OTAs (today an undo = revert on `master` + a new OTA). 26A.8 dry run rides along when convenient. On the next OTA, try the normal eas-cli install first (`eas_before` is only for an upstream break).
+3. **Mid-game resume for Log Frames** (Level 2, = S24/D5) -- moved up: the only remaining item that can lose a game during league.
+4. **Reference trim** (Level 1, NEW Nov 11 evening -- Marcus: "let me decide which ball on the fly instead of spoon feeding"). Proposed scope, **details to confirm with Marcus**: remove the Position and Patterns sub-tabs; Signals keeps Switch Guide (what you're seeing / cause / feet / direction) and Lane Reads but drops the "Switch to" ball field and the Ball Arsenal view (several balls are on the old PAP); Pocket Diagnostics TBD (keep or remove); Mental stays. **Hide, don't delete:** stored `mbowl_reference_v1` keeps its shape (position, patterns, switchTo, arsenal) -- REFERENCE has no shadow key, so dropping fields would erase them on the next save. Changes the locked decision "Reference sub-tabs: 5" (update CLAUDE.md + SPEC when built). Files: `app/(tabs)/reference/index.tsx`, `components/SignalsTab.tsx` (maybe `PocketDiagnosticsTab.tsx`). Do it right before 28.5 so the restyle only covers what's left.
+5. **S23** -- open-screen Stats refresh after a History edit (sessions-changed notifier).
+6. **NICE batch N16-N28** (`docs/PHASE28-AUDIT.md`; N20 already done).
+7. **28.5 Reference + Settings v2 restyle** -- with 2-3 sub-tabs left, the Reference sub-tab bar becomes a `SegmentedControl` (fixes the last horizontal-ScrollView control).
+8. **The rest:** "Restore from file…" (Level 2); PocketDiagnostics split-leave color alignment (moot if that tab goes); N1/N9/N13; maybe bring back the Log Frames header Done capsule if Marcus misses it; retire the old phone after one good league night on v2; delete merged branches.
+9. **Data:** log the 11/7 makeup (type Makeup) once it's bowled.
 
 **Who does what:**
 
