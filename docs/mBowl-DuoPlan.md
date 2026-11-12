@@ -454,6 +454,6 @@ The mockups use Inter as a stand-in for SF Pro, with sample numbers. **Build to 
 | When | Work |
 |---|---|
 | Tue Nov 10 | ✅ Backup verified; Phase 26 + 26A merged; Phase 27 built; ✅ Mac build -> GitHub Release v2.0.0; ✅ **Duo install + restore (40 sessions)**; ✅ screen check; ✅ `phase27` merged; ✅ **Phase 28 WP1-WP7 built + shipped OTA** (two days early). |
-| Wed–Fri Nov 11–13 | Marcus checks Phase 28 on the Duo; fixes ship over the air (only what's verified). Fri 8pm go/no-go. |
+| Wed–Fri Nov 11–13 | ✅ Nov 11: backfill, hang fix, rotation, audit, **pre-league fix batch shipped** (`20bfa97`). Marcus checks on the Duo; Fri 8pm go/no-go. |
 | Sat Nov 14 | League on the Duo (v2) or the old phone (fallback). |
-| After league | Finish any Phase 28 leftovers; Phase 26A walkthrough (EXPO_TOKEN, rollback, dry run); backfill missing Winners 2026 weeks; retire the old phone after one good league night on v2. |
+| After league | Full ordered list: REV27 → NEXT step 5. Audit Level 2 items S21 + S22, then S23 + NICE N16–N28; mid-game resume + Restore from file (Level 2); 28.5 Reference + Settings restyle; Phase 26A leftovers (26A.7 rollback, 26A.8 dry run); log the 11/7 makeup; retire the old phone after one good league night on v2. |

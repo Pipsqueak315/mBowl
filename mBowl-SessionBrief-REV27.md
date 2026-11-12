@@ -73,6 +73,10 @@ Duo bowls Saturday only if: (1) counts match **43 sessions / 134 games** (+ anyt
 3. **S23** -- open-screen Stats refresh after a History edit (sessions-changed notifier).
 4. **NICE batch N16-N28** (`docs/PHASE28-AUDIT.md`).
 5. Older after-league list: 28.5 Reference + Settings v2 restyle; "Restore from file…" (Level 2); mid-game resume for Log Frames (Level 2, = S24/D5); PocketDiagnostics split-leave color alignment; N1/N9/N13; maybe bring back the Log Frames header Done capsule (removed Nov 11) if Marcus misses it; retire the old phone after one good league night on v2; delete merged branches.
+6. **Phase 26A leftovers:** 26A.7 **rollback** (a written, tested way to put the previous OTA back -- not set up yet, so an undo today = revert on `master` + a new OTA) and 26A.8 **dry run** of the full ship loop (`docs/mBowl-DuoPlan.md` → Phase 26A). On the next OTA, try the normal eas-cli install first (the `eas_before` escape hatch is only for an upstream break).
+7. **Data:** log the 11/7 makeup (type Makeup) once it's bowled.
+
+> **Suggested order (Claude, Nov 11 evening -- NOT decided; Marcus to confirm):** S21 + S22 together as one careful Level 2 session → 26A.7 rollback before the next round of OTAs → **mid-game resume moved up ahead of S23 / the NICE batch** (the only remaining item that can lose a game during league) → S23 + NICE → the rest. Until Marcus confirms, the agreed order above stands.
 
 **Who does what:**
 
