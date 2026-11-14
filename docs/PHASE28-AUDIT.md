@@ -7,6 +7,8 @@
 Then one separate verification agent re-read every cited line: **13 CONFIRMED, 4 PLAUSIBLE, 2 CUT.**
 **IDs continue from `docs/PHASE20-AUDIT.md`** (M2+, S17+, N16+).
 
+> **Nov 14 update -- independent re-audit:** `docs/AUDIT-FABLE-NOV14.md` (blind, read-only, Claude Fable, app code `20bfa97`). It re-found S21, S22, S24, N17, N28 on its own and adds **F1** (MUST: the launch auto-backup / seeding can overwrite the restore source), **F5** (Settings / balls / Reference save over a failed read), **F6** (no undo after a delete), **F7** (draft with only an opponent keeps an old date), **F11-F14** (NICE). Opus review added **F15** (`writeBackup()` writes default balls / settings / reference on a failed read) and replaced F1's subset guard with copy-then-overwrite. **This audit's "Checked and clean" line for the backup / seed guards is superseded by F1.** The after-league order below is superseded by `mBowl-SessionBrief-REV28.md` -> NEXT Parts A-E (S21 + S22 + F-items = Part A, S24 = Part B, rollback = Part C, S23 + NICE = Part D).
+
 ---
 
 ## 🟢 PRE-LEAGUE BATCH STATUS (Nov 11, ~12:00) — SHIPPED
@@ -15,7 +17,7 @@ Then one separate verification agent re-read every cited line: **13 CONFIRMED, 4
 **Reviewer pass:** PASS WITH WARNINGS, no blockers. Three warnings fixed in `20bfa97`: (1) S18 — after a successful save the Submit guard stays set until the Log page is focused again (closes a post-save double-tap window); (2) S19 — the 12h stale floor counts from the last time the date was seen to be today (a night crossing midnight can't jump to Sunday); (3) dead try/catch removed (`readSettings` never throws).
 **Notes kept (no change):** a picked date turns off the S19 auto-refresh until the next Submit (by design: protects backfill); with no anchor, a hand-typed cold deep link to a non-tab route (e.g. `mbowl:///log-frames`) would start without tabs underneath — nothing in the app makes such links.
 **How the fixes work:** M2 = `unstable_settings.anchor` removed (expo-router sdk-58 source: `getValidInitialRouteName` → `getLayoutAnchor`, so no anchor = seeded `[index]` → Redirect leaves one `(tabs)`) + LogPage's Live effect gated on `useIsFocused()` (from `'expo-router'`). S17 = `ScalePressable` is one `Animated.createAnimatedComponent(Pressable)` wrapping its children. S18 = `submittingRef` + draft timer cleared right before the write sequence (N20) + fire-and-forget haptic. S19 = `refreshFormDate()` on Log focus / app foreground / Settings close: re-reads settings; only for an empty, unblocked form whose date the app set, moves a date that is on another day AND ≥12h past its last confirmation to today. S20 = `supportedOrientations={['portrait','landscape']}` on all 8 RN Modals.
-**Next:** Marcus's device checks (REV27 → NEXT step 2; the M2 / S17 / S20 tests are in each item below) → Fri go/no-go. Then after league: S21 → S22 → S23 → NICE (N20 is done — folded into S18).
+**Next:** Marcus's device checks (REV27 → NEXT step 2; the M2 / S17 / S20 tests are in each item below) → Fri go/no-go. Then after league: **superseded Nov 14 -- REV28 → NEXT Parts A-E.**
 
 ---
 

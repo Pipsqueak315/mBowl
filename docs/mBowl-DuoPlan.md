@@ -11,7 +11,7 @@
 - **Phase 26 + 26A + 27 merged into `master`** -- `master` is 2.0.0 / SDK 58. OTAs from it reach only the Duo; the old phone stays on 1.0.0 as the fallback.
 - **Phase 28 WP1-WP7 built and shipped over the air** (`master` @ `44af9ee`), after a Duo screen check (findings F1-F6, Claude.ai project doc `mBowl-DuoScreenCheck-Nov10.md`) and an independent reviewer pass. **Next: Marcus checks it on the Duo, fixes ship over the air, Fri 8pm go/no-go. Step-by-step: REV25 → NEXT.**
 - **Nov 11:** backfill done on the Duo (43 sessions / 134 games); Log Frames game-over hang fixed (`97de587`); rotation unlocked; targeted post-SDK 58 audit (`docs/PHASE28-AUDIT.md`); **pre-league fix batch M2, S17-S20 shipped** (`master` @ `20bfa97`, OTA run 43091822546). **Next: Marcus's device checks, Fri 8pm go/no-go. Step-by-step: REV27 → NEXT.**
-- **Next league night: Sat, Nov 14.**
+- **Nov 14:** league Week 10 on the Duo; independent re-audit (`docs/AUDIT-FABLE-NOV14.md`); after-league batch planned as Parts A-E. **Step-by-step: REV28 → Before you build, then NEXT.**
 
 ---
 
@@ -456,4 +456,5 @@ The mockups use Inter as a stand-in for SF Pro, with sample numbers. **Build to 
 | Tue Nov 10 | ✅ Backup verified; Phase 26 + 26A merged; Phase 27 built; ✅ Mac build -> GitHub Release v2.0.0; ✅ **Duo install + restore (40 sessions)**; ✅ screen check; ✅ `phase27` merged; ✅ **Phase 28 WP1-WP7 built + shipped OTA** (two days early). |
 | Wed–Fri Nov 11–13 | ✅ Nov 11: backfill, hang fix, rotation, audit, **pre-league fix batch shipped** (`20bfa97`). Marcus checks on the Duo; Fri 8pm go/no-go. |
 | Sat Nov 14 | League on the Duo (v2) or the old phone (fallback). |
-| After league | Order confirmed Nov 11 (REV27 → NEXT step 5): S21 + S22 (Level 2) → 26A.7 rollback → mid-game resume (Level 2) → Reference trim (drop Position + Patterns + Ball Arsenal and the Switch Guide ball field; keep Signals, Pocket Diagnostics, Mental; Level 1) → S23 → NICE N16–N28 → 28.5 Reference + Settings restyle → the rest (Restore from file, 26A.8 dry run, retire the old phone after one good league night on v2); log the 11/7 makeup. |
+| Sat Nov 14 (cont.) | League Week 10 on the Duo. Midday: independent re-audit on Claude Fable (`docs/AUDIT-FABLE-NOV14.md`) -> new MUST F1 (backup overwrite) + F5-F7, F11-F15. |
+| After league | **Rebuilt Nov 14 (REV28 → NEXT):** Part A data-safety pass (S21, S22, F1, F5, F6, F15, Restore from file…; Level 2) → Part B mid-game save (S24 + N17; Level 2) → Part C 26A.7 rollback + 26A.8 dry run → Part D Level 1 batch (Reference trim, S23, F7, F11, F14, NICE N16–N28, N1/N9/N13, split-leave colors) → Part E 28.5 Reference + Settings restyle. Log the 11/7 makeup when bowled. |
