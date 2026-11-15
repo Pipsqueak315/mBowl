@@ -4,7 +4,7 @@
 **Audit sources (read both before building anything below):**
 - `docs/PHASE28-AUDIT.md` (Nov 11, 4 agents + verifier) -- the M / S / N IDs. Claude.ai project copy: `claude/mBowl-Audit-Nov11.md`.
 - `docs/AUDIT-FABLE-NOV14.md` (Nov 14, independent blind re-audit on Claude Fable) -- the F IDs, file:line refs and failure scenarios. Project copy: `claude/mBowl-Audit-Fable-Nov14.md`.
-**Last updated:** November 14, 2026, ~14:15 (Sat, before league)
+**Last updated:** November 15, 2026, ~07:40 (Sun -- league + makeup done; batch not started)
 
 ---
 
@@ -12,13 +12,15 @@
 
 **One-line status:** app code unchanged since `20bfa97` (the pre-league batch). Marcus bowls league Week 10 on the **Duo** tonight (his call, Nov 14 ~11:00). Nov 14 midday: an independent read-only re-audit on Claude Fable (`master` @ `de0bb94`, app code = `20bfa97`) found 0 new blockers for tonight, independently re-found S21, S22, S24, N17, N28, and added 1 new MUST (F1, backup overwrite) + new SHOULD/NICE items. **The after-league order below is REBUILT (Nov 14, Marcus approved)** -- it replaces REV27 -> NEXT step 5.
 
+**Nov 15 update:** Week 10 and the 11/7 makeup both logged on the Duo with no problems. Marcus is holding the batch until he has dedicated time -- nothing below has started; the Export Backup gate is still open. If Fable is no longer on his plan by then, Opus runs every Part (the reviewer agent still checks each one). Design defaults in Part B and A5 stand unless he changes them.
+
 **Marcus's plan for the next session:** one session that runs through **every** after-league edit in order (Parts A -> E below). The brief is written so a fresh chat can start at "Before you build" and go. Stop at a ship point if the session runs long -- never ship half a Part.
 
 **Where things are:**
 - **Repo:** `github.com/Pipsqueak315/mBowl`, `master` @ docs commits on top of `20bfa97` (app code) / `c20bc8c` (OTA workflow). CI green. OTAs from `master` reach only 2.0.0 builds (the Duo). Merged branches safe to delete: `fix/pre-league`, `fix/logframes-done`, `fix/allow-rotation`, `fix/landscape-logframes`, `phase26`, `phase26a`, `phase27`, `phase28`, `verify-expo-token`.
 - **v2 binary:** `mBowl-2.0.0.ipa`, GitHub Release `v2.0.0`, on the Duo via iloader. Next cert refresh: 7 days from the last iloader install (Nov 10 -> due ~Nov 17).
-- **Data on the Duo before tonight:** 43 sessions / 134 games (Oct 10 backup + backfill 9/26, 10/17, 10/31). Tonight (11/14, Week 10) adds one League session. **Not entered by design:** 10/3, 10/24 (took average). **Pending:** 11/7 makeup (log as type Makeup when bowled).
-- **Old phone:** 1.0.0, untouched, NOT backfilled. Fallback only. Retire after one good league night on v2 (tonight counts if it goes clean).
+- **Data on the Duo:** 43 sessions / 134 games before Nov 14 (Oct 10 backup + backfill 9/26, 10/17, 10/31), **plus (Nov 14-15, Marcus: "everything worked well") the 11/7 makeup (type Makeup) and 11/14 Week 10 (League)** = expected **~45 sessions / ~140 games** (if both were 3 games). **Not entered by design:** 10/3, 10/24 (took average).
+- **Old phone:** 1.0.0, untouched, NOT backfilled. **Retire it:** Week 10 + the makeup both ran clean on v2 (Nov 15), which was the condition. Keep it until the post-league Export Backup is verified, then it can be wiped.
 - **Pre-league device checks (REV27 step 2) / go/no-go:** not recorded. Marcus chose the Duo for tonight. If anything misbehaved tonight, it goes into Part A's device checks.
 
 ---
@@ -26,7 +28,7 @@
 ## Before you build (next session -- do these first, in order)
 
 1. **Marcus (phone):** Settings -> **Export Backup** -> iCloud Drive -> mBowl Backups. **Nothing in Parts A-B starts until a post-league backup is off the phone.** (Hard gate -- Level 2.)
-2. **Claude:** `npm run backup-check -- <that file>` (or read it in the cloud) -> expect **44 sessions / 137 games** if tonight was 3 games and nothing else changed. Record the numbers here. If they don't match, stop and find out why before touching code.
+2. **Claude:** `npm run backup-check -- <that file>` (or read it in the cloud) -> expect **45 sessions / 140 games** (43 / 134 + the 11/7 makeup + 11/14 Week 10, 3 games each) -- confirm the game counts with Marcus. Record the numbers here. If they don't match, stop and find out why before touching code.
 3. **Claude:** read `docs/PHASE28-AUDIT.md` and `docs/AUDIT-FABLE-NOV14.md`, then re-open each file named below before editing it (line numbers in the audits are from `20bfa97`).
 4. **Branch:** `after-league` from `master`. One commit per item ID. Push after each Part (CI = the type check in cloud sessions). `reviewer` agent at the end of each Part, fix its blockers, then the Part's device checks, then Marcus says "ship it" -> fast-forward `master` -> OTA.
 5. **Model note (Nov 14):** Marcus has Claude Fable on his plan through about Nov 16-17. If it's available, use it for Part A and Part B (Level 2 / design-heavy). Opus is fine for Parts C-E.
@@ -101,8 +103,8 @@ After D1 (only 3 sub-tabs left): Reference sub-tab bar -> `SegmentedControl` (fi
 ### Parked (not in this batch)
 - Per-ball motion notes on the Settings ball roster (changes saved ball data -> Level 2, its own item).
 - Bring back the Log Frames header Done capsule only if Marcus misses it.
-- Retire the old phone after one good league night on v2; delete the merged branches.
-- Data: log the 11/7 makeup (type Makeup) once bowled.
+- ~~Retire the old phone after one good league night on v2~~ (condition met Nov 15 -- wipe after the backup check); delete the merged branches.
+- ~~Data: log the 11/7 makeup~~ -- logged Nov 14-15 on the Duo.
 
 ---
 
