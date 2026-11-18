@@ -1,0 +1,61 @@
+# Phase 26A.7 (Nov 15) -- put a previous over-the-air update back, no build.
+#
+# Actions -> Rollback -> Run workflow, paste the FULL update group ID of the
+# update to go back to (from an earlier OTA run's log line "Update group ID",
+# or `eas update:list --branch production`). It republishes that group on the
+# production branch, so it becomes the newest update; the phone picks it up on
+# its next launch (swipe mBowl closed and reopen, once or twice).
+#
+# Republish ships the old bundle as-is -- nothing is built or checked here --
+# so only republish a group that ran fine on the phone before. Runtime 2.0.0
+# groups only (the Duo). Procedure + known-good groups: docs/ROLLBACK.md.
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      group:
+        description: 'Full update group ID to republish (e.g. ee0882ee-f884-41a4-b8d7-c6c69d0f69a5)'
+        required: true
+      message:
+        description: 'Optional message (defaults to "Rollback to <group>")'
+        required: false
+      eas_before:
+        description: 'Optional ISO time -- same eas-cli install escape hatch as ota.yml. Leave empty normally.'
+        required: false
+
+concurrency:
+  group: ota-production
+  cancel-in-progress: false
+
+jobs:
+  republish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check the group ID looks like a full UUID
+        env:
+          GROUP: ${{ github.event.inputs.group }}
+        run: |
+          echo "$GROUP" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' \
+            || { echo "Not a full update group ID: $GROUP"; exit 1; }
+      - uses: expo/expo-github-action@v8
+        if: ${{ !github.event.inputs.eas_before }}
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install eas-cli as of a past registry time (escape hatch)
+        if: ${{ github.event.inputs.eas_before }}
+        env:
+          EAS_BEFORE: ${{ github.event.inputs.eas_before }}
+        run: npm install -g eas-cli@latest --before="$EAS_BEFORE"
+      - name: Republish the group on production
+        env:
+          GROUP: ${{ github.event.inputs.group }}
+          INPUT_MESSAGE: ${{ github.event.inputs.message }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          MSG="${INPUT_MESSAGE:-Rollback to $GROUP}"
+          eas update:republish --group "$GROUP" --message "$MSG" --non-interactive
