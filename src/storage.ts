@@ -116,12 +116,18 @@ async function read(key: string): Promise<unknown> {
   }
 }
 
-// Step 8: write never throws — log and move on
-async function write(key: string, value: unknown): Promise<void> {
+// Step 8: write never throws. S22 (Nov 15): it now REPORTS failure — true when
+// AsyncStorage accepted the value, false when setItem rejected (e.g. disk full).
+// Before, the error was logged and swallowed, so Submit cleared the draft for a
+// session that never reached disk (AsyncStorage 2.2.0 caches the value before
+// checking the file write, so it even showed in-app until the next launch).
+async function write(key: string, value: unknown): Promise<boolean> {
   try {
     await AsyncStorage.setItem(key, JSON.stringify(value));
+    return true;
   } catch (e) {
     console.error('[storage] write failed for key:', key, e);
+    return false;
   }
 }
 
@@ -140,10 +146,18 @@ export async function readSessions(): Promise<Session[]> {
   return (await readSessionsResult()).value;
 }
 
-// Step 3: write to both primary and backup on every save
-export async function writeSessions(data: Session[]): Promise<void> {
-  await write(KEYS.SESSIONS, data);
-  await write(KEYS.SESSIONS_BACKUP, data);
+// Step 3: write to both primary and backup on every save.
+// S22: returns whether the PRIMARY landed -- that is what "saved" means (every
+// reader reads the primary). F3: a shadow that failed while the primary landed
+// is logged, not reported as a failed save: reporting it would make Submit keep
+// the draft, and the retry would then save the same night twice. A stale
+// shadow is only read when the primary comes back empty at launch, and the
+// next successful write brings it level again.
+export async function writeSessions(data: Session[]): Promise<boolean> {
+  const primary = await write(KEYS.SESSIONS, data);
+  const shadow = await write(KEYS.SESSIONS_BACKUP, data);
+  if (primary && !shadow) console.warn('[storage] sessions saved, but the shadow copy failed to write');
+  return primary;
 }
 
 export async function readBallsResult(): Promise<ReadResult<Ball[]>> {
@@ -155,29 +169,49 @@ export async function readBalls(): Promise<Ball[]> {
   return (await readBallsResult()).value;
 }
 
-// Step 4: write to both primary and backup on every save
-export async function writeBalls(data: Ball[]): Promise<void> {
-  await write(KEYS.BALLS, data);
-  await write(KEYS.BALLS_BACKUP, data);
+// Step 4: write to both primary and backup on every save (S22: same rule as
+// writeSessions -- true when the primary landed; a failed shadow is logged).
+export async function writeBalls(data: Ball[]): Promise<boolean> {
+  const primary = await write(KEYS.BALLS, data);
+  const shadow = await write(KEYS.BALLS_BACKUP, data);
+  if (primary && !shadow) console.warn('[storage] balls saved, but the shadow copy failed to write');
+  return primary;
 }
 
-// Step 6: safe default {}
+// F5 (Nov 15): full read state for REFERENCE and SETTINGS. Neither has a shadow
+// key, so a writer that saved "defaults + one edit" over a read that failed
+// would erase the real blob for good. Anything that WRITES these keys must read
+// with the *Result variant first and refuse on 'invalid' / 'error'.
+export async function readReferenceResult(): Promise<ReadResult<Record<string, unknown>>> {
+  return readValidated(KEYS.REFERENCE, isPlainObject, {} as Record<string, unknown>);
+}
+
+const DEFAULT_SETTINGS: Settings = { seasonStart: null, seasonEnd: null };
+
+function isSettingsLike(data: unknown): data is Settings {
+  return isPlainObject(data);
+}
+
+export async function readSettingsResult(): Promise<ReadResult<Settings>> {
+  return readValidated(KEYS.SETTINGS, isSettingsLike, { ...DEFAULT_SETTINGS });
+}
+
+// Step 6: safe default {} — display-only callers. Writers: readReferenceResult().
 export async function readReference(): Promise<Record<string, unknown>> {
-  const data = await read(KEYS.REFERENCE);
-  return data != null ? (data as Record<string, unknown>) : {};
+  return (await readReferenceResult()).value;
 }
 
-export async function writeReference(data: Record<string, unknown>): Promise<void> {
+export async function writeReference(data: Record<string, unknown>): Promise<boolean> {
   return write(KEYS.REFERENCE, data);
 }
 
-// Step 6: safe default { seasonStart: null, seasonEnd: null }
+// Step 6: safe default { seasonStart: null, seasonEnd: null } — display-only
+// callers. Writers: readSettingsResult().
 export async function readSettings(): Promise<Settings> {
-  const data = await read(KEYS.SETTINGS);
-  return data != null ? (data as Settings) : { seasonStart: null, seasonEnd: null };
+  return (await readSettingsResult()).value;
 }
 
-export async function writeSettings(data: Settings): Promise<void> {
+export async function writeSettings(data: Settings): Promise<boolean> {
   return write(KEYS.SETTINGS, data);
 }
 
@@ -198,14 +232,15 @@ export async function readDraft(): Promise<DraftData | null> {
 }
 
 // Step 8: removeItem path wrapped in try/catch, write path covered by write()
-export async function writeDraft(data: DraftData | null): Promise<void> {
+export async function writeDraft(data: DraftData | null): Promise<boolean> {
   if (data === null) {
     try {
       await AsyncStorage.removeItem(KEYS.DRAFT);
+      return true;
     } catch (e) {
       console.error('[storage] write failed for key:', KEYS.DRAFT, e);
+      return false;
     }
-  } else {
-    return write(KEYS.DRAFT, data);
   }
+  return write(KEYS.DRAFT, data);
 }
