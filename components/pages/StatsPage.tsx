@@ -15,6 +15,7 @@ import { usePageWidth, useSideInsets, usePageVisible } from '@/src/v2/page';
 import { useLayoutClass } from '@/src/v2/layout';
 import { LineChart } from 'react-native-chart-kit';
 import { readSessions, readSettings } from '@/src/storage';
+import { onDataChanged } from '@/src/dataEvents';
 import type { Session, Settings, ThrowEntry } from '@/src/types';
 import HeaderIconButton from '@/components/v2/HeaderIconButton';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -694,6 +695,23 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
       };
     }, [visible]),
   );
+
+  // S23 (Nov 15): on the open screen Stats and History share one focus, so a
+  // History edit / delete (or a Restore) never re-ran the focus load above and
+  // Stats showed the old numbers. Re-read on a data change -- data only; the
+  // filters stay where they are.
+  useEffect(() => onDataChanged(() => {
+    if (!visible) return; // a hidden page reloads when it's shown again
+    void (async () => {
+      const [sessionsData, settingsData] = await Promise.all([readSessions(), readSettings()]);
+      const sig = JSON.stringify([sessionsData, settingsData]);
+      if (sig !== dataSigRef.current) {
+        dataSigRef.current = sig;
+        setSessions(sessionsData);
+        setSettings(settingsData);
+      }
+    })();
+  }), [visible]);
 
   const seasons = useMemo(() => getSeasons(settings), [settings]);
   // Season pills: most-recent season first (leftmost = the default selection),
