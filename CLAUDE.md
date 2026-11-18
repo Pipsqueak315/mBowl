@@ -106,6 +106,7 @@ All keys live in the exported `KEYS` object in `src/storage.ts`. **Never write a
 | `DRAFT` | `mbowl_draft_v1` | In-progress Log tab draft (includes frame + pin data) |
 | `SEEDED_FLAG` | `mbowl_seeded_v1` | `'true'` once seeding has been decided — seeds run at most once, ever |
 | `FRAME_RESULT` | `mbowl_frame_result` | Transient log-frames → caller hand-off (see below) |
+| `FRAMES_IN_PROGRESS` | `mbowl_frames_in_progress` | Transient: the Log tab's game open in Log Frames, saved on every change (S24, Nov 15) |
 
 Write strategy: full replace on every save, delete, or edit.
 
@@ -113,7 +114,13 @@ Write strategy: full replace on every save, delete, or edit.
 
 **Reading (Phase 20):** `readSessions()` returns a plain array and is for **display-only** callers. Anything that **writes** based on what it read must use `readSessionsResult()` / `readBallsResult()`, which return `{ status, value }` where status is `'missing' | 'ok' | 'invalid' | 'error'`. A bare `[]` cannot distinguish "genuinely empty" from "corrupt" or "read failed" — **never act on `[]` alone.** Only `missing` may be seeded over. See `mBowl-SessionBrief-REV21.md` → Fix Session C.
 
-`FRAME_RESULT` (`mbowl_frame_result`) is the log-frames → caller result hand-off: written on Done, consumed + removed by Log / History on focus. Transient, never backed up. Moved into `KEYS` in Phase 26 (N4).
+`FRAME_RESULT` (`mbowl_frame_result`) is the log-frames → caller result hand-off: written on Done, consumed + removed by Log / History on focus. Transient, never backed up. Moved into `KEYS` in Phase 26 (N4). **Since Nov 15 (N17)** it carries `source` ('log' | 'history') and a one-time `token` passed as route params; each caller takes only its own result and removes leftovers.
+
+`FRAMES_IN_PROGRESS` (S24, Nov 15): Log Frames (Log source only) loads it on open for the same game, writes it on every change, clears it on Discard. **Done does not clear it** — LogPage clears it only after writing the result into the draft, so a kill at any moment loses nothing. LogPage reopens that game after Resume (or Game 1 with no draft), and clears it on Submit / Discard draft.
+
+**Writes (Nov 15, Part A):** every writer returns `Promise<boolean>` (sessions/balls: true = the primary landed; a failed primary skips the shadow). Anything that writes must read with the `*Result` variant first — `readSessionsResult` / `readBallsResult` / `readSettingsResult` / `readReferenceResult` — and refuse on 'invalid' / 'error'; never write from inside a `setState` updater. After a failed sessions write call `revertSessionsCache(previous)` (AsyncStorage 2.2.0 iOS caches a value before the file write fails). After a successful write that other pages show, call `notifyDataChanged(source)` (`src/dataEvents.ts`).
+
+**Backup file:** `writeBackup()` skips if ANY of the four reads is invalid/error, and copies the old file to `Documents/Backups/` before replacing it (`mBowl-kept-*` when a session would be dropped, `mBowl-daily-*` once a day). Every restore saves the current phone data as a kept copy first and aborts if it can't. First launch with sessions 'missing' restores from a backup file on the phone before seeding. Rollback of an OTA: `.github/workflows/rollback.yml` + `docs/ROLLBACK.md`.
 
 ---
 
@@ -177,7 +184,7 @@ mBowl/
 │       │   └── index.tsx    — route wrapper: LogPage (open screen: Log | Stats)
 │       ├── stats/index.tsx  — route wrapper: StatsPage (open screen: Stats | History)
 │       ├── history/index.tsx — route wrapper: HistoryPage (open screen: Stats | History)
-│       └── reference/index.tsx — Reference tab (5 sub-tabs; still the page itself)
+│       └── reference/index.tsx — Reference tab (3 sub-tabs since Nov 15; still the page itself)
 ├── components/
 │   ├── pages/
 │   │   ├── LogPage.tsx          — Log page (session form + games + submit + draft + Live game answer)
@@ -202,7 +209,8 @@ mBowl/
 │   ├── seasons.ts           — gapless multi-season model (Phase 24)
 │   ├── sessionFilter.ts     — filterSessions, shared by Stats + History (Phase 24)
 │   ├── types.ts             — canonical shared types (do not redefine locally)
-│   ├── backup.ts            — writeBackup / restoreBackup + exportBackup (mBowl-backup.json)
+│   ├── backup.ts            — writeBackup (+ Backups/ copies) / restoreBackup / restoreFromPickedJson / restoreForFirstLaunch / exportBackup
+│   ├── dataEvents.ts        — notifyDataChanged / onDataChanged (pages re-read after a write elsewhere or a Restore)
 │   ├── v2/                  — Phase 28: theme.ts (tokens), layout.ts (useLayoutClass), page.tsx (PageContext, usePageWidth, useSideInsets, usePageVisible, useBleed), motion.ts (animateNextLayout), liveGame.ts
 │   ├── notifications.ts     — SideStore cert reminder (6-day repeating, iOS only)
 │   ├── seeds.js             — 18 historical sessions (ids 1001–1018)
@@ -259,5 +267,5 @@ Pin index mapping: indices 0-9 = pins 1-10. Layout:
 | Gutter notation | — (dash) |
 | Pin tracking | Optional per-frame, analytics-only, does not affect scoring |
 | Chart library | react-native-chart-kit |
-| Reference sub-tabs | 5: Position, Signals, Pocket Diagnostics, Mental, Patterns |
+| Reference sub-tabs | 3: Signals, Pocket Diagnostics, Mental (Nov 15 trim; Position / Patterns / Ball Arsenal data kept, not shown) |
 | Bundle identifier | com.marcus.mbowl |

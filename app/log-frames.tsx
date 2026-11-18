@@ -340,6 +340,8 @@ function FrameNoteField({
           placeholderTextColor="#48484A"
           multiline
           returnKeyType="done"
+          // N25: Return closes the keyboard (a multiline field otherwise adds a newline)
+          submitBehavior="blurAndSubmit"
         />
       )}
     </View>
@@ -445,6 +447,8 @@ function ThrowNoteBar({
           placeholderTextColor="#48484A"
           multiline
           returnKeyType="done"
+          // N25: Return closes the keyboard (a multiline field otherwise adds a newline)
+          submitBehavior="blurAndSubmit"
           autoFocus
         />
       )}
