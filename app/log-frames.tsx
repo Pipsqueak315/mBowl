@@ -19,7 +19,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
 import type { FrameData, ThrowEntry } from '@/src/types';
-import { KEYS } from '@/src/storage';
+import { KEYS, readFramesInProgress, writeFramesInProgress, clearFramesInProgress } from '@/src/storage';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import PinDeck from '@/components/PinDeck';
@@ -483,11 +483,17 @@ function firstIncompleteFrame(frames: FrameData[]): number {
 }
 
 function LogFramesBody() {
-  const { gameIndex, priorScores, initialFrames } = useLocalSearchParams<{
+  const { gameIndex, priorScores, initialFrames, source, token } = useLocalSearchParams<{
     gameIndex: string;
     priorScores?: string;
     initialFrames?: string;
+    // N17 (Nov 15): who opened this screen and a one-time token, echoed in the
+    // FRAME_RESULT so each caller only takes its own result.
+    source?: string;
+    token?: string;
   }>();
+  const fromLog = source !== 'history';
+  const gameIdx = gameIndex !== undefined ? parseInt(gameIndex, 10) : 0;
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   // 27.0 M3: the screen stays on for as long as Log Frames is open (live
@@ -531,6 +537,38 @@ function LogFramesBody() {
     }
     return 0;
   });
+
+  // ---- S24 (Nov 15): game in progress survives an app kill -----------------
+  // Log tab only. On open, a saved in-progress entry for this game (left by a
+  // kill / crash mid-game) is loaded over the route's frames. While the screen
+  // is open, every change is saved. Discard clears it; Done leaves it until the
+  // Log page has the result safely in its draft (LogPage clears it then), so a
+  // kill between Done and that write still loses nothing.
+  // The writer waits for the load, or the first render's (unchanged) frames
+  // would clear the very entry the load is about to restore.
+  const [inProgressLoaded, setInProgressLoaded] = useState(!fromLog);
+  useEffect(() => {
+    if (!fromLog) return;
+    let alive = true;
+    readFramesInProgress().then((saved) => {
+      if (!alive) return;
+      if (saved && saved.gameIndex === gameIdx) {
+        const restored = throwEntriesToFrameData(saved.frames);
+        if (JSON.stringify(restored) !== JSON.stringify(frames)) {
+          setFrames(restored);
+          setCurrentFrame(firstIncompleteFrame(restored));
+          Alert.alert(
+            `Game ${gameIdx + 1} restored`,
+            'mBowl closed while this game was open. Your frames are back where you left off.'
+          );
+        }
+      }
+      setInProgressLoaded(true);
+    });
+    return () => { alive = false; };
+    // Once, on open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Streak animation
   const streakAnim = useSharedValue(0);
@@ -687,9 +725,12 @@ function LogFramesBody() {
       return;
     }
     const result = {
-      gameIndex: gameIndex !== undefined ? parseInt(gameIndex, 10) : 0,
+      gameIndex: gameIdx,
       score: scores[9],
       frames,
+      // N17: tagged so Log and History each take only the result they asked for.
+      source: fromLog ? 'log' : 'history',
+      token: token ?? null,
     };
     // Mark the save BEFORE the await, so a swipe-back during the write can't
     // raise the discard confirm under a screen that is about to close.
@@ -719,6 +760,23 @@ function LogFramesBody() {
   // once, on the first render, from the initial `frames`).
   const [initialFramesJson] = useState(() => JSON.stringify(frames));
   const isDirty = useMemo(() => JSON.stringify(frames) !== initialFramesJson, [frames, initialFramesJson]);
+
+  // S24 writer: every change while open is saved (small payload; AsyncStorage
+  // writes are queued in order). Back to the frames the screen opened with =
+  // nothing unsaved, so the entry for this game is cleared.
+  useEffect(() => {
+    if (!fromLog || !inProgressLoaded || savedRef.current) return;
+    if (isDirty) {
+      void writeFramesInProgress({
+        source: 'log',
+        gameIndex: gameIdx,
+        frames,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      void clearFramesInProgress(gameIdx);
+    }
+  }, [frames, isDirty, inProgressLoaded, fromLog, gameIdx]);
   // Nov 11 fix (SDK 58): Expo Router 58 ships its own usePreventRemove, where
   // prevention lives in router state. Re-dispatching `data.action` (the React
   // Navigation 7 pattern this was written against) is simply blocked again
@@ -742,6 +800,12 @@ function LogFramesBody() {
           style: 'destructive',
           onPress: () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            // S24: a discarded game must not come back on the next open.
+            // savedRef blocks the writer effect from re-saving it meanwhile.
+            if (fromLog) {
+              savedRef.current = true;
+              void clearFramesInProgress(gameIdx);
+            }
             repeat();
           },
         },

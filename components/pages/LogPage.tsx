@@ -37,6 +37,8 @@ import {
   readDraft,
   writeDraft,
   readSettings,
+  readFramesInProgress,
+  clearFramesInProgress,
   KEYS,
 } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
@@ -309,6 +311,15 @@ export default function LogPage() {
   // both sides, inside the safe areas -- iOS never runs a ROUNDED card under the
   // rail, only plain (square) backgrounds like History's list rows.
   const [liveTick, setLiveTick] = useState(0);
+  // S24: the form as the last render saw it, for an immediate (not debounced)
+  // draft write when a Log Frames result lands.
+  const latestDraftRef = useRef<DraftData | null>(null);
+  // N17: one-time token for the Log Frames screen this page opened; only a
+  // result carrying it is taken (a leftover from before a relaunch is not).
+  const openTokenRef = useRef<string | null>(null);
+  // S24: a game left open in Log Frames when the app died -- reopened once the
+  // form is ready (after Resume, or straight away for Game 1 with no draft).
+  const [resumeFramesIdx, setResumeFramesIdx] = useState<number | null>(null);
 
   // ---- Mount: load balls + check for draft --------------------------------
   useEffect(() => {
@@ -320,6 +331,12 @@ export default function LogPage() {
       if (draft) {
         setPendingDraft(draft);
         setDraftResumeVisible(true);
+      } else {
+        // S24: Game 1 was open in Log Frames when the app died, before the form
+        // had anything worth a draft. The fresh form's Game 1 is that game.
+        const inProgress = await readFramesInProgress();
+        if (inProgress && inProgress.gameIndex === 0) setResumeFramesIdx(0);
+        else if (inProgress) void clearFramesInProgress(); // no draft to put it in
       }
       // Recalculate week using actual season start now that settings are loaded
       settingsRef.current = settingsData ?? null;
@@ -411,21 +428,42 @@ export default function LogPage() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      AsyncStorage.getItem(KEYS.FRAME_RESULT).then((raw) => {
+      AsyncStorage.getItem(KEYS.FRAME_RESULT).then(async (raw) => {
         if (!active || !raw) return;
-        AsyncStorage.removeItem(KEYS.FRAME_RESULT);
-        const result = JSON.parse(raw) as {
-          gameIndex: number;
-          score: number;
-          frames: ThrowEntry[];
-        };
-        setGames((prev) =>
-          prev.map((g, i) =>
+        // N17 / F9 (Nov 15): take only the result this page asked for. A
+        // History result is left for History; anything else (unparseable, a
+        // leftover from before a relaunch, a token that isn't ours) is removed
+        // -- after a kill the game in progress (S24) brings the frames back.
+        let result: { gameIndex: number; score: number; frames: ThrowEntry[]; source?: string; token?: string | null };
+        try {
+          result = JSON.parse(raw);
+        } catch {
+          void AsyncStorage.removeItem(KEYS.FRAME_RESULT);
+          return;
+        }
+        if (result.source === 'history') return;
+        if (!openTokenRef.current || result.token !== openTokenRef.current) {
+          void AsyncStorage.removeItem(KEYS.FRAME_RESULT);
+          return;
+        }
+        openTokenRef.current = null;
+        void AsyncStorage.removeItem(KEYS.FRAME_RESULT);
+        const apply = (list: Game[]) =>
+          list.map((g, i) =>
             i === result.gameIndex
               ? { ...g, score: String(result.score), frames: result.frames, calculatedScore: result.score }
               : g
-          )
-        );
+          );
+        setGames(apply);
+        // S24: put the scored game in the draft NOW (not after the 400 ms
+        // auto-save), then drop the game in progress -- a kill in between
+        // keeps the in-progress copy, so the game is never only in memory.
+        const base = latestDraftRef.current;
+        const ok = base ? await writeDraft({ ...base, games: apply(base.games) }) : false;
+        if (ok) {
+          notifyDraftChanged();
+          await clearFramesInProgress(result.gameIndex);
+        }
       });
       return () => { active = false; };
     }, [])
@@ -447,6 +485,7 @@ export default function LogPage() {
       games,
       sessionNotes,
     };
+    latestDraftRef.current = draft;
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
     draftSaveTimer.current = setTimeout(() => {
       // Only persist a draft the user has actually put content into. Skipping an
@@ -550,16 +589,24 @@ export default function LogPage() {
     setTournamentPattern(d.tournamentPattern ?? '');
     setMadeCut(d.madeCut ?? 'N/A');
     setPlacement(d.placement ?? '');
-    setGames(d.games?.length ? d.games : [makeGame()]);
+    const resumedGames = d.games?.length ? d.games : [makeGame()];
+    setGames(resumedGames);
     setSessionNotes(d.sessionNotes ?? '');
     setDraftResumeVisible(false);
     setPendingDraft(null);
+    // S24: a game that was open in Log Frames when the app died reopens.
+    void readFramesInProgress().then((inProgress) => {
+      if (!inProgress) return;
+      if (inProgress.gameIndex < resumedGames.length) setResumeFramesIdx(inProgress.gameIndex);
+      else void clearFramesInProgress();
+    });
   }
 
   async function discardDraft() {
     // A Live game request was for the draft's game; the draft is gone.
     clearLiveGameRequest();
     await writeDraft(null);
+    await clearFramesInProgress(); // S24: its game in progress goes with it
     notifyDraftChanged();
     setDraftResumeVisible(false);
     setPendingDraft(null);
@@ -683,6 +730,7 @@ export default function LogPage() {
     void writeBackup();
     notifyDataChanged('log');
     await writeDraft(null);
+    await clearFramesInProgress(); // S24: nothing in progress outlives its session
     notifyDraftChanged();
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
@@ -702,9 +750,13 @@ export default function LogPage() {
     const game = games[index];
     if (!game || openingFramesRef.current) return;
     openingFramesRef.current = true;
+    const token = String(Date.now()) + Math.random().toString(36).slice(2, 8);
+    openTokenRef.current = token;
     router.push({
       pathname: '/log-frames',
       params: {
+        source: 'log',
+        token,
         gameIndex: String(index),
         priorScores: games.slice(0, index).map((g) => parseInt(g.score, 10) || 0).join(','),
         ...(game.frames && game.frames.length > 0
@@ -732,6 +784,16 @@ export default function LogPage() {
       if (hasLiveGameRequest()) setLiveTick((t) => t + 1);
     }, [])
   );
+  // S24: reopen the game that was open in Log Frames when the app died, once
+  // the form holds the resumed draft and the page is on screen.
+  useEffect(() => {
+    if (resumeFramesIdx === null || !isFocused || !ready || draftResumeVisible) return;
+    const idx = resumeFramesIdx;
+    setResumeFramesIdx(null);
+    if (idx < games.length) openLogFrames(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeFramesIdx, isFocused, ready, draftResumeVisible]);
+
   useEffect(() => {
     if (!isFocused || !ready || draftResumeVisible || !hasLiveGameRequest()) return;
     clearLiveGameRequest();

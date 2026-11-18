@@ -575,6 +575,8 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
     session: Session;
     gameIndex: number;
     wasDirty: boolean;
+    // N17: one-time token passed to Log Frames and echoed in its result.
+    token: string;
   } | null>(null);
   // When set, triggers a router.push after the edit modal state update has been applied
   const shouldPushFramesRef = useRef<{
@@ -605,7 +607,13 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
       shouldPushFramesRef.current = null;
       router.push({
         pathname: '/log-frames',
-        params: { gameIndex: String(gameIndex), priorScores, initialFrames },
+        params: {
+          source: 'history',
+          token: pendingFrameEditRef.current?.token ?? '',
+          gameIndex: String(gameIndex),
+          priorScores,
+          initialFrames,
+        },
       });
     }
   }, [editModalOpen]);
@@ -650,18 +658,29 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
         let reopenWith: Session = pending.session;
         let dirty = pending.wasDirty;
 
+        // N17 / F9 (Nov 15): only our own result counts. A Log result is left
+        // for the Log page; an unparseable one or one with another token is a
+        // leftover -- removed, and treated as "left without saving".
+        let result: { gameIndex: number; score: number; frames: ThrowEntry[]; source?: string; token?: string | null } | null = null;
         if (resultRaw) {
-          const result = JSON.parse(resultRaw) as {
-            gameIndex: number;
-            score: number;
-            frames: ThrowEntry[];
-          };
-          await AsyncStorage.removeItem(KEYS.FRAME_RESULT);
+          try {
+            const parsed = JSON.parse(resultRaw);
+            if (parsed?.source !== 'log') {
+              if (parsed?.token === pending.token) result = parsed;
+              await AsyncStorage.removeItem(KEYS.FRAME_RESULT);
+            }
+          } catch {
+            await AsyncStorage.removeItem(KEYS.FRAME_RESULT);
+          }
+        }
+
+        if (result) {
+          const r = result;
           reopenWith = {
             ...pending.session,
             games: pending.session.games.map((g, i) =>
-              i === result.gameIndex
-                ? { ...g, score: result.score, frames: result.frames }
+              i === r.gameIndex
+                ? { ...g, score: r.score, frames: r.frames }
                 : g
             ),
           };
@@ -765,7 +784,12 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
       .map(g => g.score ?? 0)
       .join(',');
     const initialFrames = game?.frames ? JSON.stringify(game.frames) : '';
-    pendingFrameEditRef.current = { session: liveSession, gameIndex, wasDirty };
+    pendingFrameEditRef.current = {
+      session: liveSession,
+      gameIndex,
+      wasDirty,
+      token: String(Date.now()) + Math.random().toString(36).slice(2, 8),
+    };
     shouldPushFramesRef.current = { gameIndex, priorScores, initialFrames };
     setEditModalOpen(false);
   }, []);

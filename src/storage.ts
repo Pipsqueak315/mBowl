@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Session, Ball, Settings, DraftData } from './types';
+import type { Session, Ball, Settings, DraftData, ThrowEntry } from './types';
 
 export const KEYS: Record<string, string> = {
   SESSIONS:        'mbowl_sessions_v1',
@@ -14,6 +14,12 @@ export const KEYS: Record<string, string> = {
   // by Log / History on focus). Transient, never backed up. N4: moved in from
   // app/log-frames.tsx — same string value, so nothing in flight is orphaned.
   FRAME_RESULT:    'mbowl_frame_result',
+  // S24 (Nov 15): the Log tab's game in progress in Log Frames, saved on every
+  // frame change so an app kill / crash mid-game doesn't lose the throws.
+  // Transient like FRAME_RESULT: never backed up, not one of the data keys.
+  // Cleared on Discard, and by the Log page once a Done result is safely in
+  // the draft (or the draft is discarded / submitted).
+  FRAMES_IN_PROGRESS: 'mbowl_frames_in_progress',
 };
 
 // ---------------------------------------------------------------------------
@@ -243,4 +249,54 @@ export async function writeDraft(data: DraftData | null): Promise<boolean> {
     }
   }
   return write(KEYS.DRAFT, data);
+}
+
+// ---------------------------------------------------------------------------
+// S24: game in progress (Log tab only)
+// ---------------------------------------------------------------------------
+
+export type FramesInProgress = {
+  source: 'log';
+  gameIndex: number;
+  frames: ThrowEntry[];
+  updatedAt: string;
+};
+
+function isFramesInProgress(v: unknown): v is FramesInProgress {
+  if (!isPlainObject(v)) return false;
+  return (
+    v.source === 'log' &&
+    typeof v.gameIndex === 'number' &&
+    Number.isInteger(v.gameIndex) &&
+    v.gameIndex >= 0 &&
+    Array.isArray(v.frames) &&
+    v.frames.length === 10 &&
+    v.frames.every(f => isPlainObject(f) && Array.isArray(f.throws))
+  );
+}
+
+/** The saved game in progress, or null (none, unreadable, or malformed). */
+export async function readFramesInProgress(): Promise<FramesInProgress | null> {
+  const r = await readValidated(KEYS.FRAMES_IN_PROGRESS, isFramesInProgress, null as unknown as FramesInProgress);
+  return r.status === 'ok' ? r.value : null;
+}
+
+export async function writeFramesInProgress(v: FramesInProgress): Promise<boolean> {
+  return write(KEYS.FRAMES_IN_PROGRESS, v);
+}
+
+/**
+ * Remove the game in progress. With a gameIndex, only when the saved entry is
+ * for that game (so finishing Game 1 never clears an unsaved Game 2).
+ */
+export async function clearFramesInProgress(gameIndex?: number): Promise<void> {
+  try {
+    if (gameIndex !== undefined) {
+      const cur = await readFramesInProgress();
+      if (cur && cur.gameIndex !== gameIndex) return;
+    }
+    await AsyncStorage.removeItem(KEYS.FRAMES_IN_PROGRESS);
+  } catch (e) {
+    console.error('[storage] clearing the game in progress failed', e);
+  }
 }
