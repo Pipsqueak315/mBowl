@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useCallback, useRef } from 'react';
+import { useState, useLayoutEffect, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useSideInsets } from '@/src/v2/page';
 import * as Haptics from 'expo-haptics';
@@ -22,8 +23,9 @@ import PocketDiagnosticsTab, {
   DEFAULT_DIAGNOSTICS,
 } from '@/components/PocketDiagnosticsTab';
 import PatternsTab, { PatternsData, DEFAULT_PATTERNS } from '@/components/PatternsTab';
-import { readReference, writeReference } from '@/src/storage';
+import { readReferenceResult, writeReference } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
+import { onDataChanged, notifyDataChanged } from '@/src/dataEvents';
 import ScalePressable from '@/components/ScalePressable';
 
 // ---------------------------------------------------------------------------
@@ -248,6 +250,16 @@ export default function ReferenceScreen() {
   const [activeTab, setActiveTab] = useState<SubTab>('Position');
   const [data, setData] = useState<ReferenceData>(DEFAULT_DATA);
   const [loaded, setLoaded] = useState(false);
+  // F5 (Nov 15): REFERENCE has no shadow key. If the stored blob failed to
+  // read, the page shows the defaults -- saving "defaults + one edit" over it
+  // would erase the real content for good, so saving is blocked until a clean
+  // read. Re-read after a Restore (A8) so an edit never writes the old copy.
+  const readableRef = useRef(false);
+  const warnedRef = useRef(false);
+  const [dataTick, setDataTick] = useState(0);
+  useEffect(() => onDataChanged((source) => {
+    if (source === 'restore') setDataTick(n => n + 1);
+  }), []);
   const latestData = useRef<ReferenceData>(DEFAULT_DATA);
   const navigation = useNavigation();
 
@@ -268,8 +280,11 @@ export default function ReferenceScreen() {
       let active = true;
       setLoaded(false);
       (async () => {
-        const stored = await readReference();
+        const read = await readReferenceResult();
         if (!active) return;
+        readableRef.current = read.status === 'ok' || read.status === 'missing';
+        warnedRef.current = false;
+        const stored = read.value;
         if (stored) {
           const merged = mergeWithDefaults(stored);
           setData(merged);
@@ -281,7 +296,7 @@ export default function ReferenceScreen() {
         setLoaded(true);
       })();
       return () => { active = false; };
-    }, []),
+    }, [dataTick]),
   );
 
   // Update state and ref atomically — prevents stale closure in save()
@@ -294,8 +309,24 @@ export default function ReferenceScreen() {
   }
 
   function save() {
-    void writeReference(latestData.current as unknown as Record<string, unknown>);
-    void writeBackup();
+    if (!readableRef.current) {
+      if (!warnedRef.current) {
+        warnedRef.current = true;
+        Alert.alert(
+          "Can't save Reference edits",
+          "Your saved Reference content couldn't be read, so edits here won't be saved (saving now could erase it). Relaunch the app and try again."
+        );
+      }
+      return;
+    }
+    void writeReference(latestData.current as unknown as Record<string, unknown>).then((ok) => {
+      if (!ok) {
+        Alert.alert("Couldn't save Reference edits", 'The phone could not save the change (storage may be full).');
+        return;
+      }
+      void writeBackup();
+      notifyDataChanged('reference');
+    });
   }
 
   // -------------------------------------------------------------------------

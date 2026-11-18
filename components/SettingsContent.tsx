@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,16 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
-import { readSettings, writeSettings, readBalls, writeBalls } from '@/src/storage';
-import { writeBackup, restoreBackup, exportBackup } from '@/src/backup';
+import { readSettingsResult, writeSettings, readBallsResult, writeBalls } from '@/src/storage';
+import {
+  writeBackup,
+  restoreBackup,
+  exportBackup,
+  pickBackupFile,
+  summarizeBackup,
+  restoreFromPickedJson,
+} from '@/src/backup';
+import { notifyDataChanged } from '@/src/dataEvents';
 import ScalePressable from '@/components/ScalePressable';
 import type { Settings, Ball, Season } from '@/src/types';
 import { getSeasons, resolveSeasonRanges } from '@/src/seasons';
@@ -77,14 +85,34 @@ export default function SettingsContent({ onClose }: Props) {
   const [seasonDraftIsNew, setSeasonDraftIsNew] = useState(false);
   const [showSeasonStartPicker, setShowSeasonStartPicker] = useState(false);
 
+  // F5 (Nov 15): whether each key read back cleanly when the sheet loaded. A
+  // read that failed or came back corrupt shows defaults (empty seasons, no
+  // balls) -- saving "defaults + one edit" over it would erase the real data,
+  // and settings has no shadow key. So a bad read blocks saving that key.
+  // The sheet is the only writer of settings + balls while it's open, so the
+  // copy loaded here stays current; it is re-read after a Restore (A8).
+  const settingsReadable = useRef(false);
+  const ballsReadable = useRef(false);
+  const [restoring, setRestoring] = useState(false);
+
+  async function loadData(): Promise<void> {
+    const [s, b] = await Promise.all([readSettingsResult(), readBallsResult()]);
+    settingsReadable.current = s.status === 'ok' || s.status === 'missing';
+    ballsReadable.current = b.status === 'ok' || b.status === 'missing';
+    setSettings(s.value);
+    setBalls(b.value);
+  }
+
   // Load settings + balls on mount
   useEffect(() => {
     let active = true;
     (async () => {
-      const [s, b] = await Promise.all([readSettings(), readBalls()]);
+      const [s, b] = await Promise.all([readSettingsResult(), readBallsResult()]);
       if (!active) return;
-      setSettings(s);
-      setBalls(b);
+      settingsReadable.current = s.status === 'ok' || s.status === 'missing';
+      ballsReadable.current = b.status === 'ok' || b.status === 'missing';
+      setSettings(s.value);
+      setBalls(b.value);
     })();
     return () => { active = false; };
   }, []);
@@ -93,16 +121,89 @@ export default function SettingsContent({ onClose }: Props) {
   // Persistence helpers
   // ---------------------------------------------------------------------------
 
+  function refuseUnreadable(what: string) {
+    Alert.alert(
+      `Can't save ${what}`,
+      `Your saved ${what} couldn't be read, so nothing was changed (saving now could erase them). Close Settings and relaunch the app, then try again.`
+    );
+  }
+
   async function saveSettingsData(updated: Settings) {
+    if (!settingsReadable.current) {
+      refuseUnreadable('settings');
+      return;
+    }
+    const ok = await writeSettings(updated);
+    if (!ok) {
+      Alert.alert("Couldn't save settings", 'The phone could not save the change (storage may be full).');
+      return;
+    }
     setSettings(updated);
-    await writeSettings(updated);
     void writeBackup();
+    notifyDataChanged('settings');
   }
 
   async function saveBallsData(updated: Ball[]) {
+    if (!ballsReadable.current) {
+      refuseUnreadable('balls');
+      return;
+    }
+    const ok = await writeBalls(updated);
+    if (!ok) {
+      Alert.alert("Couldn't save balls", 'The phone could not save the change (storage may be full).');
+      return;
+    }
     setBalls(updated);
-    await writeBalls(updated);
     void writeBackup();
+  }
+
+  // A7: Restore from file… -- pick a backup .json, show what's in it, confirm.
+  async function startRestoreFromFile() {
+    if (restoring) return;
+    const picked = await pickBackupFile();
+    if (picked === null) return; // cancelled
+    if ('error' in picked) {
+      Alert.alert('Restore Failed', picked.error);
+      return;
+    }
+    const summary = summarizeBackup(picked.json);
+    if ('error' in summary) {
+      Alert.alert('Restore Failed', summary.error);
+      return;
+    }
+    const { sessions, games, exportedAt } = summary.summary;
+    const when = exportedAt
+      ? new Date(exportedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : 'unknown date';
+    Alert.alert(
+      'Restore from this file?',
+      `${picked.name}\n${sessions} sessions · ${games} games · exported ${when}\n\nThis replaces ALL data on the phone (sessions, balls, settings, reference). What's on the phone now is kept as a copy in Files → mBowl → Backups first.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Restore',
+          style: 'destructive',
+          onPress: async () => {
+            setRestoring(true);
+            try {
+              const result = await restoreFromPickedJson(picked.json);
+              if (result.success) {
+                await loadData();
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert(
+                  'Backup Restored',
+                  `${sessions} sessions restored. If anything still looks out of date, close and reopen the app.`
+                );
+              } else {
+                Alert.alert('Restore Failed', result.error ?? 'Unknown error.');
+              }
+            } finally {
+              setRestoring(false);
+            }
+          },
+        },
+      ]
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -666,8 +767,9 @@ export default function SettingsContent({ onClose }: Props) {
                   onPress: async () => {
                     const result = await restoreBackup();
                     if (result.success) {
+                      await loadData();
                       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      Alert.alert('Backup Restored', 'Restart the app to see your data.');
+                      Alert.alert('Backup Restored', 'Your data has been restored. If anything still looks out of date, close and reopen the app.');
                     } else {
                       Alert.alert('Restore Failed', result.error ?? 'Unknown error.');
                     }
@@ -678,6 +780,15 @@ export default function SettingsContent({ onClose }: Props) {
           }}
         >
           <Text style={styles.restoreText}>Restore from Backup</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.restoreButton}
+          disabled={restoring}
+          onPress={() => { void startRestoreFromFile(); }}
+        >
+          <Text style={[styles.restoreText, restoring && styles.exportTextBusy]}>
+            {restoring ? 'Restoring…' : 'Restore from File…'}
+          </Text>
         </TouchableOpacity>
 
         <View style={styles.bottomSpacer} />
