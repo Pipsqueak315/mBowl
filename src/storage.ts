@@ -236,6 +236,13 @@ export async function writeSettings(data: Settings): Promise<boolean> {
   return write(KEYS.SETTINGS, data);
 }
 
+/** Review fix (Nov 17): readDraft() returns null for "no draft" AND for a read
+ * that threw. Callers that act on "no draft" must check this first. */
+export async function draftKeyState(): Promise<'missing' | 'present' | 'error'> {
+  const r = await readRaw(KEYS.DRAFT);
+  return r.status === 'ok' ? 'present' : r.status;
+}
+
 // Step 7: validate draft before returning — discard if corrupt
 export async function readDraft(): Promise<DraftData | null> {
   const data = await read(KEYS.DRAFT);
@@ -305,14 +312,15 @@ export async function writeFramesInProgress(v: FramesInProgress): Promise<boolea
 }
 
 /**
- * Remove the game in progress. With a gameIndex, only when the saved entry is
- * for that game (so finishing Game 1 never clears an unsaved Game 2).
+ * Remove the game in progress. With a gameId, only when the saved entry is for
+ * that game (so finishing or opening one game never clears another's unsaved
+ * frames). Without one, removes whatever is there (Submit, Discard draft).
  */
-export async function clearFramesInProgress(gameIndex?: number): Promise<void> {
+export async function clearFramesInProgress(gameId?: string): Promise<void> {
   try {
-    if (gameIndex !== undefined) {
+    if (gameId !== undefined) {
       const cur = await readFramesInProgress();
-      if (cur && cur.gameIndex !== gameIndex) return;
+      if (cur && cur.gameId !== gameId) return;
     }
     await AsyncStorage.removeItem(KEYS.FRAMES_IN_PROGRESS);
   } catch (e) {

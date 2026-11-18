@@ -40,6 +40,7 @@ import {
   readSettings,
   readFramesInProgress,
   clearFramesInProgress,
+  draftKeyState,
   KEYS,
 } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
@@ -351,7 +352,9 @@ export default function LogPage() {
         // Its id becomes the fresh form's Game 1 id, so Log Frames loads it.
         // (Any other leftover is left alone: it can only load into its own
         // game id, and a failed draft read must not delete it.)
-        const inProgress = await readFramesInProgress();
+        // Only when there really is no draft -- a draft that failed to read
+        // must not be replaced by a fresh form's Game 1.
+        const inProgress = (await draftKeyState()) === 'missing' ? await readFramesInProgress() : null;
         if (inProgress && inProgress.gameIndex === 0) {
           setGames((prev) => [{ ...prev[0], id: inProgress.gameId }, ...prev.slice(1)]);
           setResumeFramesIdx(0);
@@ -493,7 +496,8 @@ export default function LogPage() {
         const ok = base ? await writeDraft({ ...base, games: apply(base.games) }) : false;
         if (ok) {
           notifyDraftChanged();
-          await clearFramesInProgress(result.gameIndex);
+          // Only this game's entry (never another game's unsaved frames).
+          await clearFramesInProgress(base?.games[result.gameIndex]?.id ?? '-');
         }
       });
       return () => { active = false; };

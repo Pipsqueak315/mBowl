@@ -782,7 +782,7 @@ function LogFramesBody() {
         updatedAt: new Date().toISOString(),
       });
     } else {
-      void clearFramesInProgress(gameIdx);
+      void clearFramesInProgress(gameId);
     }
   }, [frames, isDirty, inProgressLoaded, fromLog, gameIdx, gameId]);
   // Nov 11 fix (SDK 58): Expo Router 58 ships its own usePreventRemove, where
@@ -810,9 +810,9 @@ function LogFramesBody() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             // S24: a discarded game must not come back on the next open.
             // savedRef blocks the writer effect from re-saving it meanwhile.
-            if (fromLog) {
+            if (fromLog && gameId) {
               savedRef.current = true;
-              void clearFramesInProgress(gameIdx);
+              void clearFramesInProgress(gameId);
             }
             repeat();
           },
