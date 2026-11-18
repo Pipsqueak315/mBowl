@@ -101,6 +101,8 @@ export default function SettingsContent({ onClose }: Props) {
     ballsReadable.current = b.status === 'ok' || b.status === 'missing';
     setSettings(s.value);
     setBalls(b.value);
+    lastSavedSettings.current = s.value;
+    lastSavedBalls.current = b.value;
   }
 
   // Load settings + balls on mount
@@ -113,6 +115,8 @@ export default function SettingsContent({ onClose }: Props) {
       ballsReadable.current = b.status === 'ok' || b.status === 'missing';
       setSettings(s.value);
       setBalls(b.value);
+      lastSavedSettings.current = s.value;
+      lastSavedBalls.current = b.value;
     })();
     return () => { active = false; };
   }, []);
@@ -128,39 +132,58 @@ export default function SettingsContent({ onClose }: Props) {
     );
   }
 
+  // The screen updates at once (controlled Switches would snap back while the
+  // write is in flight) and rolls back if the save is refused or fails.
+  // lastSaved* = what is on disk, the rollback target.
+  const lastSavedSettings = useRef<Settings | null>(null);
+  const lastSavedBalls = useRef<Ball[] | null>(null);
+
   async function saveSettingsData(updated: Settings) {
     if (!settingsReadable.current) {
+      if (lastSavedSettings.current) setSettings(lastSavedSettings.current);
       refuseUnreadable('settings');
       return;
     }
+    setSettings(updated);
     const ok = await writeSettings(updated);
     if (!ok) {
+      if (lastSavedSettings.current) setSettings(lastSavedSettings.current);
       Alert.alert("Couldn't save settings", 'The phone could not save the change (storage may be full).');
       return;
     }
-    setSettings(updated);
+    lastSavedSettings.current = updated;
     void writeBackup();
     notifyDataChanged('settings');
   }
 
   async function saveBallsData(updated: Ball[]) {
     if (!ballsReadable.current) {
+      if (lastSavedBalls.current) setBalls(lastSavedBalls.current);
       refuseUnreadable('balls');
       return;
     }
+    setBalls(updated);
     const ok = await writeBalls(updated);
     if (!ok) {
+      if (lastSavedBalls.current) setBalls(lastSavedBalls.current);
       Alert.alert("Couldn't save balls", 'The phone could not save the change (storage may be full).');
       return;
     }
-    setBalls(updated);
+    lastSavedBalls.current = updated;
     void writeBackup();
   }
 
   // A7: Restore from file… -- pick a backup .json, show what's in it, confirm.
+  const pickingRef = useRef(false);
   async function startRestoreFromFile() {
-    if (restoring) return;
-    const picked = await pickBackupFile();
+    if (restoring || pickingRef.current) return; // a double tap opens one picker
+    pickingRef.current = true;
+    let picked: Awaited<ReturnType<typeof pickBackupFile>>;
+    try {
+      picked = await pickBackupFile();
+    } finally {
+      pickingRef.current = false;
+    }
     if (picked === null) return; // cancelled
     if ('error' in picked) {
       Alert.alert('Restore Failed', picked.error);

@@ -21,7 +21,7 @@ import { useFocusEffect, useNavigation } from 'expo-router/react-navigation';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import { readSessions, readSessionsResult, writeSessions, readSettings, KEYS } from '@/src/storage';
+import { readSessions, readSessionsResult, writeSessions, revertSessionsCache, readSettings, KEYS } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
 import { notifyDataChanged, onDataChanged } from '@/src/dataEvents';
 import type { ThrowEntry, GameEntry, Session, Settings } from '@/src/types';
@@ -726,10 +726,12 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
       if (next === null) return false;
       const ok = await writeSessions(next);
       if (!ok) {
+        void revertSessionsCache(fresh.value); // keep the in-memory cache = disk
         Alert.alert(`Could not ${what}`, 'The phone could not save the change (storage may be full). Nothing was changed.');
         return false;
       }
       next.sort((a, b) => b.date.localeCompare(a.date));
+      dataSigRef.current = ''; // the next focus load always redraws from disk
       setSessions(next);
       void writeBackup();
       notifyDataChanged('history');
@@ -740,7 +742,12 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
   }, []);
 
   const handleDelete = useCallback((id: number | string) => {
-    void writeFreshSessions((fresh) => fresh.filter((s) => s.id !== id), 'delete this session');
+    void writeFreshSessions((fresh) => {
+      // Not in the store (e.g. the primary read back missing): nothing to
+      // delete -- and writing [] would blank the shadow, the one copy left.
+      if (!fresh.some((s) => s.id === id)) return null;
+      return fresh.filter((s) => s.id !== id);
+    }, 'delete this session');
   }, [writeFreshSessions]);
 
   const handleEdit = useCallback((session: Session) => {

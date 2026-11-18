@@ -37,7 +37,7 @@ import { INITIAL_BALLS } from '../src/balls';
 
 export default function RootLayout() {
   useEffect(() => {
-    async function initStorage() {
+    async function initStorage(): Promise<boolean | void> {
       // Step 2: Seed flag — seeds run at most once, ever
       let seeded: string | null = null;
       try {
@@ -67,11 +67,26 @@ export default function RootLayout() {
         // backup right after -- used to overwrite the real backup with the 18
         // seeds. So before seeding, restore from a backup file on the phone if
         // one holds real sessions (it restores balls/settings/reference too).
+        // (A readable shadow is left to the shadow recovery below.)
         let restoredSessions = 0;
         if (sessionsRead.status === 'missing') {
-          restoredSessions = await restoreForFirstLaunch();
+          const first = await restoreForFirstLaunch();
+          if (first.failed) {
+            // A restore was tried and failed partway: never seed over it, and
+            // leave the seeded flag unset so the next launch tries again.
+            // true = skip the launch backup: the main file is the good copy.
+            return true;
+          }
+          restoredSessions = first.restored;
           if (restoredSessions === 0) {
-            await writeSessions(SEED_SESSIONS as Session[]);
+            let shadowHolds = false;
+            try {
+              const raw = await AsyncStorage.getItem(KEYS.SESSIONS_BACKUP);
+              shadowHolds = !!raw && isValidSessionArray(JSON.parse(raw));
+            } catch {
+              shadowHolds = false;
+            }
+            if (!shadowHolds) await writeSessions(SEED_SESSIONS as Session[]);
           }
         } else if (sessionsRead.status === 'invalid') {
           console.warn('[mBowl] sessions key present but unreadable — not seeding over it');
@@ -132,7 +147,10 @@ export default function RootLayout() {
         }
       }
     }
-    initStorage().then(() => { void writeBackup(); void scheduleCertReminder(); });
+    initStorage().then((skipBackup) => {
+      if (!skipBackup) void writeBackup();
+      void scheduleCertReminder();
+    });
   }, []);
 
   return (

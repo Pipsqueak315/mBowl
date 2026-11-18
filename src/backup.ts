@@ -27,7 +27,7 @@ const BACKUP_FILENAME = 'mBowl-backup.json';
 const BACKUPS_DIR = 'Backups';
 const KEPT_PREFIX = 'mBowl-kept-';
 const DAILY_PREFIX = 'mBowl-daily-';
-const KEEP_KEPT = 5;
+const KEEP_KEPT = 10;
 const KEEP_DAILY = 7;
 
 export type BackupPayload = {
@@ -73,14 +73,20 @@ function backupsDir(): Directory {
   return dir;
 }
 
-/** Keep the newest `keep` files whose name starts with `prefix`. Best effort. */
-function prune(dir: Directory, prefix: string, keep: number): void {
+/**
+ * Keep the newest `keep` files whose name starts with `prefix`. Best effort.
+ * `protect` names one file that is never deleted (the kept copy holding the
+ * most sessions -- so a run of routine deletes can't push out the one copy
+ * that mattered, e.g. the one made before a wrong import).
+ */
+function prune(dir: Directory, prefix: string, keep: number, protect?: string): void {
   try {
     const files = dir
       .list()
       .filter((e): e is File => e instanceof File && e.name.startsWith(prefix))
       .sort((a, b) => b.name.localeCompare(a.name));
     for (const f of files.slice(keep)) {
+      if (f.name === protect) continue;
       try {
         f.delete();
       } catch (e) {
@@ -108,6 +114,21 @@ async function readJson(file: File): Promise<unknown> {
 function sessionCountOf(parsed: unknown): number {
   if (!isPlainObject(parsed) || !Array.isArray(parsed.sessions)) return 0;
   return parsed.sessions.length;
+}
+
+/** Name of the kept copy with the most sessions (protected from pruning). */
+async function largestKept(dir: Directory): Promise<string | undefined> {
+  let best: { name: string; n: number } | undefined;
+  try {
+    for (const e of dir.list()) {
+      if (!(e instanceof File) || !e.name.startsWith(KEPT_PREFIX)) continue;
+      const n = sessionCountOf(await readJson(e));
+      if (!best || n > best.n) best = { name: e.name, n };
+    }
+  } catch {
+    // best effort
+  }
+  return best?.name;
 }
 
 /** Session ids in a parsed backup, as strings (ids are numbers or strings). */
@@ -144,7 +165,7 @@ async function preserveBeforeOverwrite(
   if (wouldLose) {
     try {
       await file.copy(new File(dir, `${KEPT_PREFIX}${timeStamp(now)}.json`), { overwrite: true });
-      prune(dir, KEPT_PREFIX, KEEP_KEPT);
+      prune(dir, KEPT_PREFIX, KEEP_KEPT, await largestKept(dir));
     } catch (e) {
       console.warn('[backup] kept copy failed -- leaving the old backup in place', e);
       return false;
@@ -297,7 +318,7 @@ function checkPayload(json: string): CheckedPayload {
   return { ok: true, payload: payload as Record<string, unknown> & { sessions: unknown[] } };
 }
 
-/** Counts shown before a restore from file (A7). Null when the file won't restore. */
+/** Counts shown before a restore from file (A7), or why the file won't restore. */
 export function summarizeBackup(json: string): { summary: BackupSummary } | { error: string } {
   const checked = checkPayload(json);
   if (!checked.ok) return { error: checked.error };
@@ -342,6 +363,63 @@ async function restoreFromJson(json: string): Promise<Result> {
   return { success: true };
 }
 
+/**
+ * Review fix (Nov 15): before ANY restore, save what's on the phone right now
+ * to Backups/mBowl-kept-<stamp>-before-restore.json, straight from storage --
+ * not via the main file, which writeBackup() skips when a read is bad (the
+ * very case F12 sends Marcus to Restore for). A value that won't parse is kept
+ * as its raw text, so nothing is lost even if it can't be restored as-is.
+ * Returns false when the copy couldn't be written; the restore then stops.
+ */
+async function keepCurrentState(): Promise<boolean> {
+  try {
+    const pairs = await AsyncStorage.multiGet([
+      KEYS.SESSIONS,
+      KEYS.SESSIONS_BACKUP,
+      KEYS.BALLS,
+      KEYS.SETTINGS,
+      KEYS.REFERENCE,
+    ]);
+    const raw = Object.fromEntries(pairs) as Record<string, string | null>;
+    const parse = (s: string | null | undefined): unknown => {
+      if (s == null) return null;
+      try {
+        return JSON.parse(s);
+      } catch {
+        return { unparsedRawText: s };
+      }
+    };
+    const sessions = parse(raw[KEYS.SESSIONS]);
+    const shadow = parse(raw[KEYS.SESSIONS_BACKUP]);
+    if (sessions == null && shadow == null && raw[KEYS.BALLS] == null && raw[KEYS.SETTINGS] == null && raw[KEYS.REFERENCE] == null) {
+      return true; // nothing on the phone to keep
+    }
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      version: 1,
+      note: 'mBowl: phone data saved automatically right before a restore',
+      // A restorable shape when the primary was readable; otherwise the shadow.
+      sessions: Array.isArray(sessions) ? sessions : Array.isArray(shadow) ? shadow : sessions,
+      sessionsShadow: shadow,
+      balls: parse(raw[KEYS.BALLS]),
+      settings: parse(raw[KEYS.SETTINGS]),
+      reference: parse(raw[KEYS.REFERENCE]),
+    };
+    const dir = backupsDir();
+    await new File(dir, `${KEPT_PREFIX}${timeStamp(new Date())}-before-restore.json`).write(JSON.stringify(payload, null, 2));
+    prune(dir, KEPT_PREFIX, KEEP_KEPT, await largestKept(dir));
+    return true;
+  } catch (e) {
+    console.error('[backup] could not save the current data before restore', e);
+    return false;
+  }
+}
+
+const KEEP_FAILED: Result = {
+  success: false,
+  error: "Restore cancelled: mBowl couldn't save a copy of what's on the phone first (storage may be full). Nothing was changed.",
+};
+
 /** Restore from the in-app file (Documents/mBowl-backup.json). */
 export async function restoreBackup(): Promise<Result> {
   try {
@@ -351,6 +429,8 @@ export async function restoreBackup(): Promise<Result> {
     } catch {
       return { success: false, error: 'No backup file found.' };
     }
+    if (!checkPayload(json).ok) return restoreFromJson(json); // reports why, writes nothing
+    if (!(await keepCurrentState())) return KEEP_FAILED;
     const result = await restoreFromJson(json);
     if (result.success) notifyDataChanged('restore');
     return result;
@@ -390,10 +470,11 @@ export async function pickBackupFile(): Promise<{ json: string; name: string } |
  */
 export async function restoreFromPickedJson(json: string): Promise<Result> {
   try {
-    await writeBackup(); // refresh the main file from what's on the phone now
+    if (!checkPayload(json).ok) return restoreFromJson(json); // reports why, writes nothing
+    if (!(await keepCurrentState())) return KEEP_FAILED;
     const result = await restoreFromJson(json);
     if (!result.success) return result;
-    await writeBackup(); // main file = restored data; pre-restore state kept if needed
+    await writeBackup(); // main file = the restored data
     notifyDataChanged('restore');
     return result;
   } catch (e) {
@@ -409,7 +490,15 @@ export async function restoreFromPickedJson(json: string): Promise<Result> {
  * real sessions, restore it (shape-checked, shadows included) and return its
  * session count. Returns 0 when there is nothing to restore (the caller seeds).
  */
-export async function restoreForFirstLaunch(): Promise<number> {
+export async function restoreForFirstLaunch(): Promise<{ restored: number; failed: boolean }> {
+  // Review fix: a readable shadow wins -- the launch shadow recovery restores
+  // it (it can be newer than the file, e.g. after a skipped writeBackup).
+  try {
+    const shadowRaw = await AsyncStorage.getItem(KEYS.SESSIONS_BACKUP);
+    if (shadowRaw && isValidSessionArray(JSON.parse(shadowRaw))) return { restored: 0, failed: false, };
+  } catch {
+    // unreadable shadow: look for a file below
+  }
   const candidates: File[] = [];
   try {
     const main = backupFile();
@@ -444,8 +533,12 @@ export async function restoreForFirstLaunch(): Promise<number> {
     const result = await restoreFromJson(json);
     if (result.success) {
       console.warn('[mBowl] first launch: restored', summary.summary.sessions, 'sessions from', file.name);
-      return summary.summary.sessions;
+      return { restored: summary.summary.sessions, failed: false };
     }
+    // Review fix: a restore that failed partway (disk full) must not be
+    // followed by seeding over it -- stop, and let the next launch retry.
+    console.error('[mBowl] first launch: restore from', file.name, 'failed; not seeding');
+    return { restored: 0, failed: true };
   }
-  return 0;
+  return { restored: 0, failed: false };
 }

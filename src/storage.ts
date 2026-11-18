@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session, Ball, Settings, DraftData, ThrowEntry } from './types';
 
-export const KEYS: Record<string, string> = {
+// N26 (Nov 15): `as const` -- a typo like KEYS.SESION is now a type error
+// instead of `undefined` (the old Record<string, string> accepted any name).
+export const KEYS = {
   SESSIONS:        'mbowl_sessions_v1',
   SESSIONS_BACKUP: 'mbowl_sessions_backup_v1',
   BALLS:           'mbowl_balls_v1',
@@ -20,7 +22,7 @@ export const KEYS: Record<string, string> = {
   // Cleared on Discard, and by the Log page once a Done result is safely in
   // the draft (or the draft is discarded / submitted).
   FRAMES_IN_PROGRESS: 'mbowl_frames_in_progress',
-};
+} as const;
 
 // ---------------------------------------------------------------------------
 // Read states (S9–S12 root cause)
@@ -122,6 +124,16 @@ async function read(key: string): Promise<unknown> {
   }
 }
 
+/**
+ * Review fix (Nov 15): AsyncStorage 2.2.0 on iOS puts a value in its memory
+ * cache BEFORE checking the file write, so after a failed write later reads in
+ * this session see the value that never reached disk. Writing the previous
+ * value back (best effort) puts the cache back in line with the disk.
+ */
+export async function revertSessionsCache(previous: Session[]): Promise<void> {
+  await write(KEYS.SESSIONS, previous);
+}
+
 // Step 8: write never throws. S22 (Nov 15): it now REPORTS failure — true when
 // AsyncStorage accepted the value, false when setItem rejected (e.g. disk full).
 // Before, the error was logged and swallowed, so Submit cleared the draft for a
@@ -161,6 +173,8 @@ export async function readSessions(): Promise<Session[]> {
 // next successful write brings it level again.
 export async function writeSessions(data: Session[]): Promise<boolean> {
   const primary = await write(KEYS.SESSIONS, data);
+  // A failed primary means nothing was saved -- the shadow must not hold it.
+  if (!primary) return false;
   const shadow = await write(KEYS.SESSIONS_BACKUP, data);
   if (primary && !shadow) console.warn('[storage] sessions saved, but the shadow copy failed to write');
   return primary;
@@ -179,6 +193,7 @@ export async function readBalls(): Promise<Ball[]> {
 // writeSessions -- true when the primary landed; a failed shadow is logged).
 export async function writeBalls(data: Ball[]): Promise<boolean> {
   const primary = await write(KEYS.BALLS, data);
+  if (!primary) return false;
   const shadow = await write(KEYS.BALLS_BACKUP, data);
   if (primary && !shadow) console.warn('[storage] balls saved, but the shadow copy failed to write');
   return primary;
