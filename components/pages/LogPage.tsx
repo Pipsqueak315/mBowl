@@ -33,6 +33,7 @@ import { useLayoutClass } from '@/src/v2/layout';
 import {
   readSessionsResult,
   writeSessions,
+  revertSessionsCache,
   readBalls,
   readDraft,
   writeDraft,
@@ -125,6 +126,19 @@ function draftHasContent(d: DraftData): boolean {
     if (g.score) return true;
     if (g.ball) return true;
     if (g.notes?.trim()) return true;
+    if (g.frames && g.frames.length > 0) return true;
+  }
+  return false;
+}
+
+// F7 (Nov 15): does the form hold anything tied to the night it was bowled --
+// a score, ball, frames, game or session notes? Typing only the opponent (or
+// the session type / tournament name) a day early to get ahead is prep, not
+// bowling, so S19's date/week refresh may still move that form's date to today.
+function draftHasGameContent(d: Pick<DraftData, 'games' | 'sessionNotes'>): boolean {
+  if (d.sessionNotes?.trim()) return true;
+  for (const g of d.games ?? []) {
+    if (g.score || g.ball || g.notes?.trim()) return true;
     if (g.frames && g.frames.length > 0) return true;
   }
   return false;
@@ -363,11 +377,8 @@ export default function LogPage() {
   const dateSetAtRef = useRef(Date.now());
   const liveFormRef = useRef({ hasContent: false, blocked: true, date: new Date(), week: '' });
   liveFormRef.current = {
-    hasContent: draftHasContent({
-      sessionType, date: '', week, opponent,
-      tournamentName, tournamentFormat, tournamentPattern, madeCut, placement,
-      games, sessionNotes,
-    }),
+    // F7: only game content pins the date; an opponent typed ahead does not.
+    hasContent: draftHasGameContent({ games, sessionNotes }),
     blocked: draftResumeVisible || pendingDraft !== null || showDatePicker,
     date,
     week,
@@ -579,7 +590,10 @@ export default function LogPage() {
   function resumeDraft() {
     if (!pendingDraft) return;
     const d = pendingDraft;
-    dateUserSetRef.current = true; // S19: a resumed draft keeps its own date
+    // S19: a resumed draft keeps its own date -- F7: unless all it holds is
+    // prep (opponent / type typed ahead, no scores, frames, balls or notes),
+    // whose date the app set; S19's refresh may move that one to today.
+    dateUserSetRef.current = draftHasGameContent(d);
     setSessionType(d.sessionType);
     setDate(new Date(d.date));
     setWeek(d.week ?? '');
@@ -617,6 +631,10 @@ export default function LogPage() {
   // S18: Submit is in flight. A second tap during the awaits below would build
   // a second session (new Date.now() id) and save the same night twice.
   const submittingRef = useRef(false);
+  // Review fix (Nov 15): one session id per form, kept across a failed Submit,
+  // so a retry replaces -- never duplicates -- an attempt that may still sit in
+  // AsyncStorage's memory cache. Cleared when the form resets.
+  const submitIdRef = useRef<number | null>(null);
 
   // On SUCCESS the guard stays set until this page is focused again (cleared
   // in the Live/focus effect below): a second tap can land after the save but
@@ -645,7 +663,7 @@ export default function LogPage() {
     }
 
     const session = {
-      id: Date.now(),
+      id: (submitIdRef.current ??= Date.now()),
       type: sessionType,
       date: formatDateISO(date),
       week: (sessionType === 'league' || sessionType === 'makeup')
@@ -704,8 +722,10 @@ export default function LogPage() {
     // failed write the session is NOT saved: keep the form, put the draft back
     // on disk (its pending auto-save was just disarmed above), and say so --
     // no haptic, no navigate, no clearing.
-    const saved = await writeSessions([session, ...existingRead.value]);
+    const others = existingRead.value.filter((s) => s.id !== session.id);
+    const saved = await writeSessions([session, ...others]);
     if (!saved) {
+      void revertSessionsCache(others);
       const draft: DraftData = {
         sessionType,
         date: date.toISOString(),
@@ -734,6 +754,7 @@ export default function LogPage() {
     notifyDraftChanged();
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
+    submitIdRef.current = null;
     resetForm();
     router.navigate('/(tabs)/stats');
     return true;
