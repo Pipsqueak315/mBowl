@@ -124,6 +124,7 @@ export default function EditSessionModal({
   const [ballPickerForIndex, setBallPickerForIndex] = useState<number | null>(null);
   const [availableBalls, setAvailableBalls] = useState<Ball[]>([]);
   const isDirty = useRef(false);
+  const savedScoresRef = useRef<string[]>([]);
   // Mirrored so the populate effect can read the latest value without taking it
   // as a dependency — re-running that effect would wipe the edits it guards.
   const initiallyDirtyRef = useRef(initiallyDirty);
@@ -146,6 +147,8 @@ export default function EditSessionModal({
     setTournamentPattern(session.pattern ?? '');
     setMadeCut((session.madeCut as MadeCut) ?? 'N/A');
     setPlacement(session.placement ?? '');
+    // F11: each game's score as it was saved, for the override confirm below.
+    savedScoresRef.current = session.games.map(g => (g.score != null ? String(g.score) : ''));
     setGames(
       session.games.map(g => ({
         game: g.game,
@@ -207,6 +210,29 @@ export default function EditSessionModal({
       })),
       notes: sessionNotes.trim() || null,
     };
+  }
+
+  // F11 (Nov 15): typing a new score on a game that has frames used to save
+  // silently, so the score (average) and the frames (strike %, leaves) then
+  // disagreed. Same confirm the Log form uses: keep the frame score or override.
+  function confirmScoreOverride(i: number) {
+    const g = games[i];
+    const saved = savedScoresRef.current[i] ?? '';
+    if (!g || !g.frames || g.frames.length === 0) return;
+    if (g.score === '' || g.score === saved) return;
+    Alert.alert(
+      'Override Frame Score?',
+      `This game's frames score ${saved || 'a different total'}. Save ${g.score} instead? The frames stay as they are.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () =>
+            setGames(prev => prev.map((gm, idx) => (idx === i ? { ...gm, score: saved } : gm))),
+        },
+        { text: 'Override', style: 'destructive' },
+      ]
+    );
   }
 
   function handleSave() {
@@ -482,6 +508,7 @@ export default function EditSessionModal({
                       );
                       markDirty();
                     }}
+                    onEndEditing={() => confirmScoreOverride(i)}
                     keyboardType="number-pad"
                     placeholder="—"
                     placeholderTextColor="#48484A"
