@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Alert } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -15,7 +16,7 @@ import {
   isBallArray,
   KEYS,
 } from '../src/storage';
-import { writeBackup } from '../src/backup';
+import { writeBackup, restoreForFirstLaunch } from '../src/backup';
 import { scheduleCertReminder } from '../src/notifications';
 import type { Session, Ball } from '../src/types';
 import { SEED_SESSIONS } from '../src/seeds';
@@ -60,13 +61,28 @@ export default function RootLayout() {
         // S11: seed ONLY a key that has never been written. 'ok' (even with
         // zero sessions) and 'invalid' both mean something is already there —
         // seeding over either would destroy real history.
+        // A6 (F1, Nov 15): "never written" can also mean the storage folder was
+        // wiped while Documents survived (an app reinstall over a device
+        // restore, a lost AsyncStorage manifest). Seeding then -- and the launch
+        // backup right after -- used to overwrite the real backup with the 18
+        // seeds. So before seeding, restore from a backup file on the phone if
+        // one holds real sessions (it restores balls/settings/reference too).
+        let restoredSessions = 0;
         if (sessionsRead.status === 'missing') {
-          await writeSessions(SEED_SESSIONS as Session[]);
+          restoredSessions = await restoreForFirstLaunch();
+          if (restoredSessions === 0) {
+            await writeSessions(SEED_SESSIONS as Session[]);
+          }
         } else if (sessionsRead.status === 'invalid') {
           console.warn('[mBowl] sessions key present but unreadable — not seeding over it');
         }
 
-        if (ballsRead.status === 'missing') {
+        if (restoredSessions > 0) {
+          Alert.alert(
+            'Data restored',
+            `mBowl found the backup file on this phone and restored ${restoredSessions} sessions.`
+          );
+        } else if (ballsRead.status === 'missing') {
           await writeBalls(INITIAL_BALLS as Ball[]);
         } else if (ballsRead.status === 'invalid') {
           console.warn('[mBowl] balls key present but unreadable — not seeding over it');
