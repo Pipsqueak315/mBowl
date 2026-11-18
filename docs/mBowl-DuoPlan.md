@@ -458,3 +458,4 @@ The mockups use Inter as a stand-in for SF Pro, with sample numbers. **Build to 
 | Sat Nov 14 | League on the Duo (v2) or the old phone (fallback). |
 | Sat Nov 14 (cont.) | League Week 10 on the Duo. Midday: independent re-audit on Claude Fable (`docs/AUDIT-FABLE-NOV14.md`) -> new MUST F1 (backup overwrite) + F5-F7, F11-F15. |
 | After league | **Rebuilt Nov 14 (REV28 → NEXT):** Part A data-safety pass (S21, S22, F1, F5, F6, F15, Restore from file…; Level 2) → Part B mid-game save (S24 + N17; Level 2) → Part C 26A.7 rollback + 26A.8 dry run → Part D Level 1 batch (Reference trim, S23, F7, F11, F14, NICE N16–N28, N1/N9/N13, split-leave colors) → Part E 28.5 Reference + Settings restyle. Log the 11/7 makeup when bowled. |
+| Tue Nov 17 | Parts A-D built on `after-league` (data safety, mid-game save, rollback workflow, Level 1 batch); 3 reviewer passes, CI green; not shipped (cert expired). Part E next. REV29. |
