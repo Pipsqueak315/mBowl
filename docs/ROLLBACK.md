@@ -20,5 +20,6 @@
 | Group ID | App code | What | Ran fine on the Duo? |
 |---|---|---|---|
 | `ee0882ee-f884-41a4-b8d7-c6c69d0f69a5` | `20bfa97` | Pre-league batch (M2, S17-S20), Nov 11 | Yes -- league Week 10 + 11/7 makeup, Nov 14-15 |
+| `766e68a8-fbdc-4a50-955f-18e294806e60` | `a8b3dca` | After-league batch A-D (data safety, mid-game save, Reference trim), Nov 18 (OTA run 44336666836) | Pending -- device checks after the cert refresh |
 
 Add a row after every OTA (the `Update group ID` from the run log).
