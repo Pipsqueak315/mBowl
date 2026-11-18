@@ -21,8 +21,9 @@ import { useFocusEffect, useNavigation } from 'expo-router/react-navigation';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import { readSessions, writeSessions, readSettings, KEYS } from '@/src/storage';
+import { readSessions, readSessionsResult, writeSessions, readSettings, KEYS } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
+import { notifyDataChanged, onDataChanged } from '@/src/dataEvents';
 import type { ThrowEntry, GameEntry, Session, Settings } from '@/src/types';
 import HeaderIconButton from '@/components/v2/HeaderIconButton';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -551,6 +552,15 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
   // True when editingSession carries unsaved edits returned from the frame editor
   const [editModalDirty, setEditModalDirty] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // A8: bumped when saved data changes while this page stays focused (a
+  // Restore from the Settings sheet, an edit in the other pane) -- re-runs the
+  // focus load below so the list on screen is never a stale copy.
+  const [dataTick, setDataTick] = useState(0);
+  useEffect(() => onDataChanged((source) => {
+    if (source !== 'history') setDataTick(n => n + 1);
+  }), []);
+  // One History write at a time (a fast second swipe-delete or Save).
+  const writingRef = useRef(false);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const sideInsets = useSideInsets();
@@ -667,16 +677,52 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
       };
       load();
       return () => { active = false; };
-    }, [visible])
+    }, [visible, dataTick])
   );
 
-  const handleDelete = useCallback((id: number | string) => {
-    setSessions((prev) => {
-      const updated = prev.filter((s) => s.id !== id);
-      writeSessions(updated).then(() => { void writeBackup(); });
-      return updated;
-    });
+  // S21 / F4 / F10 (Nov 15): History writes used to apply the change to the
+  // list held in memory (loaded with display-only readSessions()) inside a
+  // setSessions updater. After a Restore without a relaunch -- or a read that
+  // failed and left the list [] -- that wrote a stale or empty list over the
+  // real store, the shadow and then the backup file. Now every write: fresh
+  // read with status -> refuse on invalid/error -> apply to the fresh list ->
+  // write outside any updater (updaters must be pure) -> show what was saved.
+  // Returns true when the change is on disk.
+  const writeFreshSessions = useCallback(async (
+    change: (fresh: Session[]) => Session[] | null,
+    what: string,
+  ): Promise<boolean> => {
+    if (writingRef.current) return false;
+    writingRef.current = true;
+    try {
+      const fresh = await readSessionsResult();
+      if (fresh.status === 'invalid' || fresh.status === 'error') {
+        Alert.alert(
+          `Could not ${what}`,
+          'Your saved sessions could not be read, so nothing was changed (saving now could overwrite your history). Relaunch the app and try again.'
+        );
+        return false;
+      }
+      const next = change(fresh.value);
+      if (next === null) return false;
+      const ok = await writeSessions(next);
+      if (!ok) {
+        Alert.alert(`Could not ${what}`, 'The phone could not save the change (storage may be full). Nothing was changed.');
+        return false;
+      }
+      next.sort((a, b) => b.date.localeCompare(a.date));
+      setSessions(next);
+      void writeBackup();
+      notifyDataChanged('history');
+      return true;
+    } finally {
+      writingRef.current = false;
+    }
   }, []);
+
+  const handleDelete = useCallback((id: number | string) => {
+    void writeFreshSessions((fresh) => fresh.filter((s) => s.id !== id), 'delete this session');
+  }, [writeFreshSessions]);
 
   const handleEdit = useCallback((session: Session) => {
     setEditingSession(session);
@@ -684,17 +730,25 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
     setEditModalDirty(false);
   }, []);
 
-  const handleSaveEdit = useCallback((updated: EditableSession) => {
-    setSessions(prev => {
-      const newSessions = prev.map(s => s.id === updated.id ? (updated as Session) : s);
-      newSessions.sort((a, b) => b.date.localeCompare(a.date));
-      writeSessions(newSessions).then(() => { void writeBackup(); });
-      return newSessions;
-    });
+  const handleSaveEdit = useCallback(async (updated: EditableSession) => {
+    const saved = await writeFreshSessions((fresh) => {
+      if (!fresh.some(s => s.id === updated.id)) {
+        // The session isn't in the store any more (restored or deleted since
+        // the sheet opened). Don't resurrect it or drop the edit silently.
+        Alert.alert(
+          'Could not save changes',
+          'This session is no longer in your saved history (it may have been restored or deleted). Nothing was changed.'
+        );
+        return null;
+      }
+      return fresh.map(s => s.id === updated.id ? (updated as Session) : s);
+    }, 'save changes');
+    // On failure the sheet stays open with the edits, so nothing typed is lost.
+    if (!saved) return;
     setEditModalOpen(false);
     setEditingSession(null);
     setEditModalDirty(false);
-  }, []);
+  }, [writeFreshSessions]);
 
   // liveSession is the modal's in-progress state, not the pre-edit snapshot —
   // carrying it through the round trip is what preserves unsaved field edits.
