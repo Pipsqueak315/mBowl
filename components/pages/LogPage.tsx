@@ -40,6 +40,7 @@ import {
   KEYS,
 } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
+import { notifyDataChanged } from '@/src/dataEvents';
 import {
   notifyDraftChanged,
   onLiveGameRequest,
@@ -637,7 +638,9 @@ export default function LogPage() {
     if (existingRead.status === 'invalid' || existingRead.status === 'error') {
       Alert.alert(
         'Could not save session',
-        'Your saved sessions could not be read. This session was not saved, because saving now would overwrite your history. Your entry is kept as a draft — please relaunch the app and try again.'
+        // F12: if relaunching never helps (primary AND shadow unreadable), the
+        // way out is a restore -- say so instead of looping on "relaunch".
+        'Your saved sessions could not be read. This session was not saved, because saving now would overwrite your history. Your entry is kept as a draft. Relaunch the app and try again; if this keeps happening, use Settings → Restore from file… with your latest export, then submit again.'
       );
       return false;
     }
@@ -650,8 +653,35 @@ export default function LogPage() {
       clearTimeout(draftSaveTimer.current);
       draftSaveTimer.current = null;
     }
-    await writeSessions([session, ...existingRead.value]);
+    // S22: writeSessions reports failure now (disk full, storage error). On a
+    // failed write the session is NOT saved: keep the form, put the draft back
+    // on disk (its pending auto-save was just disarmed above), and say so --
+    // no haptic, no navigate, no clearing.
+    const saved = await writeSessions([session, ...existingRead.value]);
+    if (!saved) {
+      const draft: DraftData = {
+        sessionType,
+        date: date.toISOString(),
+        week,
+        opponent,
+        tournamentName,
+        tournamentFormat,
+        tournamentPattern,
+        madeCut,
+        placement,
+        games,
+        sessionNotes,
+      };
+      await writeDraft(draft);
+      notifyDraftChanged();
+      Alert.alert(
+        "Couldn't save session",
+        'The phone could not save this session (storage may be full). Your session is still in the form -- free up some space, then tap Submit again.'
+      );
+      return false;
+    }
     void writeBackup();
+    notifyDataChanged('log');
     await writeDraft(null);
     notifyDraftChanged();
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
