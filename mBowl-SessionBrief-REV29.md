@@ -66,7 +66,7 @@
 | A7 | F1 (B), F13 | Settings -> **Restore from File...** (expo-document-picker, in the 2.0.0 binary): counts + export date shown before restoring. **Every restore** (both kinds) first saves the phone's raw current data as `mBowl-kept-*-before-restore.json` and stops if it can't. Clearer partial-restore message | `d299a57`, `ef0f7db`, `3a341f3`, `a78d52c` |
 | A8 | S21 | `src/dataEvents.ts` (`notifyDataChanged(source)` / `onDataChanged`): History, Reference, Stats re-read after a Restore; the Settings sheet reloads itself. Alert text still says "close and reopen if anything looks out of date" until verified | `d299a57`, `5868fe5`, `ef0f7db` |
 | A9 | F12 | Submit's refusal now points to Restore from File when relaunching doesn't help | `78663d1` |
-| B | S24, F2, N17, F9 | `KEYS.FRAMES_IN_PROGRESS` (transient): Log Frames (Log tab only) saves the game on every change, keyed by gameIndex + the form's game id; reopened after a kill (after Resume, or Game 1 with no draft); Discard clears it; Done leaves it until LogPage has written the result into the draft (immediately, not after the 400 ms auto-save). `FRAME_RESULT` carries `source` + a one-time token; each page takes only its own result | `7046f81`, `a78d52c` |
+| B | S24, F2, N17, F9 | `KEYS.FRAMES_IN_PROGRESS` (transient): Log Frames (Log tab only) saves the game on every change, keyed by gameIndex + the form's game id; reopened after a kill (after Resume, or Game 1 with no draft); Discard clears it; Done leaves it until LogPage has written the result into the draft (immediately, not after the 400 ms auto-save); cleared by game id only. `FRAME_RESULT` carries `source` + a one-time token; each page takes only its own result | `7046f81`, `a78d52c`, `0eb759a` |
 | C | 26A.7 | `.github/workflows/rollback.yml` (`eas update:republish --group`), `docs/ROLLBACK.md` with the known-good group | `a780423` |
 | D1 | Reference trim | 3 sub-tabs; Position, Patterns, Ball Arsenal, Switch-to hidden -- all data still round-trips (REFERENCE has no shadow) | `a786bb6` |
 | D2 | S23 | Stats re-reads on a data change (filters untouched) | `f1a7f94` |
@@ -75,7 +75,7 @@
 | D6 | N18, N25, N26 | ⌫ trims pin data by throw index; note fields' Return closes the keyboard; `KEYS as const` | `5f4ce33`, `d6bb5d0`, `3a341f3` |
 | Docs | -- | CLAUDE.md (keys table, write rules, backup rules, 3 sub-tabs), SPEC appendix rows 1/10/11 | `d6bb5d0` |
 
-**Reviews:** reviewer pass 1 on Part A = BLOCK (Restore from File promised a copy it didn't always make) + 12 warnings -> fixed in `3a341f3` / `61ab669`. Pass 2 on fixes + B + D = PASS WITH WARNINGS (10) -> the ones that mattered fixed in `a78d52c` (S24 matched by game id; immediate draft write on every Done; first-launch alerts; balls shadow; kept copy includes the balls shadow). Kept as-is (minor): Settings rollback during two overlapping writes can show a stale value until reopen; edit Save haptic fires before the result. **CI (npm ci + tsc + checks) green on every push.**
+**Reviews:** reviewer pass 1 on Part A = BLOCK (Restore from File promised a copy it didn't always make) + 12 warnings -> fixed in `3a341f3` / `61ab669`. Pass 2 on fixes + B + D = PASS WITH WARNINGS (10) -> the ones that mattered fixed in `a78d52c` (S24 matched by game id; immediate draft write on every Done; first-launch alerts; balls shadow; kept copy includes the balls shadow). Pass 3 (narrow, on `a78d52c`) = PASS WITH WARNINGS -> fixed in `0eb759a` (clear by game id; the no-draft reopen only when the draft key is truly missing, so a draft that failed to read is never replaced). Kept as-is (minor): Settings rollback during two overlapping writes can show a stale value until reopen; edit Save haptic fires before the result. **CI (npm ci + tsc + checks) green on every push.**
 
 **Decisions made in the build (Marcus can reverse):**
 - One OTA for A-D (above). Kept copies 10 (REV28 said 5) with the largest protected; daily 7.
@@ -91,6 +91,7 @@
 | **Part E -- 28.5 Reference + Settings v2 restyle** | Visual; needs Marcus's screenshots. Own OTA after A-D are verified |
 | **D5 / F14** goal fields save on blur | Device check 4 first; fix only if it fails |
 | **N19** Done hidden after re-entering an earlier frame of a finished game | UI change; wants eyes on the device |
+| S24 edge: a game other than Game 1 left open on a form that never became a draft (nothing typed, Add game, open Game 2, killed) is not reopened | Live game always opens the first unscored game, so rare; the entry is kept, never misapplied |
 | **N16** rotation mid-frame resets tapped pins; **N21-N24, N27** | Display / plausible-only items; next Level 1 batch |
 | **D8** N1 share spinner, N9 pin-row layout in one place, N13 SPLIT badge, PocketDiagnostics split-leave colors | Presentation; fold into Part E |
 | Parked | Per-ball motion notes on the ball roster (Level 2, own item); Log Frames header Done capsule only if missed; delete merged branches |
@@ -121,7 +122,7 @@
 
 ## DONE log (Nov 17)
 
-- **~20:20-21:45 (Claude.ai project cloud session, Opus):** Marcus: "duplicated the most recent backup... get through as much as you can"; mid-session: cert not refreshed yet, wants the fixes in place for when he does. Built Parts A, B, C, most of D on `after-league` (table above). Verified the expo-file-system / expo-document-picker 58 APIs and `eas update:republish` before using them. Three reviewer passes (BLOCK -> fixed; PASS WITH WARNINGS -> fixed; final narrow pass on `a78d52c`). CI green on every push. Not merged, not shipped -- waiting on "ship it". REV29.
+- **~20:20-21:45 (Claude.ai project cloud session, Opus):** Marcus: "duplicated the most recent backup... get through as much as you can"; mid-session: cert not refreshed yet, wants the fixes in place for when he does. Built Parts A, B, C, most of D on `after-league` @ `0eb759a` (table above). Verified the expo-file-system / expo-document-picker 58 APIs and `eas update:republish` before using them. Three reviewer passes (BLOCK -> fixed; PASS WITH WARNINGS -> fixed; narrow pass on `a78d52c` -> fixed in `0eb759a`). CI green on every push. Not merged, not shipped -- waiting on "ship it". REV29.
 
 ## DONE log (Nov 15)
 
