@@ -680,7 +680,7 @@ function LogFramesBody() {
           return {
             ...f,
             throws: f.throws.slice(0, -1),
-            pinsStanding: f.pinsStanding?.slice(0, -1),
+            pinsStanding: f.pinsStanding?.slice(0, f.throws.length - 1),
           };
         })
       );
@@ -692,7 +692,7 @@ function LogFramesBody() {
           return {
             ...f,
             throws: f.throws.slice(0, -1),
-            pinsStanding: f.pinsStanding?.slice(0, -1),
+            pinsStanding: f.pinsStanding?.slice(0, f.throws.length - 1),
           };
         })
       );
