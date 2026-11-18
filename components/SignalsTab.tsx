@@ -20,7 +20,12 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 // Types
 // ---------------------------------------------------------------------------
 
-type SignalsView = 'Switch Guide' | 'Ball Arsenal' | 'Lane Reads';
+// Reference trim (Nov 15, scope locked Nov 11 -- Marcus: "let me decide which
+// ball on the fly"): the Ball Arsenal view and the Switch Guide's "Switch to"
+// field are gone from the screen. Their data (arsenal[], switchGuide[].switchTo)
+// stays in SignalsData and round-trips on every save -- REFERENCE has no shadow
+// key, so dropping fields would erase them. Hidden, not deleted.
+type SignalsView = 'Switch Guide' | 'Lane Reads';
 
 interface SwitchGuideRow {
   whatYoureSeeing: string;
@@ -264,29 +269,11 @@ function directionColor(dir: string): string {
   return '#FFD60A';
 }
 
-function StrengthDots({ strength }: { strength: number }) {
-  return (
-    <View style={s.dotRow}>
-      {[1, 2, 3, 4, 5].map(i => (
-        <View
-          key={i}
-          style={[s.dot, { backgroundColor: i <= strength ? '#00CEC9' : '#38383A' }]}
-        />
-      ))}
-    </View>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
-const VIEWS: SignalsView[] = ['Switch Guide', 'Ball Arsenal', 'Lane Reads'];
+const VIEWS: SignalsView[] = ['Switch Guide', 'Lane Reads'];
 
 export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) {
   const [view, setView] = useState<SignalsView>('Switch Guide');
   const [expandedGuide, setExpandedGuide] = useState<Set<number>>(new Set());
-  const [expandedArsenal, setExpandedArsenal] = useState<Set<number>>(new Set());
   const [expandedLane, setExpandedLane] = useState<Set<number>>(new Set());
 
   // ---- Toggle helpers ----
@@ -309,15 +296,6 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
       ...data,
       switchGuide: data.switchGuide.map((row, idx) =>
         idx === i ? { ...row, ...patch } : row,
-      ),
-    });
-  }
-
-  function patchArsenal(i: number, patch: { motionProfile?: string; whenToUse?: string }) {
-    onUpdate({
-      ...data,
-      arsenal: data.arsenal.map((ball, idx) =>
-        idx === i ? { ...ball, ...patch } : ball,
       ),
     });
   }
@@ -399,20 +377,6 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
                   </View>
 
                   <View style={s.fieldBlock}>
-                    <Text style={s.fieldLabel}>SWITCH TO</Text>
-                    <TextInput
-                      style={s.fieldInput}
-                      value={row.switchTo}
-                      onChangeText={v => patchGuide(i, { switchTo: v })}
-                      onBlur={onSave}
-                      multiline
-                      textAlignVertical="top"
-                      placeholder="Ball to throw..."
-                      placeholderTextColor="#48484A"
-                    />
-                  </View>
-
-                  <View style={s.fieldBlock}>
                     <Text style={s.fieldLabel}>FEET ADJUSTMENT</Text>
                     <TextInput
                       style={s.fieldInput}
@@ -435,74 +399,6 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
                       onBlur={onSave}
                       returnKeyType="done"
                       placeholder="🟢 Down / 🔴 Up / 🟡 Feet only"
-                      placeholderTextColor="#48484A"
-                    />
-                  </View>
-                </View>
-              )}
-            </View>
-          );
-        })}
-        <View style={s.bottomSpacer} />
-      </ScrollView>
-    );
-  }
-
-  // ---- Ball Arsenal ----
-
-  function renderArsenal() {
-    return (
-      <ScrollView
-        style={s.scroll}
-        contentContainerStyle={s.content}
-        showsVerticalScrollIndicator={false}
-        keyboardDismissMode="interactive"
-      >
-        <Text style={s.sectionLabel}>BALL ARSENAL — weakest to strongest</Text>
-        {data.arsenal.map((ball, i) => {
-          const isOpen = expandedArsenal.has(i);
-          return (
-            <View key={i} style={s.card}>
-              <TouchableOpacity
-                style={s.cardHeader}
-                onPress={() => toggle(setExpandedArsenal, i)}
-                activeOpacity={0.7}
-              >
-                <StrengthDots strength={ball.strength} />
-                <Text style={s.cardHeaderText} numberOfLines={1}>
-                  {ball.name}
-                </Text>
-                <Text style={[s.chevron, isOpen && s.chevronOpen]}>›</Text>
-              </TouchableOpacity>
-
-              {isOpen && (
-                <View style={s.expandedBody}>
-                  <View style={s.separator} />
-
-                  <View style={s.fieldBlock}>
-                    <Text style={s.fieldLabel}>MOTION PROFILE</Text>
-                    <TextInput
-                      style={s.fieldInput}
-                      value={ball.motionProfile}
-                      onChangeText={v => patchArsenal(i, { motionProfile: v })}
-                      onBlur={onSave}
-                      multiline
-                      textAlignVertical="top"
-                      placeholder="How this ball moves..."
-                      placeholderTextColor="#48484A"
-                    />
-                  </View>
-
-                  <View style={[s.fieldBlock, s.lastFieldBlock]}>
-                    <Text style={s.fieldLabel}>WHEN TO USE</Text>
-                    <TextInput
-                      style={s.fieldInput}
-                      value={ball.whenToUse}
-                      onChangeText={v => patchArsenal(i, { whenToUse: v })}
-                      onBlur={onSave}
-                      multiline
-                      textAlignVertical="top"
-                      placeholder="Conditions and scenarios..."
                       placeholderTextColor="#48484A"
                     />
                   </View>
@@ -616,7 +512,6 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
       </View>
 
       {view === 'Switch Guide' && renderSwitchGuide()}
-      {view === 'Ball Arsenal' && renderArsenal()}
       {view === 'Lane Reads' && renderLaneReads()}
     </View>
   );

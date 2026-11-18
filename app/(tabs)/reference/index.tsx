@@ -22,7 +22,7 @@ import PocketDiagnosticsTab, {
   DiagnosticsData,
   DEFAULT_DIAGNOSTICS,
 } from '@/components/PocketDiagnosticsTab';
-import PatternsTab, { PatternsData, DEFAULT_PATTERNS } from '@/components/PatternsTab';
+import { type PatternsData, DEFAULT_PATTERNS } from '@/components/PatternsTab';
 import { readReferenceResult, writeReference } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
 import { onDataChanged, notifyDataChanged } from '@/src/dataEvents';
@@ -32,7 +32,11 @@ import ScalePressable from '@/components/ScalePressable';
 // Types
 // ---------------------------------------------------------------------------
 
-type SubTab = 'Position' | 'Signals' | 'Pocket Diagnostics' | 'Mental' | 'Patterns';
+// Reference trim (Nov 15, scope locked Nov 11): Position and Patterns are no
+// longer shown. Their data (position[], patterns) stays in ReferenceData and
+// round-trips through mergeWithDefaults on every save -- REFERENCE has no
+// shadow key, so dropping fields would erase them. Hidden, not deleted.
+type SubTab = 'Signals' | 'Pocket Diagnostics' | 'Mental';
 
 interface PositionRow {
   scenario: string; // not editable
@@ -75,11 +79,9 @@ interface ReferenceData {
 // ---------------------------------------------------------------------------
 
 const SUB_TABS: SubTab[] = [
-  'Position',
   'Signals',
   'Pocket Diagnostics',
   'Mental',
-  'Patterns',
 ];
 
 const DEFAULT_DATA: ReferenceData = {
@@ -247,7 +249,7 @@ export default function ReferenceScreen() {
   // rail or status column (Nov 10 Duo check F1/F2).
   const sideInsets = useSideInsets();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<SubTab>('Position');
+  const [activeTab, setActiveTab] = useState<SubTab>('Signals');
   const [data, setData] = useState<ReferenceData>(DEFAULT_DATA);
   const [loaded, setLoaded] = useState(false);
   // F5 (Nov 15): REFERENCE has no shadow key. If the stored blob failed to
@@ -343,97 +345,6 @@ export default function ReferenceScreen() {
     if (key === 'speedNotes') return data.speedNotes;
     if (key === 'releaseNotes') return data.releaseNotes;
     return data.pressureTendencies;
-  }
-
-  // -------------------------------------------------------------------------
-  // Position tab
-  // -------------------------------------------------------------------------
-
-  function renderPositionTab() {
-    return (
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        keyboardDismissMode="interactive"
-      >
-        <Text style={styles.sectionLabel}>POSITION</Text>
-
-        {data.position.map((row, index) => (
-          <View key={row.scenario} style={styles.card}>
-            {/* Scenario name — not editable */}
-            <Text style={styles.scenarioName}>{row.scenario}</Text>
-
-            {/* Feet + Eyes side by side */}
-            <View style={styles.feetEyesRow}>
-              <View style={styles.feetEyesCol}>
-                <Text style={styles.subFieldLabel}>FEET</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  value={row.feet}
-                  onChangeText={v =>
-                    update(prev => ({
-                      ...prev,
-                      position: prev.position.map((r, i) =>
-                        i === index ? { ...r, feet: v } : r,
-                      ),
-                    }))
-                  }
-                  onBlur={save}
-                  returnKeyType="done"
-                  placeholder="—"
-                  placeholderTextColor="#48484A"
-                />
-              </View>
-              <View style={styles.feetEyesDivider} />
-              <View style={styles.feetEyesCol}>
-                <Text style={styles.subFieldLabel}>EYES</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  value={row.eyes}
-                  onChangeText={v =>
-                    update(prev => ({
-                      ...prev,
-                      position: prev.position.map((r, i) =>
-                        i === index ? { ...r, eyes: v } : r,
-                      ),
-                    }))
-                  }
-                  onBlur={save}
-                  returnKeyType="done"
-                  placeholder="—"
-                  placeholderTextColor="#48484A"
-                />
-              </View>
-            </View>
-
-            {/* Notes full width */}
-            <View style={styles.notesRow}>
-              <Text style={styles.subFieldLabel}>NOTES</Text>
-              <TextInput
-                style={styles.notesInput}
-                value={row.notes}
-                onChangeText={v =>
-                  update(prev => ({
-                    ...prev,
-                    position: prev.position.map((r, i) =>
-                      i === index ? { ...r, notes: v } : r,
-                    ),
-                  }))
-                }
-                onBlur={save}
-                placeholder="Add notes..."
-                placeholderTextColor="#48484A"
-                multiline
-                textAlignVertical="top"
-              />
-            </View>
-          </View>
-        ))}
-
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
-    );
   }
 
   // -------------------------------------------------------------------------
@@ -616,7 +527,6 @@ export default function ReferenceScreen() {
           </View>
         ) : (
           <>
-            {activeTab === 'Position' && renderPositionTab()}
             {activeTab === 'Signals' && (
               <SignalsTab
                 data={data.signals}
@@ -632,13 +542,6 @@ export default function ReferenceScreen() {
               />
             )}
             {activeTab === 'Mental' && renderMentalTab()}
-            {activeTab === 'Patterns' && (
-              <PatternsTab
-                data={data.patterns}
-                onUpdate={updated => update(prev => ({ ...prev, patterns: updated }))}
-                onSave={save}
-              />
-            )}
           </>
         )}
       </KeyboardAvoidingView>
