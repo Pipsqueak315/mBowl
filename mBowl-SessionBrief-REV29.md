@@ -9,7 +9,7 @@
 
 ## START HERE (Nov 17, 2026)
 
-**One-line status:** the after-league batch is **BUILT on branch `after-league`, NOT merged, NOT shipped.** Parts A (data safety), B (mid-game save), C (rollback workflow) and most of D (Level 1) are done, with CI green and two independent `reviewer` passes (results below). Part E (28.5 restyle) and a few NICE items are left. **Marcus can't run the app right now -- the 7-day cert has expired (iloader refresh pending)** -- so the device checks wait for that. **The next step is Marcus's call: "ship it" -> fast-forward `master` -> one OTA -> refresh the cert -> device checks.**
+**One-line status:** the after-league batch is **BUILT on branch `after-league`, NOT merged, NOT shipped.** Parts A (data safety), B (mid-game save), C (rollback workflow) and most of D (Level 1) are done, with CI green and three independent `reviewer` passes, every finding that mattered fixed (results below). Part E (28.5 restyle) and a few NICE items are left. **Marcus can't run the app right now -- the 7-day cert has expired (iloader refresh pending)** -- so the device checks wait for that. **The next step is Marcus's call: "ship it" -> fast-forward `master` -> one OTA -> refresh the cert -> device checks.**
 
 **Why one OTA for A+B+C+D (Nov 17):** REV28 planned an OTA per Part with device checks between, but with no runnable phone there's nothing to check between Parts, and an OTA only downloads on the next launch anyway. One OTA, then the full device-check list below in one sitting. If something is wrong, `docs/ROLLBACK.md` puts back `ee0882ee-f884-41a4-b8d7-c6c69d0f69a5` (the pre-league build that ran league Week 10 + the 11/7 makeup clean) in ~2 minutes, with no data risk (no data-shape change in this batch).
 
@@ -349,8 +349,8 @@ This is an Expo Router project -- not bare React Navigation.
 |---|---|
 | **N1, N9, N13** | NICE -- not done in the Phase 28 pass (N1 share spinner, N9 pin-row layout in 4 files, N13 SPLIT badge squeeze) -> after league. N11 done (Phase 27). N5, N8 cut. |
 | **28.5 etc.** | Reference + Settings v2 restyle, Restore from file (Level 2), mid-game resume (Level 2), PocketDiagnostics split-leave colors, Made Cut pills -> segmented control. |
-| **Audit Nov 11 + Nov 14** | ~~Pre-league batch M2, S17-S20~~ (shipped `20bfa97`). Everything else -> REV28 NEXT Parts A-E (S21-S24, F1-F15, NICE N16-N28). |
-| ~~Backfill~~ | Done Nov 11 on the Duo (9/26, 10/17, 10/31). 10/3 + 10/24 took averages (not entered); 11/7 makeup pending. |
+| **Audit Nov 11 + Nov 14** | ~~Pre-league batch M2, S17-S20~~ (shipped `20bfa97`). Parts A-D built Nov 17 on `after-league` (not shipped) -- see "What was built" / "Not done" above. |
+| ~~Backfill~~ | Done Nov 11 on the Duo (9/26, 10/17, 10/31). 10/3 + 10/24 took averages (not entered); 11/7 makeup logged Nov 14-15. |
 
 > **Done in Phase 26 (merged, in the v2 binary):** swipe-back confirm, N4, N15. **Shipped earlier:** S5, S6 (Ph 21); S15, S16, N3 (Ph 23).
 
