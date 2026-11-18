@@ -377,6 +377,7 @@ async function keepCurrentState(): Promise<boolean> {
       KEYS.SESSIONS,
       KEYS.SESSIONS_BACKUP,
       KEYS.BALLS,
+      KEYS.BALLS_BACKUP,
       KEYS.SETTINGS,
       KEYS.REFERENCE,
     ]);
@@ -401,7 +402,10 @@ async function keepCurrentState(): Promise<boolean> {
       // A restorable shape when the primary was readable; otherwise the shadow.
       sessions: Array.isArray(sessions) ? sessions : Array.isArray(shadow) ? shadow : sessions,
       sessionsShadow: shadow,
-      balls: parse(raw[KEYS.BALLS]),
+      balls: (() => {
+        const b = parse(raw[KEYS.BALLS]);
+        return Array.isArray(b) ? b : parse(raw[KEYS.BALLS_BACKUP]) ?? b;
+      })(),
       settings: parse(raw[KEYS.SETTINGS]),
       reference: parse(raw[KEYS.REFERENCE]),
     };

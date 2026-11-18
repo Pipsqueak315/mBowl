@@ -75,6 +75,10 @@ export default function RootLayout() {
             // A restore was tried and failed partway: never seed over it, and
             // leave the seeded flag unset so the next launch tries again.
             // true = skip the launch backup: the main file is the good copy.
+            Alert.alert(
+              "Couldn't finish restoring",
+              'mBowl found your backup file but the phone could not finish writing it (storage may be full). Free up space, then open Settings → Restore from Backup. Nothing was overwritten.'
+            );
             return true;
           }
           restoredSessions = first.restored;
@@ -98,7 +102,16 @@ export default function RootLayout() {
             `mBowl found the backup file on this phone and restored ${restoredSessions} sessions.`
           );
         } else if (ballsRead.status === 'missing') {
-          await writeBalls(INITIAL_BALLS as Ball[]);
+          // Same as sessions: a valid balls shadow is left to the recovery below.
+          let ballsShadowHolds = false;
+          try {
+            const raw = await AsyncStorage.getItem(KEYS.BALLS_BACKUP);
+            const parsed = raw ? JSON.parse(raw) : null;
+            ballsShadowHolds = isBallArray(parsed) && parsed.length > 0;
+          } catch {
+            ballsShadowHolds = false;
+          }
+          if (!ballsShadowHolds) await writeBalls(INITIAL_BALLS as Ball[]);
         } else if (ballsRead.status === 'invalid') {
           console.warn('[mBowl] balls key present but unreadable — not seeding over it');
         }

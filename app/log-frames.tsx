@@ -487,7 +487,7 @@ function firstIncompleteFrame(frames: FrameData[]): number {
 }
 
 function LogFramesBody() {
-  const { gameIndex, priorScores, initialFrames, source, token } = useLocalSearchParams<{
+  const { gameIndex, priorScores, initialFrames, source, token, gameId } = useLocalSearchParams<{
     gameIndex: string;
     priorScores?: string;
     initialFrames?: string;
@@ -495,6 +495,9 @@ function LogFramesBody() {
     // FRAME_RESULT so each caller only takes its own result.
     source?: string;
     token?: string;
+    // S24: the Log form's game id, so a saved game in progress only ever loads
+    // into the game it came from.
+    gameId?: string;
   }>();
   const fromLog = source !== 'history';
   const gameIdx = gameIndex !== undefined ? parseInt(gameIndex, 10) : 0;
@@ -556,7 +559,7 @@ function LogFramesBody() {
     let alive = true;
     readFramesInProgress().then((saved) => {
       if (!alive) return;
-      if (saved && saved.gameIndex === gameIdx) {
+      if (saved && saved.gameIndex === gameIdx && !!gameId && saved.gameId === gameId) {
         const restored = throwEntriesToFrameData(saved.frames);
         if (JSON.stringify(restored) !== JSON.stringify(frames)) {
           setFrames(restored);
@@ -769,18 +772,19 @@ function LogFramesBody() {
   // writes are queued in order). Back to the frames the screen opened with =
   // nothing unsaved, so the entry for this game is cleared.
   useEffect(() => {
-    if (!fromLog || !inProgressLoaded || savedRef.current) return;
+    if (!fromLog || !gameId || !inProgressLoaded || savedRef.current) return;
     if (isDirty) {
       void writeFramesInProgress({
         source: 'log',
         gameIndex: gameIdx,
+        gameId,
         frames,
         updatedAt: new Date().toISOString(),
       });
     } else {
       void clearFramesInProgress(gameIdx);
     }
-  }, [frames, isDirty, inProgressLoaded, fromLog, gameIdx]);
+  }, [frames, isDirty, inProgressLoaded, fromLog, gameIdx, gameId]);
   // Nov 11 fix (SDK 58): Expo Router 58 ships its own usePreventRemove, where
   // prevention lives in router state. Re-dispatching `data.action` (the React
   // Navigation 7 pattern this was written against) is simply blocked again

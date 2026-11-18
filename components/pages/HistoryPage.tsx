@@ -745,7 +745,10 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
     void writeFreshSessions((fresh) => {
       // Not in the store (e.g. the primary read back missing): nothing to
       // delete -- and writing [] would blank the shadow, the one copy left.
-      if (!fresh.some((s) => s.id === id)) return null;
+      if (!fresh.some((s) => s.id === id)) {
+        Alert.alert('Could not delete this session', "It isn't in your saved history any more. Relaunch the app to refresh the list.");
+        return null;
+      }
       return fresh.filter((s) => s.id !== id);
     }, 'delete this session');
   }, [writeFreshSessions]);

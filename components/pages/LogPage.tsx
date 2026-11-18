@@ -348,9 +348,14 @@ export default function LogPage() {
       } else {
         // S24: Game 1 was open in Log Frames when the app died, before the form
         // had anything worth a draft. The fresh form's Game 1 is that game.
+        // Its id becomes the fresh form's Game 1 id, so Log Frames loads it.
+        // (Any other leftover is left alone: it can only load into its own
+        // game id, and a failed draft read must not delete it.)
         const inProgress = await readFramesInProgress();
-        if (inProgress && inProgress.gameIndex === 0) setResumeFramesIdx(0);
-        else if (inProgress) void clearFramesInProgress(); // no draft to put it in
+        if (inProgress && inProgress.gameIndex === 0) {
+          setGames((prev) => [{ ...prev[0], id: inProgress.gameId }, ...prev.slice(1)]);
+          setResumeFramesIdx(0);
+        }
       }
       // Recalculate week using actual season start now that settings are loaded
       settingsRef.current = settingsData ?? null;
@@ -376,6 +381,21 @@ export default function LogPage() {
   const dateUserSetRef = useRef(false);
   const dateSetAtRef = useRef(Date.now());
   const liveFormRef = useRef({ hasContent: false, blocked: true, date: new Date(), week: '' });
+  // S24 review fix: the current form, every render (the auto-save effect skips
+  // its first run, so it can't be the only place this is kept current).
+  latestDraftRef.current = {
+    sessionType,
+    date: date.toISOString(),
+    week,
+    opponent,
+    tournamentName,
+    tournamentFormat,
+    tournamentPattern,
+    madeCut,
+    placement,
+    games,
+    sessionNotes,
+  };
   liveFormRef.current = {
     // F7: only game content pins the date; an opponent typed ahead does not.
     hasContent: draftHasGameContent({ games, sessionNotes }),
@@ -496,7 +516,6 @@ export default function LogPage() {
       games,
       sessionNotes,
     };
-    latestDraftRef.current = draft;
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
     draftSaveTimer.current = setTimeout(() => {
       // Only persist a draft the user has actually put content into. Skipping an
@@ -568,6 +587,7 @@ export default function LogPage() {
   };
 
   function resetForm() {
+    submitIdRef.current = null;
     const now = new Date();
     dateUserSetRef.current = false;
     dateSetAtRef.current = now.getTime();
@@ -611,8 +631,9 @@ export default function LogPage() {
     // S24: a game that was open in Log Frames when the app died reopens.
     void readFramesInProgress().then((inProgress) => {
       if (!inProgress) return;
-      if (inProgress.gameIndex < resumedGames.length) setResumeFramesIdx(inProgress.gameIndex);
-      else void clearFramesInProgress();
+      const idx = resumedGames.findIndex((g) => g.id === inProgress.gameId);
+      if (idx >= 0) setResumeFramesIdx(idx);
+      else void clearFramesInProgress(); // its game isn't in this draft
     });
   }
 
@@ -778,6 +799,7 @@ export default function LogPage() {
       params: {
         source: 'log',
         token,
+        gameId: game.id,
         gameIndex: String(index),
         priorScores: games.slice(0, index).map((g) => parseInt(g.score, 10) || 0).join(','),
         ...(game.frames && game.frames.length > 0

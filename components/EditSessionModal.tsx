@@ -221,8 +221,8 @@ export default function EditSessionModal({
     if (!g || !g.frames || g.frames.length === 0) return;
     if (g.score === '' || g.score === saved) return;
     Alert.alert(
-      'Override Frame Score?',
-      `This game's frames score ${saved || 'a different total'}. Save ${g.score} instead? The frames stay as they are.`,
+      'Override Saved Score?',
+      `This game has frame data and was saved as ${saved || 'no score'}. Save ${g.score} instead? The frames stay as they are.`,
       [
         {
           text: 'Cancel',
@@ -230,7 +230,14 @@ export default function EditSessionModal({
           onPress: () =>
             setGames(prev => prev.map((gm, idx) => (idx === i ? { ...gm, score: saved } : gm))),
         },
-        { text: 'Override', style: 'destructive' },
+        {
+          text: 'Override',
+          style: 'destructive',
+          // Asked once: the new score is now the one to compare against.
+          onPress: () => {
+            savedScoresRef.current[i] = g.score;
+          },
+        },
       ]
     );
   }

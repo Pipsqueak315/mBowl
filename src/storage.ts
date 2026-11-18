@@ -273,6 +273,9 @@ export async function writeDraft(data: DraftData | null): Promise<boolean> {
 export type FramesInProgress = {
   source: 'log';
   gameIndex: number;
+  // Review fix: the Log form's game id -- an entry only ever loads into the
+  // game it was saved from (indexes shift when a game row is removed).
+  gameId: string;
   frames: ThrowEntry[];
   updatedAt: string;
 };
@@ -284,6 +287,7 @@ function isFramesInProgress(v: unknown): v is FramesInProgress {
     typeof v.gameIndex === 'number' &&
     Number.isInteger(v.gameIndex) &&
     v.gameIndex >= 0 &&
+    typeof v.gameId === 'string' &&
     Array.isArray(v.frames) &&
     v.frames.length === 10 &&
     v.frames.every(f => isPlainObject(f) && Array.isArray(f.throws))
