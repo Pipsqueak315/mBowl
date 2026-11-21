@@ -63,6 +63,9 @@ export type Season = {
   label: string;  // "Bob's Saturday Winners 2025"
   short: string;  // "Winners 25" — for pills
   start: string;  // "YYYY-MM-DD"
+  // Phase 29, additive + optional: the season's length in league weeks. Only
+  // used by Path to goal on Stats (src/goalPath.ts). Absent = not set.
+  weeks?: number | null;
 };
 
 export type Settings = {

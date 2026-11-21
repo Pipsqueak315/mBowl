@@ -22,6 +22,9 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { computeLeaveStats } from '@/src/leaveUtils';
 import { filterSessions, ALL_TIME, type SeasonSelection, type TypeFilter } from '@/src/sessionFilter';
 import { getSeasons, currentSeason, resolveSeasonRanges } from '@/src/seasons';
+import ScalePressable from '@/components/ScalePressable';
+import { computeGoalPath, type GoalPath } from '@/src/goalPath';
+import { computeSpareLeak, type SpareBucket, type SpareLeak } from '@/src/spareLeak';
 
 // --- Types ---
 interface FrameStats {
@@ -619,6 +622,173 @@ function GridCell({
   );
 }
 
+// --- Path to goal (Phase 29) ---
+// The needed average's colour: green = already on pace, orange = within 10 pins
+// of the current league average, red = more than that, grey = out of reach.
+const PATH_COLOR: Record<GoalPath['status'], string> = {
+  needsSetup: '#8E8E93',
+  noGames: '#FFFFFF',
+  onPace: '#30D158',
+  close: '#FF9F0A',
+  stretch: '#FF453A',
+  outOfReach: '#8E8E93',
+  done: '#FFFFFF',
+};
+
+function PathRow({ label, value, last = false }: { label: string; value: string; last?: boolean }) {
+  return (
+    <View style={[styles.pathRow, !last && styles.pathRowBorder]}>
+      <Text style={styles.pathRowLabel}>{label}</Text>
+      <Text style={styles.pathRowValue}>{value}</Text>
+    </View>
+  );
+}
+
+function GoalPathCard({ path, onOpenSettings }: { path: GoalPath; onOpenSettings: () => void }) {
+  const title = path.goal != null ? `Path to ${path.goal}` : 'Path to goal';
+  if (path.status === 'needsSetup') {
+    const missing =
+      path.goal == null && path.weeks == null
+        ? 'a target average and this season\'s league weeks'
+        : path.goal == null
+          ? 'a target average'
+          : 'this season\'s league weeks';
+    return (
+      <View style={styles.leavesCard}>
+        <Text style={styles.leavesTitle}>{title}</Text>
+        <Text style={styles.pathSetupText}>Set {missing} in Settings to see the average you need.</Text>
+        <ScalePressable style={styles.pathSetupButton} onPress={onOpenSettings} accessibilityRole="button">
+          <Text style={styles.pathSetupButtonText}>Open Settings</Text>
+        </ScalePressable>
+      </View>
+    );
+  }
+  if (path.status === 'done') {
+    const avg = path.currentAvg;
+    const diff = avg != null && path.goal != null ? avg - path.goal : null;
+    const color = diff == null ? '#FFFFFF' : diff >= 0 ? '#30D158' : '#FF453A';
+    return (
+      <View style={styles.leavesCard}>
+        <Text style={styles.leavesTitle}>{title}</Text>
+        <Text style={[styles.pathBig, { color }]}>{avg != null ? avg.toFixed(1) : '—'}</Text>
+        <Text style={styles.pathCaption}>final league average · {path.gamesBowled} games</Text>
+        {diff != null && (
+          <PathRow label="vs goal" value={`${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(1)}`} last />
+        )}
+      </View>
+    );
+  }
+  const needed = path.neededAvg as number;
+  const caption =
+    path.status === 'outOfReach'
+      ? `needed over the last ${path.gamesLeft} games — more than 300, out of reach this season`
+      : path.status === 'onPace'
+        ? `needed over the last ${path.gamesLeft} games — you're on pace`
+        : `needed over the last ${path.gamesLeft} games`;
+  return (
+    <View style={styles.leavesCard}>
+      <Text style={styles.leavesTitle}>{title}</Text>
+      <Text style={[styles.pathBig, { color: PATH_COLOR[path.status] }]}>{needed.toFixed(1)}</Text>
+      <Text style={styles.pathCaption}>{caption}</Text>
+      <View style={styles.pathRows}>
+        {path.status !== 'outOfReach' && (
+          <PathRow label="Each week" value={`${path.neededSeries} series`} />
+        )}
+        <PathRow
+          label="League average"
+          value={path.currentAvg != null ? `${path.currentAvg.toFixed(1)} · ${path.gamesBowled} games` : '—'}
+        />
+        <PathRow label="Weeks left" value={`${path.weeksLeft} of ${path.weeks}`} last />
+      </View>
+    </View>
+  );
+}
+
+// --- Spare leak (Phase 29) ---
+// Conversion colour uses the non-split 80/60 band, withheld under 5 chances.
+const LEAK_MIN_ATTEMPTS = 5;
+
+function LeakRow({
+  label,
+  bucket,
+  perGame,
+  indent = false,
+  border,
+}: {
+  label: string;
+  bucket: SpareBucket;
+  perGame: number | null;
+  indent?: boolean;
+  border: boolean;
+}) {
+  const pct = bucket.attempts > 0 ? (bucket.made / bucket.attempts) * 100 : null;
+  const color =
+    pct != null && bucket.attempts >= LEAK_MIN_ATTEMPTS ? leaveConversionColor(pct, false) : '#FFFFFF';
+  return (
+    <View style={[styles.leakRow, border && styles.leaveListRowBorder]}>
+      <View style={[styles.ballStatInfo, indent && styles.leakIndent]}>
+        <Text style={indent ? styles.leakSubName : styles.ballStatName}>{label}</Text>
+        <Text style={styles.ballStatCount}>
+          {bucket.made} of {bucket.attempts}
+        </Text>
+      </View>
+      <Text style={[styles.leakPct, { color }]}>{pct != null ? `${Math.round(pct)}%` : '—'}</Text>
+      <Text style={styles.leakPins}>{perGame != null ? perGame.toFixed(1) : '—'}</Text>
+    </View>
+  );
+}
+
+function SpareLeakCard({ leak, avg, target }: { leak: SpareLeak; avg: number | null; target: number | null | undefined }) {
+  if (leak.gamesWithFrames === 0 || leak.totalPerGame == null) {
+    return (
+      <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
+        <Text style={styles.cardLabel}>Spare leak</Text>
+        <IconSymbol name="lock.fill" size={18} color="#48484A" />
+        <Text style={styles.naText}>Log frames to unlock.</Text>
+      </View>
+    );
+  }
+  const total = leak.totalPerGame;
+  const gap = target != null && avg != null ? target - avg : null;
+  let gapText: string | null = null;
+  if (gap != null && gap > 0 && total > 0) {
+    gapText =
+      total >= gap
+        ? `More than your whole gap to ${target}`
+        : `About ${Math.round((total / gap) * 100)}% of your gap to ${target}`;
+  }
+  const perPinGame = (b: SpareBucket) => (leak.gamesWithPins > 0 ? b.pinsLost / leak.gamesWithPins : null);
+  const rows: { label: string; bucket: SpareBucket; perGame: number | null; indent?: boolean }[] = [];
+  if (leak.single.attempts > 0) rows.push({ label: 'Single pins', bucket: leak.single, perGame: leak.singlePerGame });
+  if (leak.tenPin.attempts > 0) rows.push({ label: '10 pin', bucket: leak.tenPin, perGame: perPinGame(leak.tenPin), indent: true });
+  if (leak.sevenPin.attempts > 0) rows.push({ label: '7 pin', bucket: leak.sevenPin, perGame: perPinGame(leak.sevenPin), indent: true });
+  if (leak.multi.attempts > 0) rows.push({ label: 'Multi-pin', bucket: leak.multi, perGame: leak.multiPerGame });
+  return (
+    <View style={styles.leavesCard}>
+      <Text style={styles.leavesTitle}>Spare leak</Text>
+      <Text style={styles.pathBig}>{total.toFixed(1)}</Text>
+      <Text style={styles.pathCaption}>pins a game lost to missed makeable spares</Text>
+      {gapText && <Text style={styles.leakGap}>{gapText}</Text>}
+      {rows.length > 0 && (
+        <View style={styles.leakTable}>
+          <View style={styles.leakHeaderRow}>
+            <Text style={[styles.ballStatInfo, styles.leakHeader]}> </Text>
+            <Text style={[styles.leakPct, styles.leakHeader]}>Made</Text>
+            <Text style={[styles.leakPins, styles.leakHeader]}>Pins/g</Text>
+          </View>
+          {rows.map((r, i) => (
+            <LeakRow key={r.label} label={r.label} bucket={r.bucket} perGame={r.perGame} indent={r.indent} border={i > 0} />
+          ))}
+        </View>
+      )}
+      <Text style={styles.leakNote}>
+        Pins a game you'd gain by making them, bonus balls included. Splits left out.
+        {leak.usedFillEstimate ? ' A 10th-frame fill ball uses your first-ball average.' : ''}
+      </Text>
+    </View>
+  );
+}
+
 // --- Component ---
 export default function StatsPage({ embedded = false }: { embedded?: boolean }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -756,6 +926,25 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
   const ballStats = useMemo<BallStat[]>(() => buildBallStats(filtered), [filtered]);
   const gameByGameStats = useMemo<GamePositionStat[]>(() => buildGameByGameStats(filtered), [filtered]);
   const advancedStats = useMemo<AdvancedStats>(() => calcAdvancedStats(filtered), [filtered]);
+  const spareLeak = useMemo<SpareLeak>(() => computeSpareLeak(filtered), [filtered]);
+
+  // Path to goal (Phase 29): the selected season's league + makeup games, so
+  // only with a single season selected and a type filter that includes league
+  // nights. Shown for the current season (with a set-up prompt if needed) and
+  // for a past season only once its league weeks are set.
+  const goalPath = useMemo<GoalPath | null>(() => {
+    if (seasonSel === ALL_TIME) return null;
+    if (typeFilter !== 'all' && typeFilter !== 'league' && typeFilter !== 'makeup') return null;
+    const season = seasons.find(x => x.id === seasonSel);
+    if (!season) return null;
+    const isCurrent = currentSeason(seasons, todayISO())?.id === seasonSel;
+    if (!isCurrent && !season.weeks) return null;
+    return computeGoalPath(
+      filterSessions(sessions, seasonSel, seasons, 'all'),
+      settings.targetAverage,
+      season.weeks,
+    );
+  }, [seasonSel, typeFilter, seasons, sessions, settings.targetAverage]);
 
   // Display text + band colour for the seven frame-derived grid cells. Colour
   // is withheld (white, as before) below MIN_FRAME_GAMES games with frame data —
@@ -973,6 +1162,10 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
 
             </View>
             </View>
+
+            {/* Phase 29: the two goal cards, full width under the grids. */}
+            {goalPath && <GoalPathCard path={goalPath} onOpenSettings={() => setSettingsOpen(true)} />}
+            <SpareLeakCard leak={spareLeak} avg={metrics.avg} target={settings.targetAverage} />
 
             {/* Series chart */}
             <View style={styles.chartCard}>
@@ -1390,6 +1583,55 @@ const styles = StyleSheet.create({
 
   // --- Leaves / list-card sections ---
   leavesCard: { paddingTop: 4, paddingBottom: 4, marginBottom: 20 },
+
+  // Path to goal + Spare leak (Phase 29)
+  pathBig: {
+    fontSize: 44,
+    fontWeight: '200',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+    lineHeight: 50,
+  },
+  pathCaption: { fontSize: 13, fontWeight: '400', color: '#8E8E93', marginTop: 2 },
+  pathRows: { marginTop: 10 },
+  pathRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  pathRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#38383A' },
+  pathRowLabel: { fontSize: 15, fontWeight: '400', color: '#8E8E93' },
+  pathRowValue: { fontSize: 15, fontWeight: '300', color: '#FFFFFF', fontVariant: ['tabular-nums'] },
+  pathSetupText: { fontSize: 15, fontWeight: '400', color: '#8E8E93', lineHeight: 20 },
+  pathSetupButton: {
+    alignSelf: 'flex-start',
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    marginTop: 10,
+    borderRadius: 22,
+    backgroundColor: '#1C1C1E',
+  },
+  pathSetupButtonText: { fontSize: 15, fontWeight: '600', color: '#00CEC9' },
+  leakGap: { fontSize: 13, fontWeight: '500', color: '#00CEC9', marginTop: 4 },
+  leakTable: { marginTop: 12 },
+  leakHeaderRow: { flexDirection: 'row', alignItems: 'flex-end', paddingBottom: 4 },
+  leakHeader: { fontSize: 11, fontWeight: '500', color: '#8E8E93' },
+  leakRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9 },
+  leakIndent: { paddingLeft: 14 },
+  leakSubName: { color: '#8E8E93', fontSize: 13.5, fontWeight: '500' },
+  leakPct: { width: 56, textAlign: 'right', fontSize: 16, fontWeight: '400', fontVariant: ['tabular-nums'] },
+  leakPins: {
+    width: 64,
+    textAlign: 'right',
+    fontSize: 16,
+    fontWeight: '300',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'],
+  },
+  leakNote: { color: '#48484A', fontSize: 11, lineHeight: 15, marginTop: 8 },
   leavesTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', marginBottom: 8 },
   leavesNaCard: {
     marginBottom: 12,

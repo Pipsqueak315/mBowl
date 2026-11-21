@@ -338,15 +338,17 @@ export default function SettingsContent({ onClose }: Props) {
     const label = seasonDraft.label.trim();
     if (!label || !seasonDraft.start) return;
     const short = seasonDraft.short.trim() || label;
+    // Phase 29: optional league-week count (Path to goal). Blank = not set.
+    const weeks = typeof seasonDraft.weeks === 'number' && seasonDraft.weeks > 0 ? seasonDraft.weeks : null;
 
     const current = getSeasons(settings);
     let updated: Season[];
     if (seasonDraftIsNew) {
       const id = slugify(label, current.map(s => s.id));
-      updated = [...current, { id, label, short, start: seasonDraft.start }];
+      updated = [...current, { id, label, short, start: seasonDraft.start, weeks }];
     } else {
       updated = current.map(s =>
-        s.id === seasonDraft.id ? { ...s, label, short, start: seasonDraft.start } : s,
+        s.id === seasonDraft.id ? { ...s, label, short, start: seasonDraft.start, weeks } : s,
       );
     }
     updated.sort((a, b) => a.start.localeCompare(b.start));
@@ -438,6 +440,27 @@ export default function SettingsContent({ onClose }: Props) {
             />
           </View>
         )}
+        {/* Phase 29: season length for Path to goal on Stats. Saved with the
+            season (Save below), so no blur-save path. */}
+        <View style={styles.fieldRow}>
+          <Text style={styles.fieldLabel}>League Weeks</Text>
+          <TextInput
+            style={styles.goalInput}
+            value={seasonDraft.weeks != null ? String(seasonDraft.weeks) : ''}
+            onChangeText={v => {
+              const digits = v.replace(/[^0-9]/g, '');
+              setSeasonDraft(d =>
+                d ? { ...d, weeks: digits === '' ? null : Math.min(99, parseInt(digits, 10)) } : d,
+              );
+            }}
+            keyboardType="number-pad"
+            placeholder="—"
+            placeholderTextColor="#48484A"
+            maxLength={2}
+            returnKeyType="done"
+            accessibilityLabel="League weeks in this season"
+          />
+        </View>
         <View style={styles.seasonEditorButtons}>
           <ScalePressable
             style={[styles.saveBtn, styles.seasonSaveBtn, !seasonDraft.label.trim() && styles.saveBtnDisabled]}
@@ -592,6 +615,7 @@ export default function SettingsContent({ onClose }: Props) {
                     <Text style={styles.seasonLabel}>{s.label}</Text>
                     <Text style={styles.seasonRange}>
                       {formatDateShort(s.start)} → {s.end ? formatDateShort(s.end) : 'open'}
+                      {s.weeks ? ` · ${s.weeks} wks` : ''}
                     </Text>
                   </View>
                   <Text style={styles.seasonShort}>{s.short}</Text>
