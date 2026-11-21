@@ -943,6 +943,8 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
       filterSessions(sessions, seasonSel, seasons, 'all'),
       settings.targetAverage,
       season.weeks,
+      undefined,
+      !isCurrent, // a past season's number is final
     );
   }, [seasonSel, typeFilter, seasons, sessions, settings.targetAverage]);
 
@@ -1054,6 +1056,11 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
             <IconSymbol name="chart.bar.fill" size={52} color="#48484A" />
             <Text style={styles.emptyTitle}>{emptyTitle}</Text>
             <Text style={styles.emptySubtitle}>{emptySubtitle}</Text>
+            {goalPath && (
+              <View style={styles.emptyPath}>
+                <GoalPathCard path={goalPath} onOpenSettings={() => setSettingsOpen(true)} />
+              </View>
+            )}
           </View>
         ) : (
           <>
@@ -1165,7 +1172,13 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
 
             {/* Phase 29: the two goal cards, full width under the grids. */}
             {goalPath && <GoalPathCard path={goalPath} onOpenSettings={() => setSettingsOpen(true)} />}
-            <SpareLeakCard leak={spareLeak} avg={metrics.avg} target={settings.targetAverage} />
+            {/* Gap to the target: the league average when Path to goal has one,
+                so the two cards never disagree; otherwise the page's average. */}
+            <SpareLeakCard
+              leak={spareLeak}
+              avg={goalPath?.currentAvg ?? metrics.avg}
+              target={settings.targetAverage}
+            />
 
             {/* Series chart */}
             <View style={styles.chartCard}>
@@ -1585,6 +1598,7 @@ const styles = StyleSheet.create({
   leavesCard: { paddingTop: 4, paddingBottom: 4, marginBottom: 20 },
 
   // Path to goal + Spare leak (Phase 29)
+  emptyPath: { alignSelf: 'stretch', marginTop: 24 },
   pathBig: {
     fontSize: 44,
     fontWeight: '200',

@@ -15,7 +15,8 @@ import type { Session, ThrowEntry } from './types';
 //     counts ball 2 of this frame)
 // The next ball is taken from the game itself. Only a missed spare in the 10th
 // frame (no next ball exists) uses an estimate: the first-ball average of the
-// same data, standing in for the fill ball.
+// same data, standing in for the fill ball. A miss in frames 1–9 of an
+// unfinished game (no next ball logged) is skipped: its cost isn't known.
 //
 // Coverage:
 //  - Single pins come from the throw notation (first ball '9'), so every game
@@ -130,12 +131,8 @@ export function computeSpareLeak(sessions: Session[]): SpareLeak {
           let bonus: number;
           if (i < 9) {
             const next = firstBallPins(frames[i + 1]?.throws?.[0]);
-            if (next != null) {
-              bonus = next;
-            } else {
-              bonus = fillEstimate;
-              usedFillEstimate = true;
-            }
+            if (next == null) continue; // unfinished game: no next ball to count
+            bonus = next;
           } else {
             bonus = fillEstimate;
             usedFillEstimate = true;

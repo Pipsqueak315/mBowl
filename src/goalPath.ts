@@ -51,12 +51,15 @@ const isLeagueNight = (s: Session): boolean => s.type === 'league' || s.type ===
  *   only league + makeup are counted here)
  * @param goal settings.targetAverage
  * @param weeks the season's length in league weeks (Season.weeks)
+ * @param finished true for a season that is over (not the current one): its
+ *   number is final even if fewer weeks were logged than its length
  */
 export function computeGoalPath(
   seasonSessions: Session[],
   goal: number | null | undefined,
   weeks: number | null | undefined,
   gamesPerWeek: number = LEAGUE_GAMES_PER_WEEK,
+  finished: boolean = false,
 ): GoalPath {
   const league = seasonSessions.filter(isLeagueNight);
   let pins = 0;
@@ -92,7 +95,7 @@ export function computeGoalPath(
   };
   if (target == null || length == null) return base;
 
-  const weeksLeft = Math.max(0, length - weeksBowled);
+  const weeksLeft = finished ? 0 : Math.max(0, length - weeksBowled);
   const gamesLeft = weeksLeft * gamesPerWeek;
   const withLeft = { ...base, weeksLeft, gamesLeft };
 

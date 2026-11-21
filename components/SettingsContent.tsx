@@ -442,10 +442,10 @@ export default function SettingsContent({ onClose }: Props) {
         )}
         {/* Phase 29: season length for Path to goal on Stats. Saved with the
             season (Save below), so no blur-save path. */}
-        <View style={styles.fieldRow}>
+        <View style={[styles.fieldRow, styles.weeksRow]}>
           <Text style={styles.fieldLabel}>League Weeks</Text>
           <TextInput
-            style={styles.goalInput}
+            style={[styles.goalInput, styles.weeksInput]}
             value={seasonDraft.weeks != null ? String(seasonDraft.weeks) : ''}
             onChangeText={v => {
               const digits = v.replace(/[^0-9]/g, '');
@@ -1071,6 +1071,9 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#38383A',
   },
+  // League Weeks: the input fills a 50pt row so the whole height is tappable.
+  weeksRow: { paddingVertical: 3 },
+  weeksInput: { minHeight: 44, minWidth: 88 },
   goalInput: {
     fontSize: 17,
     fontWeight: '300',

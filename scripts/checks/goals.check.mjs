@@ -42,6 +42,9 @@ const night = (week, scores, type = 'league') => ({
   eq(computeGoalPath([], 190, 30).neededAvg, 190, 'goal: nothing bowled → need the goal itself');
   eq(computeGoalPath([night(5, [180, 180, 180])], 190, 5).status, 'done', 'goal: last week bowled → done');
   eq(computeGoalPath([night(9, [50, 50, 50])], 190, 10).status, 'outOfReach', 'goal: > 300 needed → outOfReach');
+  // A past season is final even when fewer weeks were logged than its length.
+  const past = computeGoalPath([night(26, [180, 180, 180])], 190, 33, 3, true);
+  eq([past.status, past.gamesLeft], ['done', 0], 'goal: finished season → done, no games left');
   // No week numbers → session count stands in.
   const noWeeks = [night(null, [180, 180, 180]), night(null, [180, 180, 180])];
   eq(computeGoalPath(noWeeks, 190, 10).weeksBowled, 2, 'goal: no week numbers → session count');
@@ -83,6 +86,9 @@ const filler = n => Array.from({ length: n }, () => fr(['8', '1'], pins(9, 10)))
   const l = computeSpareLeak([g]);
   eq([l.single.attempts, l.multi.attempts], [0, 0], 'leak: a split is neither single nor multi');
   eq(computeSpareLeak([]).totalPerGame, null, 'leak: no data → null');
+  // Unfinished game: a miss with no next ball logged is skipped, no estimate used.
+  const partial = computeSpareLeak([game([fr(['X'], pins()), fr(['X'], pins()), fr(['9', '—'], pins(10))])]);
+  eq([partial.single.attempts, partial.usedFillEstimate], [0, false], 'leak: unfinished game miss skipped');
 }
 
 done('goals');
