@@ -937,15 +937,23 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
     if (typeFilter !== 'all' && typeFilter !== 'league' && typeFilter !== 'makeup') return null;
     const season = seasons.find(x => x.id === seasonSel);
     if (!season) return null;
-    const isCurrent = currentSeason(seasons, todayISO())?.id === seasonSel;
+    const today = todayISO();
+    const isCurrent = currentSeason(seasons, today)?.id === seasonSel;
     if (!isCurrent && !season.weeks) return null;
-    return computeGoalPath(
+    // Final only once the season has ENDED -- a season added ahead of time
+    // (not started yet) is not finished.
+    const range = resolveSeasonRanges(seasons).find(r => r.id === seasonSel);
+    const finished = !isCurrent && range?.end != null && today > range.end;
+    const path = computeGoalPath(
       filterSessions(sessions, seasonSel, seasons, 'all'),
       settings.targetAverage,
       season.weeks,
       undefined,
-      !isCurrent, // a past season's number is final
+      finished,
     );
+    // A finished season with no league games has nothing to show.
+    if (path.status === 'done' && path.gamesBowled === 0) return null;
+    return path;
   }, [seasonSel, typeFilter, seasons, sessions, settings.targetAverage]);
 
   // Display text + band colour for the seven frame-derived grid cells. Colour

@@ -16,7 +16,8 @@ import type { Session, ThrowEntry } from './types';
 // The next ball is taken from the game itself. Only a missed spare in the 10th
 // frame (no next ball exists) uses an estimate: the first-ball average of the
 // same data, standing in for the fill ball. A miss in frames 1–9 of an
-// unfinished game (no next ball logged) is skipped: its cost isn't known.
+// unfinished game (no next ball logged) still counts as a missed chance, but
+// adds no pins: its cost isn't known.
 //
 // Coverage:
 //  - Single pins come from the throw notation (first ball '9'), so every game
@@ -126,19 +127,24 @@ export function computeSpareLeak(sessions: Session[]): SpareLeak {
         if (p2 == null) continue;
 
         let cost = 0;
+        let costKnown = true;
         if (!made) {
           const onDeck = left - p2;
           let bonus: number;
           if (i < 9) {
             const next = firstBallPins(frames[i + 1]?.throws?.[0]);
-            if (next == null) continue; // unfinished game: no next ball to count
-            bonus = next;
+            if (next == null) {
+              costKnown = false; // unfinished game: no next ball to count
+              bonus = 0;
+            } else {
+              bonus = next;
+            }
           } else {
             bonus = fillEstimate;
             usedFillEstimate = true;
           }
           const strikeBefore = i > 0 && frames[i - 1]?.throws?.[0] === 'X' ? onDeck : 0;
-          cost = onDeck + bonus + strikeBefore;
+          cost = costKnown ? onDeck + bonus + strikeBefore : 0;
         }
 
         const add = (b: SpareBucket) => {

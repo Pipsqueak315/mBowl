@@ -86,9 +86,9 @@ const filler = n => Array.from({ length: n }, () => fr(['8', '1'], pins(9, 10)))
   const l = computeSpareLeak([g]);
   eq([l.single.attempts, l.multi.attempts], [0, 0], 'leak: a split is neither single nor multi');
   eq(computeSpareLeak([]).totalPerGame, null, 'leak: no data → null');
-  // Unfinished game: a miss with no next ball logged is skipped, no estimate used.
+  // Unfinished game: a miss with no next ball logged counts as a missed chance, adds no pins, no estimate.
   const partial = computeSpareLeak([game([fr(['X'], pins()), fr(['X'], pins()), fr(['9', '—'], pins(10))])]);
-  eq([partial.single.attempts, partial.usedFillEstimate], [0, false], 'leak: unfinished game miss skipped');
+  eq([partial.single.attempts, partial.single.made, partial.single.pinsLost, partial.usedFillEstimate], [1, 0, 0, false], 'leak: unfinished game miss counted, no pins');
 }
 
 done('goals');
