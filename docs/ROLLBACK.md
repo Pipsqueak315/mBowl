@@ -20,6 +20,7 @@
 | Group ID | App code | What | Ran fine on the Duo? |
 |---|---|---|---|
 | `ee0882ee-f884-41a4-b8d7-c6c69d0f69a5` | `20bfa97` | Pre-league batch (M2, S17-S20), Nov 11 | Yes -- league Week 10 + 11/7 makeup, Nov 14-15 |
-| `766e68a8-fbdc-4a50-955f-18e294806e60` | `a8b3dca` | After-league batch A-D (data safety, mid-game save, Reference trim), Nov 18 (OTA run 44336666836) | Pending -- device checks after the cert refresh |
+| `766e68a8-fbdc-4a50-955f-18e294806e60` | `a8b3dca` | After-league batch A-D (data safety, mid-game save, Reference trim), Nov 18 (OTA run 44336666836) | Yes -- Marcus, Nov 20: "all on my phone, I think we're good" |
+| `e7cd0dff-5bfa-455a-bd90-943e5c3a0d61` | `02db869` | Phase 29: Path to goal + Spare leak on Stats, Nov 21 (OTA run 44958332762). Rollback-safe: older code ignores the new optional `Season.weeks` | Pending -- first look after the update |
 
 Add a row after every OTA (the `Update group ID` from the run log).

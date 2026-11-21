@@ -1,11 +1,11 @@
 # mBowl — Claude Code Instructions
 
 **Full spec:** `mBowl-SPEC.md` in this project folder. Read it before writing any code.
-**Session state:** `mBowl-SessionBrief-REV29.md` — check this for current phase and notes (START HERE + NEXT).
-**Audit fix lists:** `docs/PHASE28-AUDIT.md` (Nov 11 — M / S / N IDs; pre-league batch M2, S17–S20 shipped `20bfa97`) + `docs/AUDIT-FABLE-NOV14.md` (Nov 14 independent re-audit — F IDs; new MUST F1 backup overwrite). **After-league batch (Nov 17):** Parts A–D built on branch `after-league` (CI green, 3 reviewer passes), **not merged / not shipped** — REV29 → START HERE + NEXT. Part E (28.5 restyle) still to do.
+**Session state:** `mBowl-SessionBrief-REV30.md` — check this for current phase and notes (START HERE + NEXT).
+**Audit fix lists:** `docs/PHASE28-AUDIT.md` (Nov 11 — M / S / N IDs; pre-league batch M2, S17–S20 shipped `20bfa97`) + `docs/AUDIT-FABLE-NOV14.md` (Nov 14 independent re-audit — F IDs; new MUST F1 backup overwrite). **After-league batch (Nov 17):** Parts A–D built on branch `after-league` (CI green, 3 reviewer passes), **shipped Nov 18** (update group 766e68a8, confirmed good on the Duo Nov 20). Part E (28.5 restyle) still to do.
 **Duo roadmap + design spec:** `docs/mBowl-DuoPlan.md` (v1.8) — Phases 25–28. Read the brief's START HERE section first.
 **Phase 28 (v2 redesign):** `docs/mBowl-Phase28-BuildSpec.md` — WP1–WP7 all built and shipped Nov 10 night; v2 tokens + layout/page/live-game helpers in `src/v2/`, shared controls in `components/v2/`, tab pages in `components/pages/`.
-**Status (Nov 17):** `master` = **2.0.0 / SDK 58**, app code `20bfa97` (`c20bc8c` = OTA workflow fix; later commits docs only), everything shipped over the air to the Duo (last OTA run 43091822546, update group ee0882ee): Phase 28 WP1–WP7 + polish rounds, the Log Frames game-over hang fix (`97de587`, SDK 58 `usePreventRemove` → `repeat()`), rotation unlocked (`1ea0f6c`), cover-landscape Log Frames + season-based Week suggestion (`4d4ec3b`, `1ab5e24`), and the pre-league audit batch M2/S17/S18/S19/S20 (`20bfa97`). OTAs from `master` reach only 2.0.0 builds (runtime policy `appVersion`); the old phone stays on 1.0.0 as the fallback. League Week 10 + the 11/7 makeup bowled clean on the Duo. Next: Marcus's "ship it" → merge `after-league` → one OTA → cert refresh → device checks — REV29 → **NEXT**. Run `npm run check` (CI runs it on every push) before calling anything done.
+**Phase 29 (Nov 21):** Path to goal + Spare leak on Stats shipped (`02db869`, update group e7cd0dff) -- REV30 START HERE. **Status (Nov 17):** `master` = **2.0.0 / SDK 58**, app code `20bfa97` (`c20bc8c` = OTA workflow fix; later commits docs only), everything shipped over the air to the Duo (last OTA run 43091822546, update group ee0882ee): Phase 28 WP1–WP7 + polish rounds, the Log Frames game-over hang fix (`97de587`, SDK 58 `usePreventRemove` → `repeat()`), rotation unlocked (`1ea0f6c`), cover-landscape Log Frames + season-based Week suggestion (`4d4ec3b`, `1ab5e24`), and the pre-league audit batch M2/S17/S18/S19/S20 (`20bfa97`). OTAs from `master` reach only 2.0.0 builds (runtime policy `appVersion`); the old phone stays on 1.0.0 as the fallback. League Week 10 + the 11/7 makeup bowled clean on the Duo. Next: REV30 → START HERE (Phase 29 device checks, close out v2, then the Phase 30 plan in `docs/mBowl-Phase30-Plan.md`). Run `npm run check` (CI runs it on every push) before calling anything done.
 
 ---
 
@@ -17,7 +17,7 @@ A personal iPhone bowling tracker and reference app built in React Native via Ex
 
 ## Current Phase
 
-**Check mBowl-SessionBrief-REV29.md for current phase before starting any session.**
+**Check mBowl-SessionBrief-REV30.md for current phase before starting any session.**
 
 At the top of each session Marcus will tell you which phase he's on. Read the Spec for full context on that phase before writing any code.
 
@@ -154,7 +154,7 @@ bad:       #FF453A
 - Game vs session average: +5 or better -> green · within 5 -> orange · below -> red
 - Series: > 550 -> green · >= 500 -> orange · below -> red
 - Overall average: >= 180 -> green · >= 166 -> orange · below -> red
-- Seven Stats grid cells: goal-based bands (green = 190-average level) in `CELL_BANDS`, `components/pages/StatsPage.tsx` — table in REV25–REV29. No color below 10 games with frame data.
+- Seven Stats grid cells: goal-based bands (green = 190-average level) in `CELL_BANDS`, `components/pages/StatsPage.tsx` — table in REV25–REV30. No color below 10 games with frame data.
 - Makeable % (aggregate): green >= 80 · orange >= 60 — locked. Split leaves: green >= 40 · orange >= 15 · else grey (never red).
 
 ---
