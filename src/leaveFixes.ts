@@ -83,15 +83,18 @@ export function cardsFromReference(reference: unknown, defaults: FixCard[]): Fix
  * The most common leaves that a Pocket Diagnostics card covers, with that
  * card's fix. `leaves` is computeLeaveStats().leaves (all first-ball leaves,
  * any order); leaves no card covers are skipped (they still count toward the
- * share's denominator).
+ * share's denominator). One row per card: when two leaves share a card (the
+ * 2-7 and 3-10 baby splits), only the more common one is shown.
  */
 export function topLeaveFixes(leaves: LeaveCount[], cards: FixCard[], n = 3): LeaveFix[] {
   const total = leaves.reduce((sum, l) => sum + l.count, 0);
   if (total === 0) return [];
   const out: LeaveFix[] = [];
+  const used = new Set<string>();
   for (const l of [...leaves].sort((a, b) => b.count - a.count)) {
     const card = cardForLeave(l.name, cards);
-    if (!card || !card.fix.trim()) continue;
+    if (!card || !card.fix.trim() || used.has(card.name)) continue;
+    used.add(card.name);
     out.push({
       leave: l.name,
       count: l.count,

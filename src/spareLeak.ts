@@ -34,6 +34,8 @@ export interface SpareBucket {
   made: number;
   /** Total pins those misses cost (see above). */
   pinsLost: number;
+  /** Misses whose cost is known (not the last logged frame of an unfinished game). */
+  costed: number;
 }
 
 export interface SpareLeak {
@@ -53,7 +55,7 @@ export interface SpareLeak {
   usedFillEstimate: boolean;
 }
 
-const emptyBucket = (): SpareBucket => ({ attempts: 0, made: 0, pinsLost: 0 });
+const emptyBucket = (): SpareBucket => ({ attempts: 0, made: 0, pinsLost: 0, costed: 0 });
 
 // Pins knocked down by one first ball. '—' (em dash, U+2014) is the gutter token.
 function firstBallPins(t: string | undefined): number | null {
@@ -150,7 +152,10 @@ export function computeSpareLeak(sessions: Session[]): SpareLeak {
         const add = (b: SpareBucket) => {
           b.attempts++;
           if (made) b.made++;
-          else b.pinsLost += cost;
+          else if (costKnown) {
+            b.pinsLost += cost;
+            b.costed++;
+          }
         };
 
         const pins = validPins(frames[i]);

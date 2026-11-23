@@ -48,8 +48,9 @@ export function goalLevelSessions(sessions: Session[], lo: number, hi: number): 
  * on an opens gap.
  */
 export function pinsPerMissedSpare(leak: SpareLeak): number | null {
-  const misses =
-    leak.single.attempts - leak.single.made + (leak.multi.attempts - leak.multi.made);
+  // Costed misses only: a miss in an unfinished game counts as a chance in
+  // Spare leak but has no known cost, so it must not dilute the average.
+  const misses = leak.single.costed + leak.multi.costed;
   const pins = leak.single.pinsLost + leak.multi.pinsLost;
   return misses > 0 && pins > 0 ? pins / misses : null;
 }

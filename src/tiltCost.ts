@@ -4,17 +4,20 @@ import type { Session, ThrowEntry } from './types';
 // Tilt cost (Phase 30A)
 //
 // Does one open frame lead to another? Compares the frame right after an open
-// with the frame right after a mark, inside the same game. Same frame pairs as
-// Bounce-back % on Stats: the first frame of the pair is frames 1-9, the second
-// is the next frame (the 10th can be the second). Read-time only.
+// with the frame right after a mark, inside the same game. Frame pairs like
+// Bounce-back % on Stats (first frame 1-9, the second the next frame, the 10th
+// can be the second) with one difference: a pair whose second frame isn't
+// finished is skipped here (Bounce-back counts it as a missed bounce), so the
+// two add up to 100 only when the view has no unfinished games. Read-time only.
 //
 //   openAfterOpenPct  = opens / frames that follow an open
 //   openAfterMarkPct  = opens / frames that follow a mark (strike or spare)
 //   backToBackPerGame = open-open pairs per game with frames
 //   firstBallAfterOpen / AfterMark = first-ball pin average of the next frame
-//   extraOpensPerGame = (frames after an open per game) x (the difference in
-//     open rate), only when the rate after an open is higher -- the opens a
-//     game the "one leads to another" pattern adds
+//   extraOpensPerGame / excessPct = opens after an open beyond what each
+//     GAME's own open rate predicts. Compared game by game, so an off night
+//     (lots of opens everywhere) doesn't read as tilt -- only opens that
+//     cluster right after an open, within a game, count. Floored at 0.
 // ---------------------------------------------------------------------------
 
 export interface TiltCost {
@@ -27,6 +30,8 @@ export interface TiltCost {
   firstBallAfterOpen: number | null;
   firstBallAfterMark: number | null;
   extraOpensPerGame: number | null;
+  /** Extra opens as a share of frames after an open, 0-100 (null without opens). */
+  excessPct: number | null;
 }
 
 const isStrike = (f: ThrowEntry) => f.throws?.[0] === 'X';
@@ -49,18 +54,23 @@ export function computeTiltCost(sessions: Session[]): TiltCost {
   let games = 0;
   let afterOpen = 0, openAfterOpen = 0, fbAfterOpenSum = 0, fbAfterOpenN = 0;
   let afterMark = 0, openAfterMark = 0, fbAfterMarkSum = 0, fbAfterMarkN = 0;
+  let expectedAfterOpen = 0; // sum over games: frames after an open x that game's open rate
 
   for (const s of sessions ?? []) {
     for (const g of s?.games ?? []) {
       const frames = g?.frames;
       if (!Array.isArray(frames) || frames.length === 0) continue;
       games++;
+      let gPairs = 0, gOpens = 0, gAfterOpen = 0;
       for (let i = 0; i < frames.length - 1 && i < 9; i++) {
         const f = frames[i];
         const next = frames[i + 1];
         if (!f || !next || !isDone(next)) continue;
         const nextOpen = isOpen(next);
         const fb = firstBallPins(next.throws?.[0]);
+        gPairs++;
+        if (nextOpen) gOpens++;
+        if (isOpen(f)) gAfterOpen++;
         if (isOpen(f)) {
           afterOpen++;
           if (nextOpen) openAfterOpen++;
@@ -71,15 +81,18 @@ export function computeTiltCost(sessions: Session[]): TiltCost {
           if (fb != null) { fbAfterMarkSum += fb; fbAfterMarkN++; }
         }
       }
+      if (gPairs > 0) expectedAfterOpen += gAfterOpen * (gOpens / gPairs);
     }
   }
 
   const openAfterOpenPct = afterOpen > 0 ? (openAfterOpen / afterOpen) * 100 : null;
   const openAfterMarkPct = afterMark > 0 ? (openAfterMark / afterMark) * 100 : null;
   let extraOpensPerGame: number | null = null;
-  if (games > 0 && openAfterOpenPct != null && openAfterMarkPct != null) {
-    const diff = (openAfterOpenPct - openAfterMarkPct) / 100;
-    extraOpensPerGame = diff > 0 ? (afterOpen / games) * diff : 0;
+  let excessPct: number | null = null;
+  if (games > 0 && afterOpen > 0) {
+    const excess = Math.max(0, openAfterOpen - expectedAfterOpen);
+    extraOpensPerGame = excess / games;
+    excessPct = (excess / afterOpen) * 100;
   }
 
   return {
@@ -92,5 +105,6 @@ export function computeTiltCost(sessions: Session[]): TiltCost {
     firstBallAfterOpen: fbAfterOpenN > 0 ? fbAfterOpenSum / fbAfterOpenN : null,
     firstBallAfterMark: fbAfterMarkN > 0 ? fbAfterMarkSum / fbAfterMarkN : null,
     extraOpensPerGame,
+    excessPct,
   };
 }

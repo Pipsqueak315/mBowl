@@ -27,8 +27,20 @@ const session = (games, id = 1) => ({
   near(t.openAfterMarkPct, 100 / 6, 'tilt: 1 of 6 frames after a mark is open');
   near(t.backToBackPerGame, 1, 'tilt: one open-open pair per game');
   near(t.firstBallAfterOpen, (8 + 10 + 10) / 3, 'tilt: first ball after an open');
-  // Extra opens = (3 frames after an open / 1 game) x (1/3 - 1/6) = 0.5
-  near(t.extraOpensPerGame, 0.5, 'tilt: extra opens per game');
+  // Within-game: 2 opens among 9 next-frames; expected after an open = 3 x 2/9.
+  // Observed 1 -> excess 1/3 a game, 1/3 / 3 frames after an open = 11.1%.
+  near(t.extraOpensPerGame, 1 - 3 * (2 / 9), 'tilt: extra opens per game (within-game)');
+  near(t.excessPct, ((1 - 3 * (2 / 9)) / 3) * 100, 'tilt: excess % of frames after an open');
+}
+{
+  // An off game and a clean game, opens spread out (never back to back within
+  // a game): the raw rates differ, but the within-game excess is 0.
+  const O = fr(['8', '1']);
+  const X = fr(['X']);
+  const off = { frames: [O, X, O, X, O, X, O, X, O, X] };
+  const clean = { frames: [X, X, X, X, X, X, X, X, X, fr(['X', 'X', 'X'])] };
+  const t = computeTiltCost([session([off, clean])]);
+  eq(t.extraOpensPerGame, 0, 'tilt: off night alone is not tilt');
 }
 {
   // An unfinished next frame is not a pair; no opens → extra 0, openAfterOpen null.
@@ -57,6 +69,11 @@ const session = (games, id = 1) => ({
   ];
   const top = topLeaveFixes(leaves, cards, 3);
   eq(top.map(f => f.leave), ['10 Pin', '8 Pin'], 'fix: uncovered leaves skipped, order by count');
+  const baby = topLeaveFixes(
+    [{ name: 'Baby Split (2-7)', count: 3, converted: 1 }, { name: 'Baby Split (3-10)', count: 2, converted: 1 }],
+    [{ name: 'Baby split (2-7 or 3-10)', fix: 'baby fix' }],
+  );
+  eq(baby.map(f => f.leave), ['Baby Split (2-7)'], 'fix: one row per card');
   near(top[0].sharePct, 40, 'fix: share counts every leave (8 of 20)');
   eq(top[0].fix, 'ringing fix', 'fix: the card text');
   eq(topLeaveFixes([], cards), [], 'fix: no leaves');
@@ -83,11 +100,11 @@ const session = (games, id = 1) => ({
   eq(good[0].games.map(g => g.score), [185, 180], 'recipe: framed games in range only');
   eq(s.games.length, 4, 'recipe: input not mutated');
   const leak = {
-    single: { attempts: 10, made: 6, pinsLost: 36 },
-    multi: { attempts: 5, made: 3, pinsLost: 20 },
+    single: { attempts: 10, made: 6, pinsLost: 36, costed: 3 }, // 1 uncosted miss
+    multi: { attempts: 5, made: 3, pinsLost: 20, costed: 2 },
   };
-  near(pinsPerMissedSpare(leak), 56 / 6, 'recipe: pins per missed spare');
-  eq(pinsPerMissedSpare({ single: { attempts: 1, made: 1, pinsLost: 0 }, multi: { attempts: 0, made: 0, pinsLost: 0 } }), null, 'recipe: no misses → null');
+  near(pinsPerMissedSpare(leak), 56 / 5, 'recipe: pins per COSTED missed spare');
+  eq(pinsPerMissedSpare({ single: { attempts: 1, made: 1, pinsLost: 0, costed: 0 }, multi: { attempts: 0, made: 0, pinsLost: 0, costed: 0 } }), null, 'recipe: no misses → null');
 }
 
 done('insights');

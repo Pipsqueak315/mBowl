@@ -812,12 +812,15 @@ function RecipeCard({
   goodGames,
   rows,
   opensPins,
+  nowGated,
 }: {
   lo: number;
   hi: number;
   goodGames: number;
   rows: RecipeRowDef[];
   opensPins: { gap: number; pins: number } | null;
+  /** Under MIN_FRAME_GAMES framed games in this view: show Now, but no gaps. */
+  nowGated: boolean;
 }) {
   if (goodGames < MIN_FRAME_GAMES) {
     return (
@@ -834,7 +837,7 @@ function RecipeCard({
     <View style={styles.leavesCard}>
       <Text style={styles.leavesTitle}>Your {lo}–{hi} games</Text>
       <Text style={styles.pathCaption}>
-        What your {goodGames} games at {lo}–{hi} (all-time, with frames) do, next to this view
+        What your {goodGames} games at {lo}–{hi} (all-time, any type, with frames) do, next to this view
       </Text>
       <View style={[styles.cmpHeaderRow, styles.recipeHeader]}>
         <Text style={styles.cmpLabelCell}> </Text>
@@ -845,7 +848,7 @@ function RecipeCard({
       {rows.map((r, i) => {
         let gapText = '—';
         let gapColor = '#48484A';
-        if (r.base != null && r.now != null) {
+        if (!nowGated && r.base != null && r.now != null) {
           const base = Number(r.base.toFixed(r.digits));
           const now = Number(r.now.toFixed(r.digits));
           const short = r.invert ? now - base : base - now;
@@ -853,7 +856,7 @@ function RecipeCard({
             gapText = '✓';
             gapColor = '#30D158';
           } else {
-            gapText = `${r.invert ? '−' : '+'}${short.toFixed(r.digits)}`;
+            gapText = `${r.invert ? '−' : '+'}${short.toFixed(r.digits)}${r.suffix}`;
             gapColor = '#FF9F0A';
           }
         }
@@ -867,13 +870,14 @@ function RecipeCard({
           </View>
         );
       })}
-      {opensPins && (
+      {!nowGated && opensPins && (
         <Text style={styles.leakGap}>
           {opensPins.gap.toFixed(1)} fewer opens a game is worth about {opensPins.pins.toFixed(0)} pins a game
         </Text>
       )}
       <Text style={styles.leakNote}>
         Same definitions as the grid above. A check means this view already matches your {lo}–{hi} games.
+        {nowGated ? ` Gaps show from ${MIN_FRAME_GAMES} games with frames in this view.` : ''}
       </Text>
     </View>
   );
@@ -902,7 +906,7 @@ function LeaveFixCard({ hasPinData, fixes }: { hasPinData: boolean; fixes: Leave
             <View key={f.leave} style={[styles.fixRow, i > 0 && styles.leaveListRowBorder]}>
               <View style={styles.fixHead}>
                 <Text style={styles.ballStatName}>{f.leave}</Text>
-                <Text style={styles.ballStatCount}>
+                <Text style={[styles.ballStatCount, styles.fixCount]}>
                   {Math.round(f.sharePct)}% of leaves · made {f.converted} of {f.count}
                 </Text>
               </View>
@@ -927,8 +931,10 @@ function TiltCard({ tilt, pinsPerMiss }: { tilt: TiltCost; pinsPerMiss: number |
       </View>
     );
   }
-  const diff = tilt.openAfterOpenPct - tilt.openAfterMarkPct;
-  const color = diff <= 0 ? '#30D158' : diff <= 10 ? '#FF9F0A' : '#FF453A';
+  // Colour on the within-game excess (see src/tiltCost.ts), not the raw gap
+  // between the two rates -- an off night alone doesn't read as tilt.
+  const ex = tilt.excessPct ?? 0;
+  const color = ex <= 2 ? '#30D158' : ex <= 10 ? '#FF9F0A' : '#FF453A';
   const extra = tilt.extraOpensPerGame ?? 0;
   const cost =
     extra <= 0
@@ -959,7 +965,7 @@ function TiltCard({ tilt, pinsPerMiss }: { tilt: TiltCost; pinsPerMiss: number |
         <PathRow label="What it costs" value={cost} last />
       </View>
       <Text style={styles.leakNote}>
-        The frame right after each frame, inside the same game. Cost = the extra opens after an open, at what a missed spare costs you in Spare leak.
+        The frame right after each frame, inside the same game. Cost = opens after an open beyond each game's own open rate, at what a missed spare costs you in Spare leak.
       </Text>
     </View>
   );
@@ -1124,8 +1130,8 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
     const fs = metrics?.frameStats ?? null;
     const rows: RecipeRowDef[] = [
       { label: 'First ball', base: ga.firstBallAvg, now: advancedStats.firstBallAvg, digits: 1, suffix: '' },
-      { label: 'Strike', base: gm?.frameStats?.strikeRate ?? null, now: fs?.strikeRate ?? null, digits: 0, suffix: '%' },
-      { label: 'Spare', base: gm?.frameStats?.spareRate ?? null, now: fs?.spareRate ?? null, digits: 0, suffix: '%' },
+      { label: 'Strike', base: gm?.frameStats?.strikeRate ?? null, now: fs?.strikeRate ?? null, digits: 1, suffix: '%' },
+      { label: 'Spare', base: gm?.frameStats?.spareRate ?? null, now: fs?.spareRate ?? null, digits: 1, suffix: '%' },
       { label: 'Opens/game', base: gm?.frameStats?.opensPerGame ?? null, now: fs?.opensPerGame ?? null, digits: 1, suffix: '', invert: true },
     ];
     const ob = gm?.frameStats?.opensPerGame;
@@ -1133,7 +1139,8 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
     const opensGap = ob != null && on != null ? Number(on.toFixed(1)) - Number(ob.toFixed(1)) : 0;
     const opensPins =
       opensGap > 0 && pinsPerMiss != null ? { gap: opensGap, pins: opensGap * pinsPerMiss } : null;
-    return { lo, hi, goodGames: ga.gamesWithFrames, rows, opensPins };
+    const nowGated = advancedStats.gamesWithFrames < MIN_FRAME_GAMES;
+    return { lo, hi, goodGames: ga.gamesWithFrames, rows, opensPins, nowGated };
   }, [sessions, settings.targetAverage, metrics, advancedStats, pinsPerMiss]);
 
   // Leave -> fix (Phase 30A): the view's leaves + the Pocket Diagnostics cards.
@@ -1398,15 +1405,16 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
 
             {/* Phase 29: the two goal cards, full width under the grids. */}
             {goalPath && <GoalPathCard path={goalPath} onOpenSettings={() => setSettingsOpen(true)} />}
-            {/* Gap to the target: the league average when Path to goal has one,
-                so the two cards never disagree; otherwise the page's average. */}
             <RecipeCard
               lo={recipe.lo}
               hi={recipe.hi}
               goodGames={recipe.goodGames}
               rows={recipe.rows}
               opensPins={recipe.opensPins}
+              nowGated={recipe.nowGated}
             />
+            {/* Gap to the target: the league average when Path to goal has one,
+                so the two cards never disagree; otherwise the page's average. */}
             <SpareLeakCard
               leak={spareLeak}
               avg={goalPath?.currentAvg ?? metrics.avg}
@@ -1851,8 +1859,15 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   pathRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#38383A' },
-  pathRowLabel: { fontSize: 15, fontWeight: '400', color: '#8E8E93' },
-  pathRowValue: { fontSize: 15, fontWeight: '300', color: '#FFFFFF', fontVariant: ['tabular-nums'] },
+  pathRowLabel: { fontSize: 15, fontWeight: '400', color: '#8E8E93', flexShrink: 0, marginRight: 12 },
+  pathRowValue: {
+    flexShrink: 1,
+    textAlign: 'right',
+    fontSize: 15,
+    fontWeight: '300',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'],
+  },
   pathSetupText: { fontSize: 15, fontWeight: '400', color: '#8E8E93', lineHeight: 20 },
   pathSetupButton: {
     alignSelf: 'flex-start',
@@ -1884,6 +1899,7 @@ const styles = StyleSheet.create({
   recipeHeader: { marginTop: 12 },
   fixRow: { paddingVertical: 10, gap: 4 },
   fixHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  fixCount: { flexShrink: 1, textAlign: 'right' },
   fixCardName: { color: '#00CEC9', fontSize: 11, fontWeight: '500' },
   fixText: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '400', lineHeight: 19 },
   leavesTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', marginBottom: 8 },
