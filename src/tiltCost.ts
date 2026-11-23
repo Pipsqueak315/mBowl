@@ -14,10 +14,12 @@ import type { Session, ThrowEntry } from './types';
 //   openAfterMarkPct  = opens / frames that follow a mark (strike or spare)
 //   backToBackPerGame = open-open pairs per game with frames
 //   firstBallAfterOpen / AfterMark = first-ball pin average of the next frame
-//   extraOpensPerGame / excessPct = opens after an open beyond what each
-//     GAME's own open rate predicts. Compared game by game, so an off night
-//     (lots of opens everywhere) doesn't read as tilt -- only opens that
-//     cluster right after an open, within a game, count. Floored at 0.
+//   extraOpensPerGame / excessPct = open-open pairs beyond what chance gives
+//     for that game's own opens. For a game with n finished frames in a row
+//     and k opens among them, k opens in random order give exactly
+//     k(k-1)/n open-open pairs on average -- so an off night (opens
+//     everywhere) doesn't read as tilt, and the baseline has no small-sample
+//     bias (the "hot hand" bias a per-game open rate would have). Floored at 0.
 // ---------------------------------------------------------------------------
 
 export interface TiltCost {
@@ -54,23 +56,29 @@ export function computeTiltCost(sessions: Session[]): TiltCost {
   let games = 0;
   let afterOpen = 0, openAfterOpen = 0, fbAfterOpenSum = 0, fbAfterOpenN = 0;
   let afterMark = 0, openAfterMark = 0, fbAfterMarkSum = 0, fbAfterMarkN = 0;
-  let expectedAfterOpen = 0; // sum over games: frames after an open x that game's open rate
+  let expectedPairs = 0; // sum over games of k(k-1)/n -- open-open pairs by chance
 
   for (const s of sessions ?? []) {
     for (const g of s?.games ?? []) {
       const frames = g?.frames;
       if (!Array.isArray(frames) || frames.length === 0) continue;
       games++;
-      let gPairs = 0, gOpens = 0, gAfterOpen = 0;
+      // n = finished frames from frame 1 (stops at the first unfinished one),
+      // k = opens among them.
+      let n = 0, k = 0;
+      for (let j = 0; j < frames.length && j < 10; j++) {
+        const fj = frames[j];
+        if (!fj || !isDone(fj)) break;
+        n++;
+        if (isOpen(fj)) k++;
+      }
+      if (n > 0) expectedPairs += (k * (k - 1)) / n;
       for (let i = 0; i < frames.length - 1 && i < 9; i++) {
         const f = frames[i];
         const next = frames[i + 1];
         if (!f || !next || !isDone(next)) continue;
         const nextOpen = isOpen(next);
         const fb = firstBallPins(next.throws?.[0]);
-        gPairs++;
-        if (nextOpen) gOpens++;
-        if (isOpen(f)) gAfterOpen++;
         if (isOpen(f)) {
           afterOpen++;
           if (nextOpen) openAfterOpen++;
@@ -81,7 +89,6 @@ export function computeTiltCost(sessions: Session[]): TiltCost {
           if (fb != null) { fbAfterMarkSum += fb; fbAfterMarkN++; }
         }
       }
-      if (gPairs > 0) expectedAfterOpen += gAfterOpen * (gOpens / gPairs);
     }
   }
 
@@ -90,7 +97,7 @@ export function computeTiltCost(sessions: Session[]): TiltCost {
   let extraOpensPerGame: number | null = null;
   let excessPct: number | null = null;
   if (games > 0 && afterOpen > 0) {
-    const excess = Math.max(0, openAfterOpen - expectedAfterOpen);
+    const excess = Math.max(0, openAfterOpen - expectedPairs);
     extraOpensPerGame = excess / games;
     excessPct = (excess / afterOpen) * 100;
   }

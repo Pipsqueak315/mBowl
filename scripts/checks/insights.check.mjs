@@ -27,20 +27,22 @@ const session = (games, id = 1) => ({
   near(t.openAfterMarkPct, 100 / 6, 'tilt: 1 of 6 frames after a mark is open');
   near(t.backToBackPerGame, 1, 'tilt: one open-open pair per game');
   near(t.firstBallAfterOpen, (8 + 10 + 10) / 3, 'tilt: first ball after an open');
-  // Within-game: 2 opens among 9 next-frames; expected after an open = 3 x 2/9.
-  // Observed 1 -> excess 1/3 a game, 1/3 / 3 frames after an open = 11.1%.
-  near(t.extraOpensPerGame, 1 - 3 * (2 / 9), 'tilt: extra opens per game (within-game)');
-  near(t.excessPct, ((1 - 3 * (2 / 9)) / 3) * 100, 'tilt: excess % of frames after an open');
+  // Chance baseline: n = 10 finished frames, k = 3 opens -> k(k-1)/n = 0.6
+  // open-open pairs. Observed 1 -> excess 0.4 a game, 0.4 / 3 frames after an open.
+  near(t.extraOpensPerGame, 0.4, 'tilt: extra opens per game (vs chance)');
+  near(t.excessPct, (0.4 / 3) * 100, 'tilt: excess % of frames after an open');
 }
 {
-  // An off game and a clean game, opens spread out (never back to back within
-  // a game): the raw rates differ, but the within-game excess is 0.
+  // A game of all opens + a clean game: the raw rates are 100% vs 0% (the old
+  // rate-difference formula said 4.5 extra opens a game), but every pair in the
+  // off game is what chance gives 10 opens (10*9/10 = 9), so no tilt.
   const O = fr(['8', '1']);
   const X = fr(['X']);
-  const off = { frames: [O, X, O, X, O, X, O, X, O, X] };
+  const off = { frames: [O, O, O, O, O, O, O, O, O, O] };
   const clean = { frames: [X, X, X, X, X, X, X, X, X, fr(['X', 'X', 'X'])] };
   const t = computeTiltCost([session([off, clean])]);
-  eq(t.extraOpensPerGame, 0, 'tilt: off night alone is not tilt');
+  eq([t.openAfterOpenPct, t.openAfterMarkPct], [100, 0], 'tilt: raw rates differ');
+  near(t.extraOpensPerGame, 0, 'tilt: an off night alone is not tilt');
 }
 {
   // An unfinished next frame is not a pair; no opens → extra 0, openAfterOpen null.

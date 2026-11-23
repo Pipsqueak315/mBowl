@@ -937,7 +937,7 @@ function TiltCard({ tilt, pinsPerMiss }: { tilt: TiltCost; pinsPerMiss: number |
   const color = ex <= 2 ? '#30D158' : ex <= 10 ? '#FF9F0A' : '#FF453A';
   const extra = tilt.extraOpensPerGame ?? 0;
   const cost =
-    extra <= 0
+    extra < 0.05
       ? 'None — an open doesn\'t lead to another'
       : pinsPerMiss != null
         ? `about ${(extra * pinsPerMiss).toFixed(1)} pins a game`
