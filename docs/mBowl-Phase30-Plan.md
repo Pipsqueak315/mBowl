@@ -1,10 +1,23 @@
 # mBowl — Next Phase Plan (Phase 30+)
-**Written:** Nov 21, 2026 · **Status:** planning only, nothing built
+**Written:** Nov 21, 2026 · **Updated:** Nov 23 · **Status:** candidates below not built yet
 **Context:** Nov 20 brainstorm. Phase 29 (Path to goal + Spare leak, read-only Stats cards) **shipped Nov 21** (`02db869`, update group e7cd0dff, REV30). Everything below is what's left from that brainstorm.
 
 **Constraints (Marcus, Nov 20):** only Marcus uses it · nothing social · no iCloud · no widgets · nothing that costs money unless it's clearly worth it · everything fits the current workflow (OTA from `master`, free sideload).
 
 ---
+
+## Done since this plan was written
+- **Phase 30A (Nov 23, update group 814db029):** three more read-only Stats cards Marcus asked for after Phase 29 -- 190 recipe ("Your 180-200 games"), Leave -> fix, Tilt cost. Details in REV31.
+- Offered, not picked: **Closing frames** (9th/10th mark % vs frames 1-8) -- close to the Oct cut of open-rate-by-frame; only if Marcus asks.
+
+## Bowling sensors (researched Nov 22 -- Marcus passed: "just another thing to buy")
+| Sensor | Price | Fit / export |
+|---|---|---|
+| F5 (Storm) | $199 incl. 1 yr membership, then $99/yr (required for connected services) | Drilled thumb insert; export not documented |
+| Witsee | $319; app free, Premium $89.99/yr | Mounts in a grip hole (no drilling); **CSV export on Premium** -- the only one with an import path |
+| BowlSense Pro | $199.99, no subscription | Puck in a thumb slug; shipping in batches; export not documented; "practice feedback, not validated accuracy" |
+| Ruby | not listed | Installs in the ball; early |
+USBC had no electronic sensors on its approved list (Oct 2026) -- practice-only. If revisited: Witsee CSV import (document picker already in the binary, OTA), or type in per-game numbers (extends item 3 below). Check semi-thumb fit first.
 
 ## Before Phase 30: close out v2
 - **Part E:** 28.5 restyle of Reference + Settings (needs Marcus's screenshots; ships as its own update)
