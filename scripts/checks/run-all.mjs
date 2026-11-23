@@ -4,6 +4,7 @@
 //   2. leaves   — split detection + Makeable rule (real src/leaveUtils.js)
 //   3. seasons  — gapless seasons + shared filter (real src/seasons.ts, sessionFilter.ts)
 //   4. goals    — Path to goal + Spare leak (real src/goalPath.ts, spareLeak.ts)
+//   4b. insights — 190 recipe, Leave -> fix, Tilt cost (real src/recipe.ts, leaveFixes.ts, tiltCost.ts)
 //   5. rules    — CLAUDE.md rules that a grep can enforce
 //   6. stats    — Phase 24 harness on the 18 seeds (stats.tsx metric COPY; see its header)
 //
@@ -27,7 +28,7 @@ if (!skipTsc) {
     args: existsSync(tsc) ? [tsc, '--noEmit', '-p', ROOT] : null,
   });
 }
-for (const name of ['leaves', 'seasons', 'goals', 'rules']) {
+for (const name of ['leaves', 'seasons', 'goals', 'insights', 'rules']) {
   steps.push({
     name,
     cmd: process.execPath,

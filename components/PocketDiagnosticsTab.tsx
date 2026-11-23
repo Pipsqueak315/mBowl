@@ -14,6 +14,7 @@ import { animateNextLayout } from '@/src/v2/motion';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { readSessions } from '@/src/storage';
 import { computeLeaveStats } from '@/src/leaveUtils';
+import { CARD_LEAVE_KEYS } from '@/src/leaveFixes';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -182,22 +183,7 @@ export const DEFAULT_DIAGNOSTICS: DiagnosticsData = {
 // Leave name mapping — diagnostic card name → leaveUtils leave name(s)
 // ---------------------------------------------------------------------------
 
-const CARD_LEAVE_KEYS: Record<string, string[]> = {
-  'Ringing 10 pin':           ['10 Pin'],
-  'Solid 8 pin':              ['8 Pin'],
-  'Ringing 7 pin':            ['7 Pin'],
-  'Big 4 (4-6-7-10)':        ['Big 4'],
-  '6-7-10':                   ['6-7-10'],
-  'Washout':                  [],
-  'Corner pin (7 or 10)':     ['7 Pin', '10 Pin'],
-  '2-8-10 bucket':            ['2-8-10 Bucket'],
-  '2-4-5-8 bucket':           ['2-4-5-8 Bucket'],
-  '4-6 split':                ['4-6 Split'],
-  '5-7 split':                ['5-7 Split'],
-  'Baby split (2-7 or 3-10)': ['Baby Split (2-7)', 'Baby Split (3-10)'],
-  '4-7-9 cluster':            ['4-7-9 Cluster'],
-  'Sleeper pocket (2-8 or 3-9)': ['Sleeper (2-8)', 'Sleeper (3-9)'],
-};
+// Phase 30A: moved to src/leaveFixes.ts (shared with the Stats "Leave -> fix" card).
 
 // ---------------------------------------------------------------------------
 // Helpers

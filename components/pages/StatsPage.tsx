@@ -14,7 +14,7 @@ import FilterHeader from '@/components/v2/FilterHeader';
 import { usePageWidth, useSideInsets, usePageVisible } from '@/src/v2/page';
 import { useLayoutClass } from '@/src/v2/layout';
 import { LineChart } from 'react-native-chart-kit';
-import { readSessions, readSettings } from '@/src/storage';
+import { readSessions, readSettings, readReference } from '@/src/storage';
 import { onDataChanged } from '@/src/dataEvents';
 import type { Session, Settings, ThrowEntry } from '@/src/types';
 import HeaderIconButton from '@/components/v2/HeaderIconButton';
@@ -25,6 +25,10 @@ import { getSeasons, currentSeason, resolveSeasonRanges } from '@/src/seasons';
 import ScalePressable from '@/components/ScalePressable';
 import { computeGoalPath, type GoalPath } from '@/src/goalPath';
 import { computeSpareLeak, type SpareBucket, type SpareLeak } from '@/src/spareLeak';
+import { goalRange, goalLevelSessions, pinsPerMissedSpare } from '@/src/recipe';
+import { cardsFromReference, topLeaveFixes, type LeaveFix } from '@/src/leaveFixes';
+import { computeTiltCost, type TiltCost } from '@/src/tiltCost';
+import { DEFAULT_DIAGNOSTICS } from '@/components/PocketDiagnosticsTab';
 
 // --- Types ---
 interface FrameStats {
@@ -789,6 +793,178 @@ function SpareLeakCard({ leak, avg, target }: { leak: SpareLeak; avg: number | n
   );
 }
 
+// --- 190 recipe (Phase 30A) ---
+// Goal-level games (target ± 10, all-time, with frames) vs the current view,
+// on the grid's own metric definitions. Gap = what the current view is short
+// of the goal-level games; a check when it already matches them.
+interface RecipeRowDef {
+  label: string;
+  base: number | null;
+  now: number | null;
+  digits: number;
+  suffix: string;
+  invert?: boolean; // lower is better (Opens/game)
+}
+
+function RecipeCard({
+  lo,
+  hi,
+  goodGames,
+  rows,
+  opensPins,
+}: {
+  lo: number;
+  hi: number;
+  goodGames: number;
+  rows: RecipeRowDef[];
+  opensPins: { gap: number; pins: number } | null;
+}) {
+  if (goodGames < MIN_FRAME_GAMES) {
+    return (
+      <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
+        <Text style={styles.cardLabel}>Your {lo}–{hi} games</Text>
+        <IconSymbol name="lock.fill" size={18} color="#48484A" />
+        <Text style={styles.naText}>
+          Needs {MIN_FRAME_GAMES} games scoring {lo}–{hi} with frames ({goodGames} so far).
+        </Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.leavesCard}>
+      <Text style={styles.leavesTitle}>Your {lo}–{hi} games</Text>
+      <Text style={styles.pathCaption}>
+        What your {goodGames} games at {lo}–{hi} (all-time, with frames) do, next to this view
+      </Text>
+      <View style={[styles.cmpHeaderRow, styles.recipeHeader]}>
+        <Text style={styles.cmpLabelCell}> </Text>
+        <Text style={[styles.cmpValCell, styles.cmpHeaderText]}>{lo}–{hi}</Text>
+        <Text style={[styles.cmpValCell, styles.cmpHeaderText]}>Now</Text>
+        <Text style={[styles.cmpDeltaCell, styles.cmpHeaderText]}>Gap</Text>
+      </View>
+      {rows.map((r, i) => {
+        let gapText = '—';
+        let gapColor = '#48484A';
+        if (r.base != null && r.now != null) {
+          const base = Number(r.base.toFixed(r.digits));
+          const now = Number(r.now.toFixed(r.digits));
+          const short = r.invert ? now - base : base - now;
+          if (short <= 0) {
+            gapText = '✓';
+            gapColor = '#30D158';
+          } else {
+            gapText = `${r.invert ? '−' : '+'}${short.toFixed(r.digits)}`;
+            gapColor = '#FF9F0A';
+          }
+        }
+        const fmt = (v: number | null) => (v == null ? '—' : `${v.toFixed(r.digits)}${r.suffix}`);
+        return (
+          <View key={r.label} style={[styles.cmpRow, i > 0 && styles.leaveListRowBorder]}>
+            <Text style={styles.cmpLabelCell}>{r.label}</Text>
+            <Text style={styles.cmpValCell}>{fmt(r.base)}</Text>
+            <Text style={styles.cmpValCell}>{fmt(r.now)}</Text>
+            <Text style={[styles.cmpDeltaCell, { color: gapColor }]}>{gapText}</Text>
+          </View>
+        );
+      })}
+      {opensPins && (
+        <Text style={styles.leakGap}>
+          {opensPins.gap.toFixed(1)} fewer opens a game is worth about {opensPins.pins.toFixed(0)} pins a game
+        </Text>
+      )}
+      <Text style={styles.leakNote}>
+        Same definitions as the grid above. A check means this view already matches your {lo}–{hi} games.
+      </Text>
+    </View>
+  );
+}
+
+// --- Leave -> fix (Phase 30A) ---
+function LeaveFixCard({ hasPinData, fixes }: { hasPinData: boolean; fixes: LeaveFix[] }) {
+  if (!hasPinData) {
+    return (
+      <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
+        <Text style={styles.cardLabel}>Leave → fix</Text>
+        <IconSymbol name="lock.fill" size={18} color="#48484A" />
+        <Text style={styles.naText}>Log frames with pin tracking to unlock.</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.leavesCard}>
+      <Text style={styles.leavesTitle}>Leave → fix</Text>
+      {fixes.length === 0 ? (
+        <Text style={styles.pathSetupText}>None of your leaves here match a Pocket Diagnostics card yet.</Text>
+      ) : (
+        <>
+          <Text style={styles.pathCaption}>Your most common leaves, with the fix from Pocket Diagnostics</Text>
+          {fixes.map((f, i) => (
+            <View key={f.leave} style={[styles.fixRow, i > 0 && styles.leaveListRowBorder]}>
+              <View style={styles.fixHead}>
+                <Text style={styles.ballStatName}>{f.leave}</Text>
+                <Text style={styles.ballStatCount}>
+                  {Math.round(f.sharePct)}% of leaves · made {f.converted} of {f.count}
+                </Text>
+              </View>
+              <Text style={styles.fixCardName}>{f.card}</Text>
+              <Text style={styles.fixText}>{f.fix}</Text>
+            </View>
+          ))}
+        </>
+      )}
+    </View>
+  );
+}
+
+// --- Tilt cost (Phase 30A) ---
+function TiltCard({ tilt, pinsPerMiss }: { tilt: TiltCost; pinsPerMiss: number | null }) {
+  if (tilt.gamesWithFrames < MIN_FRAME_GAMES || tilt.openAfterOpenPct == null || tilt.openAfterMarkPct == null) {
+    return (
+      <View style={[styles.card, styles.naCard, styles.leavesNaCard]}>
+        <Text style={styles.cardLabel}>Tilt cost</Text>
+        <IconSymbol name="lock.fill" size={18} color="#48484A" />
+        <Text style={styles.naText}>Needs {MIN_FRAME_GAMES} games with frames and at least one open.</Text>
+      </View>
+    );
+  }
+  const diff = tilt.openAfterOpenPct - tilt.openAfterMarkPct;
+  const color = diff <= 0 ? '#30D158' : diff <= 10 ? '#FF9F0A' : '#FF453A';
+  const extra = tilt.extraOpensPerGame ?? 0;
+  const cost =
+    extra <= 0
+      ? 'None — an open doesn\'t lead to another'
+      : pinsPerMiss != null
+        ? `about ${(extra * pinsPerMiss).toFixed(1)} pins a game`
+        : `about ${extra.toFixed(1)} extra opens a game`;
+  return (
+    <View style={styles.leavesCard}>
+      <Text style={styles.leavesTitle}>Tilt cost</Text>
+      <Text style={[styles.pathBig, { color }]}>{Math.round(tilt.openAfterOpenPct)}%</Text>
+      <Text style={styles.pathCaption}>
+        chance of another open right after an open · {Math.round(tilt.openAfterMarkPct)}% after a mark
+      </Text>
+      <View style={styles.pathRows}>
+        <PathRow
+          label="Back-to-back opens"
+          value={tilt.backToBackPerGame != null ? `${tilt.backToBackPerGame.toFixed(1)} a game` : '—'}
+        />
+        <PathRow
+          label="First ball after an open"
+          value={
+            tilt.firstBallAfterOpen != null && tilt.firstBallAfterMark != null
+              ? `${tilt.firstBallAfterOpen.toFixed(1)} · ${tilt.firstBallAfterMark.toFixed(1)} after a mark`
+              : '—'
+          }
+        />
+        <PathRow label="What it costs" value={cost} last />
+      </View>
+      <Text style={styles.leakNote}>
+        The frame right after each frame, inside the same game. Cost = the extra opens after an open, at what a missed spare costs you in Spare leak.
+      </Text>
+    </View>
+  );
+}
+
 // --- Component ---
 export default function StatsPage({ embedded = false }: { embedded?: boolean }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -798,6 +974,8 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [settings, setSettings] = useState<Settings>({});
+  // Phase 30A: Reference (Pocket Diagnostics cards) for Leave -> fix. Display only.
+  const [reference, setReference] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [showAllLeaves, setShowAllLeaves] = useState(false);
   const [leaveSort, setLeaveSort] = useState<LeaveSort>('frequency');
@@ -844,16 +1022,18 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
         // refocus the page stays up while storage is re-read, and the charts
         // are only recomputed when the data actually changed (before, every tab
         // switch blanked the page to a spinner and redrew every chart).
-        const [sessionsData, settingsData] = await Promise.all([
+        const [sessionsData, settingsData, referenceData] = await Promise.all([
           readSessions(),
           readSettings(),
+          readReference(),
         ]);
         if (active) {
-          const sig = JSON.stringify([sessionsData, settingsData]);
+          const sig = JSON.stringify([sessionsData, settingsData, referenceData]);
           if (sig !== dataSigRef.current) {
             dataSigRef.current = sig;
             setSessions(sessionsData);
             setSettings(settingsData);
+            setReference(referenceData);
           }
           const cur = currentSeason(getSeasons(settingsData), todayISO());
           setSeasonSel(cur ? cur.id : ALL_TIME);
@@ -873,12 +1053,17 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
   useEffect(() => onDataChanged(() => {
     if (!visible) return; // a hidden page reloads when it's shown again
     void (async () => {
-      const [sessionsData, settingsData] = await Promise.all([readSessions(), readSettings()]);
-      const sig = JSON.stringify([sessionsData, settingsData]);
+      const [sessionsData, settingsData, referenceData] = await Promise.all([
+        readSessions(),
+        readSettings(),
+        readReference(),
+      ]);
+      const sig = JSON.stringify([sessionsData, settingsData, referenceData]);
       if (sig !== dataSigRef.current) {
         dataSigRef.current = sig;
         setSessions(sessionsData);
         setSettings(settingsData);
+        setReference(referenceData);
       }
     })();
   }), [visible]);
@@ -927,6 +1112,39 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
   const gameByGameStats = useMemo<GamePositionStat[]>(() => buildGameByGameStats(filtered), [filtered]);
   const advancedStats = useMemo<AdvancedStats>(() => calcAdvancedStats(filtered), [filtered]);
   const spareLeak = useMemo<SpareLeak>(() => computeSpareLeak(filtered), [filtered]);
+  const pinsPerMiss = useMemo(() => pinsPerMissedSpare(spareLeak), [spareLeak]);
+
+  // 190 recipe (Phase 30A): goal-level games, all-time, any type -- run
+  // through the same metric functions as the grid.
+  const recipe = useMemo(() => {
+    const { lo, hi } = goalRange(settings.targetAverage);
+    const good = goalLevelSessions(sessions, lo, hi);
+    const gm = calcMetrics(good);
+    const ga = calcAdvancedStats(good);
+    const fs = metrics?.frameStats ?? null;
+    const rows: RecipeRowDef[] = [
+      { label: 'First ball', base: ga.firstBallAvg, now: advancedStats.firstBallAvg, digits: 1, suffix: '' },
+      { label: 'Strike', base: gm?.frameStats?.strikeRate ?? null, now: fs?.strikeRate ?? null, digits: 0, suffix: '%' },
+      { label: 'Spare', base: gm?.frameStats?.spareRate ?? null, now: fs?.spareRate ?? null, digits: 0, suffix: '%' },
+      { label: 'Opens/game', base: gm?.frameStats?.opensPerGame ?? null, now: fs?.opensPerGame ?? null, digits: 1, suffix: '', invert: true },
+    ];
+    const ob = gm?.frameStats?.opensPerGame;
+    const on = fs?.opensPerGame;
+    const opensGap = ob != null && on != null ? Number(on.toFixed(1)) - Number(ob.toFixed(1)) : 0;
+    const opensPins =
+      opensGap > 0 && pinsPerMiss != null ? { gap: opensGap, pins: opensGap * pinsPerMiss } : null;
+    return { lo, hi, goodGames: ga.gamesWithFrames, rows, opensPins };
+  }, [sessions, settings.targetAverage, metrics, advancedStats, pinsPerMiss]);
+
+  // Leave -> fix (Phase 30A): the view's leaves + the Pocket Diagnostics cards.
+  const fixCards = useMemo(
+    () => cardsFromReference(reference, DEFAULT_DIAGNOSTICS.cards),
+    [reference],
+  );
+  const leaveFixes = useMemo(() => topLeaveFixes(leaveStats.leaves, fixCards, 3), [leaveStats.leaves, fixCards]);
+
+  // Tilt cost (Phase 30A).
+  const tilt = useMemo<TiltCost>(() => computeTiltCost(filtered), [filtered]);
 
   // Path to goal (Phase 29): the selected season's league + makeup games, so
   // only with a single season selected and a type filter that includes league
@@ -1182,11 +1400,20 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
             {goalPath && <GoalPathCard path={goalPath} onOpenSettings={() => setSettingsOpen(true)} />}
             {/* Gap to the target: the league average when Path to goal has one,
                 so the two cards never disagree; otherwise the page's average. */}
+            <RecipeCard
+              lo={recipe.lo}
+              hi={recipe.hi}
+              goodGames={recipe.goodGames}
+              rows={recipe.rows}
+              opensPins={recipe.opensPins}
+            />
             <SpareLeakCard
               leak={spareLeak}
               avg={goalPath?.currentAvg ?? metrics.avg}
               target={settings.targetAverage}
             />
+            <LeaveFixCard hasPinData={leaveStats.hasPinData} fixes={leaveFixes} />
+            <TiltCard tilt={tilt} pinsPerMiss={pinsPerMiss} />
 
             {/* Series chart */}
             <View style={styles.chartCard}>
@@ -1654,6 +1881,11 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   leakNote: { color: '#48484A', fontSize: 11, lineHeight: 15, marginTop: 8 },
+  recipeHeader: { marginTop: 12 },
+  fixRow: { paddingVertical: 10, gap: 4 },
+  fixHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  fixCardName: { color: '#00CEC9', fontSize: 11, fontWeight: '500' },
+  fixText: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '400', lineHeight: 19 },
   leavesTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', marginBottom: 8 },
   leavesNaCard: {
     marginBottom: 12,
