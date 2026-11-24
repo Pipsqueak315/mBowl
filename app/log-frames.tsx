@@ -320,7 +320,9 @@ function FrameNoteField({
 }: {
   value: string; onChange: (note: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  // N16 (Phase 31A): a rotation remounts this card -- a note with text
+  // reopens, so it never looks like it vanished.
+  const [open, setOpen] = useState(() => value.trim() !== '');
   return (
     <View style={styles.frameNoteWrapper}>
       <TouchableOpacity style={styles.frameNoteToggle} onPress={() => setOpen((v) => !v)}>
@@ -423,7 +425,13 @@ function ThrowNoteBar({
   frame: FrameData;
   onThrowNoteChange: (ti: number, note: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  // N16: reopen after a remount when this throw already has a note; only a
+  // tap-to-open focuses the field (no keyboard jumping up on rotation).
+  const [startedOpen] = useState(() => {
+    const t = frame.throws.length - 1;
+    return t >= 0 && (frame.throwNotes[t] ?? '').trim() !== '';
+  });
+  const [open, setOpen] = useState(startedOpen);
   const ti = frame.throws.length - 1;
   if (ti < 0) return null;
 
@@ -449,7 +457,7 @@ function ThrowNoteBar({
           returnKeyType="done"
           // N25: Return closes the keyboard (a multiline field otherwise adds a newline)
           submitBehavior="blurAndSubmit"
-          autoFocus
+          autoFocus={!startedOpen}
         />
       )}
     </View>
@@ -459,6 +467,27 @@ function ThrowNoteBar({
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
+
+// N24 (Phase 31A): the dirty check compares frames in a normal form, so
+// adding then deleting a Pins throw (pinsStanding undefined -> [] ) or typing
+// then clearing a note reads as "unchanged" -- no spurious Discard prompt.
+function framesKey(frames: FrameData[]): string {
+  return JSON.stringify(
+    frames.map((f) => {
+      const ps = (f.pinsStanding ?? []).slice(0, f.throws.length);
+      const notes: Record<string, string> = {};
+      for (const [k, v] of Object.entries(f.throwNotes ?? {})) {
+        if (v) notes[k] = v;
+      }
+      return {
+        t: f.throws,
+        n: f.note ?? '',
+        tn: notes,
+        p: ps.some((x) => x != null) ? ps.map((x) => x ?? null) : null,
+      };
+    })
+  );
+}
 
 function emptyFrames(): FrameData[] {
   return Array.from({ length: 10 }, () => ({ throws: [], note: '', throwNotes: {} }));
@@ -586,6 +615,9 @@ function LogFramesBody() {
     setInputMode('pins');
   }, [mode]);
 
+  // N16: see pendingKey below.
+  const pendingPinsRef = useRef<{ key: string; standing: boolean[] } | null>(null);
+
   // Derived — all memoised on frames so scoring only reruns when frames changes
   const scores = useMemo(() => calculateScores(frames), [frames]);
   // Every frame, not just the 10th — a complete 10th over empty earlier frames
@@ -680,6 +712,7 @@ function LogFramesBody() {
   }
 
   function deleteLastThrow() {
+    pendingPinsRef.current = null;
     if (frames[currentFrame].throws.length > 0) {
       setFrames((prev) =>
         prev.map((f, i) => {
@@ -765,8 +798,8 @@ function LogFramesBody() {
   const savedRef = useRef(false);
   // Snapshot of the frames as the screen opened (lazy initial state: computed
   // once, on the first render, from the initial `frames`).
-  const [initialFramesJson] = useState(() => JSON.stringify(frames));
-  const isDirty = useMemo(() => JSON.stringify(frames) !== initialFramesJson, [frames, initialFramesJson]);
+  const [initialFramesJson] = useState(() => framesKey(frames));
+  const isDirty = useMemo(() => framesKey(frames) !== initialFramesJson, [frames, initialFramesJson]);
 
   // S24 writer: every change while open is saved (small payload; AsyncStorage
   // writes are queued in order). Back to the frames the screen opened with =
@@ -861,9 +894,14 @@ function LogFramesBody() {
   // null when the frame is complete, which falls the input area back to the
   // (fully disabled) chip bar so the layout height stays stable.
   const pinDeckProps = inputMode === 'pins' ? getPinDeckProps(frames, currentFrame) : null;
+  // N16 (Phase 31A): tapped-but-unconfirmed pins for the current throw live
+  // here too, so a rotation (new layout = PinDeck remount) keeps them.
+  const pendingKey = `${currentFrame}-${frames[currentFrame].throws.length}`;
+  const pendingPins = pendingPinsRef.current?.key === pendingKey ? pendingPinsRef.current.standing : null;
 
   function selectFrame(index: number) {
     if (index === currentFrame) return;
+    pendingPinsRef.current = null;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setCurrentFrame(index);
   }
@@ -946,6 +984,17 @@ function LogFramesBody() {
           </ScalePressable>
         </View>
       ) : (
+        <>
+        {allComplete && (
+          // N19 (Phase 31A): game is complete but an earlier frame is selected
+          // (reviewing / fixing it) -- Done stays one tap away.
+          <View style={styles.doneInline}>
+            <Text style={styles.doneInlineText}>Final {scores[9]}</Text>
+            <ScalePressable style={styles.doneInlineButton} onPress={handleDone}>
+              <Text style={styles.doneButtonText}>Done</Text>
+            </ScalePressable>
+          </View>
+        )}
         <ActiveFrameCard
           key={currentFrame}
           frame={frames[currentFrame]}
@@ -953,6 +1002,7 @@ function LogFramesBody() {
           onNoteChange={(note) => updateFrameNote(currentFrame, note)}
           compact={compact}
         />
+        </>
       )}
       {showThrowNoteBar && (
         <ThrowNoteBar
@@ -985,7 +1035,14 @@ function LogFramesBody() {
       availablePins={pinDeckProps.availablePins}
       isFirstThrow={pinDeckProps.isFirstThrow}
       prevPinsStanding={pinDeckProps.prevPinsStanding}
-      onConfirm={(ps, notation) => addThrowWithPins(notation, ps)}
+      onConfirm={(ps, notation) => {
+        pendingPinsRef.current = null;
+        addThrowWithPins(notation, ps);
+      }}
+      initialStanding={pendingPins}
+      onChange={(standing) => {
+        pendingPinsRef.current = { key: pendingKey, standing };
+      }}
       compact={compact}
       side={wide}
     />
@@ -1203,6 +1260,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 48,
   },
   doneButtonText: { fontSize: 17, fontWeight: '600', color: '#000000' },
+  doneInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 13,
+    paddingLeft: 16,
+    paddingRight: 8,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  doneInlineText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
+  doneInlineButton: {
+    backgroundColor: '#00CEC9',
+    borderRadius: 10,
+    minHeight: 44,
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+  },
 
   // Per-throw note bar (Live mode)
   throwNoteBar: {

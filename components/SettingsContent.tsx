@@ -68,8 +68,6 @@ export default function SettingsContent({ onClose }: Props) {
   const [settings, setSettings] = useState<Settings>({});
   // Export in flight — ignores a second tap so two share sheets can't stack.
   const [exporting, setExporting] = useState(false);
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
 
   const [balls, setBalls] = useState<Ball[]>([]);
   const [editingBallId, setEditingBallId] = useState<string | null>(null);
@@ -94,6 +92,31 @@ export default function SettingsContent({ onClose }: Props) {
   const settingsReadable = useRef(false);
   const ballsReadable = useRef(false);
   const [restoring, setRestoring] = useState(false);
+
+  // D5 / F14 (Phase 31A): goal fields used to save only on blur, with the
+  // settings from the last render -- tapping Done with the keyboard up could
+  // close the sheet before the blur save ran. Now every keystroke schedules a
+  // save of the latest value, and blur / Done / closing the sheet flushes it.
+  const latestSettingsRef = useRef<Settings>({});
+  const goalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => { latestSettingsRef.current = settings; }, [settings]);
+  function setGoal(patch: Partial<Settings>) {
+    const next = { ...latestSettingsRef.current, ...patch };
+    latestSettingsRef.current = next;
+    setSettings(next);
+    if (goalTimer.current) clearTimeout(goalTimer.current);
+    goalTimer.current = setTimeout(() => {
+      goalTimer.current = null;
+      void saveSettingsData(latestSettingsRef.current);
+    }, 600);
+  }
+  function flushGoals() {
+    if (!goalTimer.current) return;
+    clearTimeout(goalTimer.current);
+    goalTimer.current = null;
+    void saveSettingsData(latestSettingsRef.current);
+  }
+  useEffect(() => () => flushGoals(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadData(): Promise<void> {
     const [s, b] = await Promise.all([readSettingsResult(), readBallsResult()]);
@@ -485,7 +508,10 @@ export default function SettingsContent({ onClose }: Props) {
       <View style={styles.header}>
         <Text style={styles.title}>Settings</Text>
         <TouchableOpacity
-          onPress={onClose}
+          onPress={() => {
+            flushGoals();
+            onClose();
+          }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Text style={styles.done}>Done</Text>
@@ -503,91 +529,17 @@ export default function SettingsContent({ onClose }: Props) {
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="interactive"
       >
-        {/* ----------------------------------------------------------------
-            Season Dates
-        ---------------------------------------------------------------- */}
-        <Text style={styles.sectionLabel}>SEASON</Text>
-        <View style={styles.card}>
-          {/* Start Date */}
-          <TouchableOpacity
-            style={styles.fieldRow}
-            onPress={() => {
-              setShowStartPicker(v => !v);
-              setShowEndPicker(false);
-            }}
-          >
-            <Text style={styles.fieldLabel}>Start Date</Text>
-            <Text style={settings.seasonStart ? styles.valueSet : styles.valueDim}>
-              {formatDateDisplay(settings.seasonStart)}
-            </Text>
-          </TouchableOpacity>
-
-          {showStartPicker && (
-            <View style={styles.pickerWrap}>
-              <TouchableOpacity
-                style={styles.pickerDoneRow}
-                onPress={() => setShowStartPicker(false)}
-              >
-                <Text style={styles.pickerDoneText}>Done</Text>
-              </TouchableOpacity>
-              <DateTimePicker
-                value={parseDate(settings.seasonStart)}
-                mode="date"
-                display="spinner"
-                onChange={(_e, d) => {
-                  if (d) saveSettingsData({ ...settings, seasonStart: toISODate(d) });
-                }}
-                textColor="#FFFFFF"
-                style={styles.datePicker}
-              />
-            </View>
-          )}
-
-          <View style={styles.separator} />
-
-          {/* End Date */}
-          <TouchableOpacity
-            style={styles.fieldRow}
-            onPress={() => {
-              setShowEndPicker(v => !v);
-              setShowStartPicker(false);
-            }}
-          >
-            <Text style={styles.fieldLabel}>End Date</Text>
-            <Text style={settings.seasonEnd ? styles.valueSet : styles.valueDim}>
-              {formatDateDisplay(settings.seasonEnd)}
-            </Text>
-          </TouchableOpacity>
-
-          {showEndPicker && (
-            <View style={styles.pickerWrap}>
-              <TouchableOpacity
-                style={styles.pickerDoneRow}
-                onPress={() => setShowEndPicker(false)}
-              >
-                <Text style={styles.pickerDoneText}>Done</Text>
-              </TouchableOpacity>
-              <DateTimePicker
-                value={parseDate(settings.seasonEnd)}
-                mode="date"
-                display="spinner"
-                onChange={(_e, d) => {
-                  if (d) saveSettingsData({ ...settings, seasonEnd: toISODate(d) });
-                }}
-                textColor="#FFFFFF"
-                style={styles.datePicker}
-              />
-            </View>
-          )}
-        </View>
-
+        {/* Phase 31A: the legacy Season Start/End card is no longer shown --
+            Seasons below replaced it (Phase 24). seasonStart / seasonEnd stay in
+            settings untouched (weekFor() falls back to seasonStart only for a
+            date before every season). */}
         {/* ----------------------------------------------------------------
             Seasons (Phase 24) — gapless. Only start is stored; each end is
             derived as the next start minus a day. Adding a season is how a
             season rolls over.
         ---------------------------------------------------------------- */}
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>SEASONS</Text>
+          <Text style={styles.sectionLabel}>Seasons</Text>
           <TouchableOpacity
             onPress={() =>
               seasonDraft && seasonDraftIsNew ? closeSeasonEditor() : openAddSeason()
@@ -628,7 +580,7 @@ export default function SettingsContent({ onClose }: Props) {
         {/* ----------------------------------------------------------------
             Goals
         ---------------------------------------------------------------- */}
-        <Text style={styles.sectionLabel}>GOALS</Text>
+        <Text style={styles.sectionLabel}>Goals</Text>
         <View style={styles.card}>
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>Target Average</Text>
@@ -637,14 +589,9 @@ export default function SettingsContent({ onClose }: Props) {
               value={settings.targetAverage != null ? String(settings.targetAverage) : ''}
               onChangeText={v => {
                 const digits = v.replace(/[^0-9]/g, '');
-                setSettings(prev => ({
-                  ...prev,
-                  targetAverage: digits === '' ? null : Math.min(300, parseInt(digits, 10)),
-                }));
+                setGoal({ targetAverage: digits === '' ? null : Math.min(300, parseInt(digits, 10)) });
               }}
-              onBlur={() => {
-                saveSettingsData(settings);
-              }}
+              onBlur={flushGoals}
               keyboardType="number-pad"
               placeholder="—"
               placeholderTextColor="#48484A"
@@ -659,14 +606,9 @@ export default function SettingsContent({ onClose }: Props) {
               value={settings.targetSeries != null ? String(settings.targetSeries) : ''}
               onChangeText={v => {
                 const digits = v.replace(/[^0-9]/g, '');
-                setSettings(prev => ({
-                  ...prev,
-                  targetSeries: digits === '' ? null : Math.min(900, parseInt(digits, 10)),
-                }));
+                setGoal({ targetSeries: digits === '' ? null : Math.min(900, parseInt(digits, 10)) });
               }}
-              onBlur={() => {
-                saveSettingsData(settings);
-              }}
+              onBlur={flushGoals}
               keyboardType="number-pad"
               placeholder="—"
               placeholderTextColor="#48484A"
@@ -680,7 +622,7 @@ export default function SettingsContent({ onClose }: Props) {
             Ball Roster
         ---------------------------------------------------------------- */}
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>BALL ROSTER</Text>
+          <Text style={styles.sectionLabel}>Ball roster</Text>
           <TouchableOpacity onPress={() => setAddingBall(v => !v)}>
             <Text style={styles.addLink}>{addingBall ? 'Cancel' : '+ Add Ball'}</Text>
           </TouchableOpacity>
@@ -754,11 +696,14 @@ export default function SettingsContent({ onClose }: Props) {
                       returnKeyType="done"
                     />
                   ) : (
-                    <TouchableOpacity style={styles.ballNameTap} onPress={() => startRename(ball)}>
+                    <TouchableOpacity
+                      style={styles.ballNameTap}
+                      onPress={() => startRename(ball)}
+                      accessibilityHint="Tap to rename"
+                    >
                       <Text style={[styles.ballName, !ball.active && styles.ballNameDim]}>
                         {ball.name}
                       </Text>
-                      <Text style={styles.renameCue}>Tap to rename</Text>
                     </TouchableOpacity>
                   )}
 
@@ -778,9 +723,11 @@ export default function SettingsContent({ onClose }: Props) {
         {/* ----------------------------------------------------------------
             Export Backup (Phase 26.0b) + Restore from Backup
         ---------------------------------------------------------------- */}
-        <View style={styles.restoreSpacer} />
+        {/* Phase 31A: one grouped "Backup" card instead of three loose buttons. */}
+        <Text style={styles.sectionLabel}>Backup</Text>
+        <View style={[styles.card, styles.backupCard]}>
         <ScalePressable
-          style={styles.restoreButton}
+          style={styles.backupRow}
           disabled={exporting}
           onPress={async () => {
             if (exporting) return;
@@ -800,8 +747,9 @@ export default function SettingsContent({ onClose }: Props) {
             {exporting ? 'Exporting…' : 'Export Backup'}
           </Text>
         </ScalePressable>
+        <View style={styles.separator} />
         <TouchableOpacity
-          style={styles.restoreButton}
+          style={styles.backupRow}
           onPress={() => {
             Alert.alert(
               'Restore from Backup?',
@@ -828,8 +776,9 @@ export default function SettingsContent({ onClose }: Props) {
         >
           <Text style={styles.restoreText}>Restore from Backup</Text>
         </TouchableOpacity>
+        <View style={styles.separator} />
         <TouchableOpacity
-          style={styles.restoreButton}
+          style={styles.backupRow}
           disabled={restoring}
           onPress={() => { void startRestoreFromFile(); }}
         >
@@ -837,6 +786,7 @@ export default function SettingsContent({ onClose }: Props) {
             {restoring ? 'Restoring…' : 'Restore from File…'}
           </Text>
         </TouchableOpacity>
+        </View>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -886,13 +836,12 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   // Section
+  // Phase 31A: Stats / Reference-style section headers (20/600, sentence case).
   sectionLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#8E8E93',
-    letterSpacing: 0.8,
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
     marginBottom: 8,
-    marginLeft: 4,
   },
   sectionRow: {
     flexDirection: 'row',
@@ -1024,11 +973,6 @@ const styles = StyleSheet.create({
   ballNameDim: {
     color: '#48484A',
   },
-  renameCue: {
-    fontSize: 11,
-    color: '#48484A',
-    marginTop: 2,
-  },
   ballNameEdit: {
     flex: 1,
     fontSize: 15,
@@ -1134,17 +1078,8 @@ const styles = StyleSheet.create({
   },
 
   // Restore from backup
-  restoreSpacer: {
-    height: 24,
-  },
-  restoreButton: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 13,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
+  backupCard: { paddingVertical: 0 },
+  backupRow: { minHeight: 50, justifyContent: 'center', paddingVertical: 14 },
   restoreText: {
     fontSize: 15,
     color: '#FF453A',

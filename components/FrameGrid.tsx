@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { PIN_ROWS } from '@/src/pinLayout';
 import type { ViewStyle, TextStyle } from 'react-native';
 import type { ThrowEntry } from '@/src/types';
 
@@ -14,7 +15,7 @@ import type { ThrowEntry } from '@/src/types';
 // ---------------------------------------------------------------------------
 
 // Pin index → row layout for the mini leave diagram (indices 0-9 = pins 1-10).
-const MINI_PIN_ROWS: number[][] = [[6, 7, 8, 9], [3, 4, 5], [1, 2], [0]];
+const MINI_PIN_ROWS = PIN_ROWS; // src/pinLayout.ts (N9)
 
 // Standing-pin color — single source of truth, referenced by both variants so
 // the two decks can never drift apart again. Phase 28 WP1 (v2 look): standing

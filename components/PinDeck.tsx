@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PIN_ROWS } from '@/src/pinLayout';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -16,12 +17,7 @@ import * as Haptics from 'expo-haptics';
 // Numbers are 0-based pin indices.
 // ---------------------------------------------------------------------------
 
-const PIN_ROWS: number[][] = [
-  [6, 7, 8, 9], // back row: pins 7, 8, 9, 10
-  [3, 4, 5],    // middle row: pins 4, 5, 6
-  [1, 2],       // front-middle: pins 2, 3
-  [0],          // headpin: pin 1
-];
+// PIN_ROWS lives in src/pinLayout.ts (N9).
 
 // ---------------------------------------------------------------------------
 // Throw notation computation (exported for use in log-frames when wired)
@@ -93,6 +89,16 @@ type PinDeckProps = {
    * Confirm stack in a column to the right of the pins instead of below them.
    */
   side?: boolean;
+
+  /**
+   * N16 (Phase 31A): pins already tapped for THIS throw before a remount
+   * (rotation moves the deck to a new spot in the tree). Only pins that are
+   * available may differ from availablePins; anything else is ignored.
+   */
+  initialStanding?: boolean[] | null;
+
+  /** N16: every tap / Strike-Spare reports the working state up. */
+  onChange?: (standing: boolean[]) => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -106,22 +112,37 @@ export default function PinDeck({
   onConfirm,
   compact = false,
   side = false,
+  initialStanding,
+  onChange,
 }: PinDeckProps) {
-  // Initialize: available pins start STANDING, unavailable pins start DOWN.
-  const [standing, setStanding] = useState<boolean[]>(() => [...availablePins]);
+  // Initialize: available pins start STANDING, unavailable pins start DOWN --
+  // unless the parent kept this throw's taps across a remount (N16).
+  const [standing, setStanding] = useState<boolean[]>(() =>
+    availablePins.map((a, i) =>
+      a && initialStanding && initialStanding.length === 10 ? initialStanding[i] !== false : a
+    )
+  );
 
   // Tap a pin to toggle it between standing and knocked-down.
   // Non-available pins are not interactive (already down from a prior throw).
   function togglePin(index: number) {
     if (!availablePins[index]) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setStanding(prev => prev.map((s, i) => (i === index ? !s : s)));
+    setStanding(prev => {
+      const next = prev.map((s, i) => (i === index ? !s : s));
+      onChange?.(next);
+      return next;
+    });
   }
 
   // Strike / Spare quick-action: knock all currently-available pins down at once.
   function handleQuickAction() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setStanding(prev => prev.map((s, i) => (availablePins[i] ? false : s)));
+    setStanding(prev => {
+      const next = prev.map((s, i) => (availablePins[i] ? false : s));
+      onChange?.(next);
+      return next;
+    });
   }
 
   function handleConfirm() {

@@ -52,6 +52,7 @@ interface LeaveEntry {
   count: number;
   converted: number;
   conversionPct: number;
+  isSplit: boolean;
 }
 
 interface CardLeaveData {
@@ -59,6 +60,8 @@ interface CardLeaveData {
   converted: number;
   conversionPct: number;
   hasData: boolean;
+  /** Every leave behind this card is a split (isSplit, leaveUtils). */
+  isSplit: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,7 +97,15 @@ function frequencyColor(tier: FrequencyTier): string {
   return '#FFD60A';
 }
 
-function conversionColor(pct: number): string {
+// Phase 31A (D8): same bands as Stats' per-leave rows (leaveConversionColor):
+// non-splits 80 / 60; splits green >= 40, orange >= 15, else grey -- never red,
+// most splits are low-percentage by nature.
+function conversionColor(pct: number, isSplit: boolean): string {
+  if (isSplit) {
+    if (pct >= 40) return '#30D158';
+    if (pct >= 15) return '#FF9F0A';
+    return '#8E8E93';
+  }
   if (pct >= 80) return '#30D158';
   if (pct >= 60) return '#FF9F0A';
   return '#FF453A';
@@ -135,23 +146,27 @@ export default function PocketDiagnosticsTab({
 
   function getCardLeaveData(cardName: string): CardLeaveData {
     const keys = CARD_LEAVE_KEYS[cardName] ?? [];
-    if (keys.length === 0) return { count: 0, converted: 0, conversionPct: 0, hasData: false };
+    const none = { count: 0, converted: 0, conversionPct: 0, hasData: false, isSplit: false };
+    if (keys.length === 0) return none;
 
     let totalCount = 0;
     let totalConverted = 0;
+    let allSplits = true;
     for (const key of keys) {
       const entry = leaveEntries.find(l => l.name === key);
       if (entry) {
         totalCount += entry.count;
         totalConverted += entry.converted;
+        if (!entry.isSplit) allSplits = false;
       }
     }
-    if (totalCount === 0) return { count: 0, converted: 0, conversionPct: 0, hasData: false };
+    if (totalCount === 0) return none;
     return {
       count: totalCount,
       converted: totalConverted,
       conversionPct: (totalConverted / totalCount) * 100,
       hasData: true,
+      isSplit: allSplits,
     };
   }
 
@@ -336,7 +351,7 @@ export default function PocketDiagnosticsTab({
                           <Text
                             style={[
                               s.myDataConv,
-                              { color: conversionColor(leaveData.conversionPct) },
+                              { color: conversionColor(leaveData.conversionPct, leaveData.isSplit) },
                             ]}
                           >
                             {Math.round(leaveData.conversionPct)}%

@@ -1,3 +1,4 @@
+import { framesParam } from '@/src/framesParam';
 import { useState, useLayoutEffect, useCallback, useRef, useEffect } from 'react';
 import SettingsContent from '@/components/SettingsContent';
 import EditSessionModal, { type EditableSession } from '@/components/EditSessionModal';
@@ -518,8 +519,13 @@ function SessionCard({
               disabled={sharing}
               activeOpacity={0.7}
             >
-              <IconSymbol name="square.and.arrow.up" size={14} color="#00CEC9" />
-              <Text style={styles.shareButtonText}>{sharing ? 'Sharing…' : 'Share'}</Text>
+              {/* N1 (Phase 31A): native spinner while the card is captured. */}
+              {sharing ? (
+                <ActivityIndicator size="small" color="#00CEC9" />
+              ) : (
+                <IconSymbol name="square.and.arrow.up" size={14} color="#00CEC9" />
+              )}
+              <Text style={styles.shareButtonText}>Share</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -543,8 +549,9 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
   const [sessions, setSessions] = useState<Session[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
   const [settings, setSettings] = useState<Settings>({});
-  // Season selection — non-persistent, reset to the current season each focus,
-  // matching Stats and the type filter.
+  // Season selection — non-persistent, reset to the current season each focus
+  // (matching Stats), except when coming back from our own Edit Frames round
+  // trip (N27, Phase 31A). The type filter is kept across focuses.
   const [seasonSel, setSeasonSel] = useState<SeasonSelection>(ALL_TIME);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
@@ -639,8 +646,10 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
           setSessions(raw);
           setSettings(settingsData);
         }
-        const cur = currentSeason(getSeasons(settingsData), todayISO());
-        setSeasonSel(cur ? cur.id : ALL_TIME);
+        if (!pendingFrameEditRef.current) {
+          const cur = currentSeason(getSeasons(settingsData), todayISO());
+          setSeasonSel(cur ? cur.id : ALL_TIME);
+        }
         setLoaded(true);
 
         // Only act when WE sent the user to the frame editor. The Log tab consumes
@@ -689,13 +698,29 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
         }
 
         if (active) {
+          // N21 (Phase 31A): focus fires while Log Frames is still sliding
+          // away; presenting the sheet mid-pop could double-present it. Wait
+          // for the pop (~350ms) before reopening. Data is already in hand.
           setEditingSession(reopenWith);
-          setEditModalOpen(true);
           setEditModalDirty(dirty);
+          reopenTimer = setTimeout(() => {
+            reopenTimer = null;
+            setEditModalOpen(true);
+          }, 400);
         }
       };
+      let reopenTimer: ReturnType<typeof setTimeout> | null = null;
       load();
-      return () => { active = false; };
+      return () => {
+        active = false;
+        // Blurred before the sheet came back: show it now rather than lose the
+        // in-progress edit (the next focus would not reopen it).
+        if (reopenTimer) {
+          clearTimeout(reopenTimer);
+          reopenTimer = null;
+          setEditModalOpen(true);
+        }
+      };
     }, [visible, dataTick])
   );
 
@@ -793,7 +818,7 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
       .slice(0, gameIndex)
       .map(g => g.score ?? 0)
       .join(',');
-    const initialFrames = game?.frames ? JSON.stringify(game.frames) : '';
+    const initialFrames = game?.frames ? framesParam(game.frames) : '';
     pendingFrameEditRef.current = {
       session: liveSession,
       gameIndex,

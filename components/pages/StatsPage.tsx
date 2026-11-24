@@ -1,4 +1,5 @@
 import { useState, useLayoutEffect, useCallback, useMemo, useEffect, useRef, type ReactNode } from 'react';
+import { PIN_ROWS } from '@/src/pinLayout';
 import {
   View,
   Text,
@@ -106,7 +107,7 @@ const TYPE_FULL_LABEL: Record<Exclude<TypeFilter, 'all'>, string> = {
 };
 
 // --- Leave stats helpers ---
-const LEAVE_PIN_ROWS: number[][] = [[6, 7, 8, 9], [3, 4, 5], [1, 2], [0]];
+const LEAVE_PIN_ROWS = PIN_ROWS; // src/pinLayout.ts (N9)
 
 // N15 (Phase 26.1): the one shared conversionColor is split by metric.
 // Aggregate Makeable % — band LOCKED at green ≥80 / orange ≥60 (Phase 24).
@@ -156,7 +157,7 @@ function LeaveRow({ leave, showBorder }: { leave: LeaveEntry; showBorder: boolea
       <LeaveMiniPinDeck pins={leave.pins} />
       <View style={styles.leaveInfo}>
         <View style={styles.leaveNameRow}>
-          <Text style={styles.leaveName}>{leave.name}</Text>
+          <Text style={[styles.leaveName, styles.leaveNameShrink]} numberOfLines={1}>{leave.name}</Text>
           {leave.isSplit && <Text style={styles.splitBadge}>SPLIT</Text>}
         </View>
         <Text style={styles.leaveCount}>× {leave.count}</Text>
@@ -2011,7 +2012,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  leaveNameShrink: { flexShrink: 1 }, // N13 (Phase 31A)
   splitBadge: {
+    flexShrink: 0,
     marginLeft: 6,
     fontSize: 9,
     fontWeight: '600',

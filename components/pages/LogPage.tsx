@@ -1,3 +1,4 @@
+import { framesParam } from '@/src/framesParam';
 import { useState, useLayoutEffect, useEffect, useRef, useCallback } from 'react';
 import SettingsContent from '@/components/SettingsContent';
 import {
@@ -807,7 +808,7 @@ export default function LogPage() {
         gameIndex: String(index),
         priorScores: games.slice(0, index).map((g) => parseInt(g.score, 10) || 0).join(','),
         ...(game.frames && game.frames.length > 0
-          ? { initialFrames: JSON.stringify(game.frames) }
+          ? { initialFrames: framesParam(game.frames) }
           : {}),
       },
     });
