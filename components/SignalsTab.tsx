@@ -417,26 +417,6 @@ const s = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 12,
   },
-  togglePill: {
-    flex: 1,
-    paddingVertical: 7,
-    borderRadius: 10,
-    backgroundColor: '#1C1C1E',
-    alignItems: 'center',
-  },
-  togglePillActive: {
-    backgroundColor: '#00CEC9',
-  },
-  toggleText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#8E8E93',
-  },
-  toggleTextActive: {
-    color: '#000000',
-    fontWeight: '600',
-  },
-
   // Scroll
   scroll: {
     flex: 1,

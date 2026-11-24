@@ -26,7 +26,7 @@ import { readReferenceResult, writeReference } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
 import { onDataChanged, notifyDataChanged } from '@/src/dataEvents';
 import SegmentedControl from '@/components/v2/SegmentedControl';
-import { upgradeReference } from '@/src/referenceUpgrade';
+import { upgradeReference, REFERENCE_VERSION } from '@/src/referenceUpgrade';
 import { YOUR_NUMBERS_KNOWN } from '@/src/referenceContent';
 
 // ---------------------------------------------------------------------------
@@ -73,6 +73,10 @@ interface ReferenceData {
   signals: SignalsData;
   pocketDiagnostics: DiagnosticsData;
   patterns: PatternsData;
+  // Phase 30B: the one-time content upgrade's stamp. Carried through the
+  // screen's state so a save() keeps it -- without it the next focus would
+  // run the upgrade again (and refill a PAP Marcus cleared).
+  referenceVersion?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +169,7 @@ const DEFAULT_DATA: ReferenceData = {
   signals: DEFAULT_SIGNALS,
   pocketDiagnostics: DEFAULT_DIAGNOSTICS,
   patterns: DEFAULT_PATTERNS,
+  referenceVersion: REFERENCE_VERSION, // defaults are already v2
 };
 
 const SHOT_CLOCK = [
@@ -242,6 +247,14 @@ function mergeWithDefaults(stored: Record<string, unknown>): ReferenceData {
       stored.patterns && typeof stored.patterns === 'object'
         ? { ...DEFAULT_PATTERNS, ...(stored.patterns as Partial<PatternsData>) }
         : DEFAULT_PATTERNS,
+    // Nothing stored = the v2 defaults, already current. Otherwise keep the
+    // stored stamp (absent on a v1 copy until the upgrade above stamps it).
+    referenceVersion:
+      typeof stored.referenceVersion === 'number'
+        ? stored.referenceVersion
+        : Object.keys(stored).length === 0
+          ? REFERENCE_VERSION
+          : undefined,
   };
 }
 

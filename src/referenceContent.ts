@@ -38,6 +38,9 @@ export interface DiagnosticCardV2 {
   pattern: string;
 }
 
+const WATCH_THE_HIT = 'Watch the hit: high → left 1; light → right 1.';
+const WATCH_THE_BALL = 'Watch the ball: skidded → right 1–2; died early → left 1–2.';
+
 export const SWITCH_GUIDE_V2: SwitchGuideRowV2[] = [
   {
     whatYoureSeeing: 'Hooking early or rolling out',
@@ -64,7 +67,7 @@ export const SWITCH_GUIDE_V2: SwitchGuideRowV2[] = [
     whatYoureSeeing: 'Good shape, leaving a corner pin',
     cause: 'Carry, not ball choice.',
     switchTo: '',
-    feet: 'One board at a time, only if it repeats. Pocket Diagnostics has the direction.',
+    feet: `Only if it repeats. ${WATCH_THE_HIT}`,
     direction: '🟡 Feet only',
   },
   {
@@ -123,15 +126,13 @@ export const LANE_READS_V2: LaneReadV2[] = [
   },
 ];
 
-const WATCH_THE_HIT = 'Watch the hit: high → left 1; light → right 1.';
-const WATCH_THE_BALL = 'Watch the ball: skidded → right 1–2; died early → left 1–2.';
 
 export const DIAGNOSTICS_V2: DiagnosticCardV2[] = [
   {
     name: 'Ringing 10 pin',
     frequency: 'High Frequency',
     why: 'The 6 wraps around the 10. A light hit or too much angle.',
-    fix: 'Move right 1 board, or use a smoother ball.',
+    fix: 'Light → right 1 board. Too much angle → smoother ball.',
     pattern: 'One is a good shot. 3+ in a set → adjust.',
   },
   {
@@ -173,7 +174,7 @@ export const DIAGNOSTICS_V2: DiagnosticCardV2[] = [
     name: 'Corner pin (7 or 10)',
     frequency: 'High Frequency',
     why: "Good shot that didn't carry.",
-    fix: "Don't chase one. Move 1 board only if it repeats.",
+    fix: `Don't chase one. If it repeats: ${WATCH_THE_HIT.replace('Watch the hit: ', '')}`,
     pattern: 'Same corner 3+ times in a set → move 1 board.',
   },
   {
@@ -186,7 +187,7 @@ export const DIAGNOSTICS_V2: DiagnosticCardV2[] = [
   {
     name: '2-4-5-8 bucket',
     frequency: 'Common',
-    why: 'Light hit. The ball rolled out and lost energy early.',
+    why: 'The ball rolled out and died early, so it came in weak.',
     fix: 'Left 2, eyes left 1, or a weaker ball.',
     pattern: 'Repeats → the lane is drying. Move before it gets worse.',
   },
@@ -207,8 +208,8 @@ export const DIAGNOSTICS_V2: DiagnosticCardV2[] = [
   {
     name: 'Baby split (2-7 or 3-10)',
     frequency: 'Common',
-    why: 'Thin, light hit.',
-    fix: WATCH_THE_BALL,
+    why: 'Thin hit, slightly off the pocket.',
+    fix: WATCH_THE_HIT,
     pattern: 'Same split twice → same miss twice.',
   },
   {

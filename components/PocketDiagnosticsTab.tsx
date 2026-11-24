@@ -27,7 +27,6 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 // ---------------------------------------------------------------------------
 
 type FrequencyTier = 'High Frequency' | 'Common' | 'Situational';
-type FilterPill = 'All Leaves' | FrequencyTier;
 type ViewMode = 'reference' | 'mydata';
 
 interface DiagnosticCard {
@@ -393,59 +392,6 @@ const s = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 12,
   },
-  modeToggle: {
-    flexDirection: 'row',
-    backgroundColor: '#1C1C1E',
-    borderRadius: 10,
-    padding: 3,
-  },
-  modeBtn: {
-    flex: 1,
-    paddingVertical: 7,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  modeBtnActive: {
-    backgroundColor: '#00CEC9',
-  },
-  modeBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#8E8E93',
-  },
-  modeBtnTextActive: {
-    color: '#000000',
-  },
-
-  // Filter pill bar
-  pillBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 10,
-    gap: 8,
-    backgroundColor: '#000000',
-  },
-  pill: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: '#1C1C1E',
-    alignItems: 'center',
-  },
-  pillActive: {
-    backgroundColor: '#00CEC9',
-  },
-  pillText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#8E8E93',
-  },
-  pillTextActive: {
-    color: '#000000',
-    fontWeight: '600',
-  },
-
   // Scroll
   scroll: {
     flex: 1,

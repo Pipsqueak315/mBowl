@@ -337,8 +337,14 @@ export function upgradeReference(stored: Record<string, unknown>): {
 
   if (isObj(stored.signals)) {
     const sig = { ...stored.signals };
-    sig.switchGuide = upgradeList(sig.switchGuide, SWITCH_GUIDE_V1, SWITCH_GUIDE_V2 as unknown as Row[], SWITCH_GUIDE_MAP).value;
-    sig.laneReads = upgradeList(sig.laneReads, LANE_READS_V1, LANE_READS_V2 as unknown as Row[], LANE_READS_MAP).value;
+    // Only lists that exist -- never add a key holding undefined (it would
+    // override the default list in mergeWithDefaults).
+    if (Array.isArray(sig.switchGuide)) {
+      sig.switchGuide = upgradeList(sig.switchGuide, SWITCH_GUIDE_V1, SWITCH_GUIDE_V2 as unknown as Row[], SWITCH_GUIDE_MAP).value;
+    }
+    if (Array.isArray(sig.laneReads)) {
+      sig.laneReads = upgradeList(sig.laneReads, LANE_READS_V1, LANE_READS_V2 as unknown as Row[], LANE_READS_MAP).value;
+    }
     next.signals = sig;
   }
 
