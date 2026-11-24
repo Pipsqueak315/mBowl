@@ -126,7 +126,6 @@ export const LANE_READS_V2: LaneReadV2[] = [
   },
 ];
 
-
 export const DIAGNOSTICS_V2: DiagnosticCardV2[] = [
   {
     name: 'Ringing 10 pin',
@@ -180,7 +179,7 @@ export const DIAGNOSTICS_V2: DiagnosticCardV2[] = [
   {
     name: '2-8-10 bucket',
     frequency: 'Situational',
-    why: 'Light hit.',
+    why: 'Came in light: skidded past the break, or died early.',
     fix: WATCH_THE_BALL,
     pattern: 'Repeats → your read on the lane is off.',
   },
@@ -201,7 +200,7 @@ export const DIAGNOSTICS_V2: DiagnosticCardV2[] = [
   {
     name: '5-7 split',
     frequency: 'Common',
-    why: 'Light hit.',
+    why: 'Came in light: skidded past the break, or died early.',
     fix: WATCH_THE_BALL,
     pattern: 'Repeats → your target is drifting.',
   },
