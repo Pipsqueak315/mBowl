@@ -1,11 +1,12 @@
 # mBowl — iPhone Duo Plan
-**Stamped:** October 23, 2026 · **Updated:** November 11, 2026 (~12:00) · **Version:** v1.8 (Nov 10 night: v2 on the Duo with the real data; `phase27` merged; Phase 28 WP1-WP7 built and shipped over the air · Nov 11: hang fix, rotation, audit + pre-league fix batch shipped) · **Owner:** Marcus
+**Stamped:** October 23, 2026 · **Updated:** November 24, 2026 · **Version:** v1.8 (**plan complete** -- Phases 25-28 and the after-league batch all shipped) (Nov 10 night: v2 on the Duo with the real data; `phase27` merged; Phase 28 WP1-WP7 built and shipped over the air · Nov 11: hang fix, rotation, audit + pre-league fix batch shipped) · **Owner:** Marcus
 **Read with:** the latest `mBowl-SessionBrief-REVXX.md` and `mBowl-SPEC.md`. This plan covers the next four phases; the brief still tracks session-by-session state.
 
 ---
 
 ## Where things stand (Nov 10, ~20:45)
 
+- **Nov 24: COMPLETE.** Everything in this plan has shipped over the air to the Duo: Phase 28 + 28.5 (Reference 7ac39a2a, Settings f6e4a8ef), the after-league Parts A-D (766e68a8) and both audits closed. Since then: Phase 29 / 30A Stats insight cards and Phase 31B Tier 2 (1c64459a). Current state: the latest session brief (REV34). The history below is kept as written.
 - **Backup done and verified.** Oct 10 export: 40 sessions, 125 games, 174.1 average (Winners 25: 24 · Jubilee 26: 13 · Winners 26: 3). Missing Winners 2026 weeks (Sep 26, Oct 3, Oct 17 onward): backfill later from scorecards.
 - **Phase 25 done:** v2.0.0 installed on the Duo (iloader; Developer Mode had to be turned on) and the backup restored -- 40 sessions confirmed, swipe rows work.
 - **Phase 26 + 26A + 27 merged into `master`** -- `master` is 2.0.0 / SDK 58. OTAs from it reach only the Duo; the old phone stays on 1.0.0 as the fallback.
