@@ -128,21 +128,17 @@ export default function PinDeck({
   function togglePin(index: number) {
     if (!availablePins[index]) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setStanding(prev => {
-      const next = prev.map((s, i) => (i === index ? !s : s));
-      onChange?.(next);
-      return next;
-    });
+    const next = standing.map((s, i) => (i === index ? !s : s));
+    setStanding(next);
+    onChange?.(next);
   }
 
   // Strike / Spare quick-action: knock all currently-available pins down at once.
   function handleQuickAction() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setStanding(prev => {
-      const next = prev.map((s, i) => (availablePins[i] ? false : s));
-      onChange?.(next);
-      return next;
-    });
+    const next = standing.map((s, i) => (availablePins[i] ? false : s));
+    setStanding(next);
+    onChange?.(next);
   }
 
   function handleConfirm() {

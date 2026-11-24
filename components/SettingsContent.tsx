@@ -99,7 +99,13 @@ export default function SettingsContent({ onClose }: Props) {
   // save of the latest value, and blur / Done / closing the sheet flushes it.
   const latestSettingsRef = useRef<Settings>({});
   const goalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => { latestSettingsRef.current = settings; }, [settings]);
+  // Review fix: every load / save / rollback goes through applySettings, so the
+  // ref is never behind what is on screen (a goal keystroke in the first frame
+  // after load must not build on {} and write a settings blob with no seasons).
+  function applySettings(v: Settings) {
+    latestSettingsRef.current = v;
+    setSettings(v);
+  }
   function setGoal(patch: Partial<Settings>) {
     const next = { ...latestSettingsRef.current, ...patch };
     latestSettingsRef.current = next;
@@ -122,7 +128,7 @@ export default function SettingsContent({ onClose }: Props) {
     const [s, b] = await Promise.all([readSettingsResult(), readBallsResult()]);
     settingsReadable.current = s.status === 'ok' || s.status === 'missing';
     ballsReadable.current = b.status === 'ok' || b.status === 'missing';
-    setSettings(s.value);
+    applySettings(s.value);
     setBalls(b.value);
     lastSavedSettings.current = s.value;
     lastSavedBalls.current = b.value;
@@ -136,7 +142,7 @@ export default function SettingsContent({ onClose }: Props) {
       if (!active) return;
       settingsReadable.current = s.status === 'ok' || s.status === 'missing';
       ballsReadable.current = b.status === 'ok' || b.status === 'missing';
-      setSettings(s.value);
+      applySettings(s.value);
       setBalls(b.value);
       lastSavedSettings.current = s.value;
       lastSavedBalls.current = b.value;
@@ -163,14 +169,14 @@ export default function SettingsContent({ onClose }: Props) {
 
   async function saveSettingsData(updated: Settings) {
     if (!settingsReadable.current) {
-      if (lastSavedSettings.current) setSettings(lastSavedSettings.current);
+      if (lastSavedSettings.current) applySettings(lastSavedSettings.current);
       refuseUnreadable('settings');
       return;
     }
-    setSettings(updated);
+    applySettings(updated);
     const ok = await writeSettings(updated);
     if (!ok) {
-      if (lastSavedSettings.current) setSettings(lastSavedSettings.current);
+      if (lastSavedSettings.current) applySettings(lastSavedSettings.current);
       Alert.alert("Couldn't save settings", 'The phone could not save the change (storage may be full).');
       return;
     }

@@ -29,7 +29,7 @@ if (!skipTsc) {
     args: existsSync(tsc) ? [tsc, '--noEmit', '-p', ROOT] : null,
   });
 }
-for (const name of ['leaves', 'seasons', 'goals', 'insights', 'reference', 'rules']) {
+for (const name of ['leaves', 'seasons', 'goals', 'insights', 'reference', 'extras', 'rules']) {
   steps.push({
     name,
     cmd: process.execPath,
