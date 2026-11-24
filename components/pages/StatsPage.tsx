@@ -1492,6 +1492,11 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
                 <GoalPathCard path={goalPath} onOpenSettings={() => setSettingsOpen(true)} />
               </View>
             )}
+            {/* Phase 31B: drill-only Practice nights have no scored games, but
+                their drill counts still show. */}
+            <View style={styles.emptyPath}>
+              <DrillCard drill={drill} leak={spareLeak} />
+            </View>
           </View>
         ) : (
           <>

@@ -813,11 +813,16 @@ export default function LogPage() {
       );
       return false;
     }
+    if (sessionType === 'league' && !opponent.trim()) {
+      Alert.alert('Opponent required', 'Enter an opponent name for League sessions.');
+      return false;
+    }
+    // Asked last, after every other check, so it never repeats on a retry.
     if (drill && drillShots(drill) > 0 && sessionType !== 'practice') {
       const go = await new Promise<boolean>((resolve) =>
         Alert.alert(
           'Drop the spare drill?',
-          'Drill counts are only kept on Practice sessions. Switch the type back to Practice to keep them, or submit without them.',
+          'Drill counts are saved with Practice sessions. Switch the type back to Practice to keep them, or submit without them.',
           [
             { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
             { text: 'Submit without drill', style: 'destructive', onPress: () => resolve(true) },
@@ -826,10 +831,6 @@ export default function LogPage() {
         )
       );
       if (!go) return false;
-    }
-    if (sessionType === 'league' && !opponent.trim()) {
-      Alert.alert('Opponent required', 'Enter an opponent name for League sessions.');
-      return false;
     }
 
     const session = {
