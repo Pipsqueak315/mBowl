@@ -1,5 +1,5 @@
 # mBowl — Next Phase Plan (Phase 30+)
-**Written:** Nov 21, 2026 · **Updated:** Nov 23 · **Status:** candidates below not built yet
+**Written:** Nov 21, 2026 · **Updated:** Nov 23 · **Status:** all items built and shipped (Phase 31A/31B, Nov 24)
 **Context:** Nov 20 brainstorm. Phase 29 (Path to goal + Spare leak, read-only Stats cards) **shipped Nov 21** (`02db869`, update group e7cd0dff, REV30). Everything below is what's left from that brainstorm.
 
 **Constraints (Marcus, Nov 20):** only Marcus uses it · nothing social · no iCloud · no widgets · nothing that costs money unless it's clearly worth it · everything fits the current workflow (OTA from `master`, free sideload).
@@ -22,7 +22,7 @@ USBC had no electronic sensors on its approved list (Oct 2026) -- practice-only.
 
 ## Status (Nov 24)
 - **v2 close-out: DONE** -- Phase 31A shipped (update group f6e4a8ef): Settings restyle, D5/F14, D8, N16/N19/N21/N23/N24/N27/N1/N9/N13 (N22 left as is).
-- **Items 1-7 below: BUILT** as Phase 31B on branch `phase31b-tier2`, not shipped yet (Level 2 backup gate). Defaults used: miss tags only on misses (Yank · Fast · Missed target), switch saved like a note (one ball per game kept), house pre-filled + Fresh / Broken / Pattern, drill = 10 / 7 / other single / multi.
+- **Items 1-7 below: SHIPPED** as Phase 31B (Nov 24, `72936ba`, update group 1c64459a, REV34). Defaults used: miss tags only on misses (Yank · Fast · Missed target), switch saved like a note (one ball per game kept), house pre-filled + Fresh / Broken / Pattern, drill = 10 / 7 / other single / multi.
 
 ## Before Phase 30: close out v2 (done -- 31A)
 - **Part E:** ~~Reference restyle~~ (done Nov 24, 30B); Settings restyle still to do (needs Marcus's screenshots)
