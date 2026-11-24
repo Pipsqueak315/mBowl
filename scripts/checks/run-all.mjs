@@ -5,6 +5,7 @@
 //   3. seasons  — gapless seasons + shared filter (real src/seasons.ts, sessionFilter.ts)
 //   4. goals    — Path to goal + Spare leak (real src/goalPath.ts, spareLeak.ts)
 //   4b. insights — 190 recipe, Leave -> fix, Tilt cost (real src/recipe.ts, leaveFixes.ts, tiltCost.ts)
+//   4c. reference — Reference v2 content + the one-time v1 -> v2 upgrade (real src/referenceUpgrade.ts)
 //   5. rules    — CLAUDE.md rules that a grep can enforce
 //   6. stats    — Phase 24 harness on the 18 seeds (stats.tsx metric COPY; see its header)
 //
@@ -28,7 +29,7 @@ if (!skipTsc) {
     args: existsSync(tsc) ? [tsc, '--noEmit', '-p', ROOT] : null,
   });
 }
-for (const name of ['leaves', 'seasons', 'goals', 'insights', 'rules']) {
+for (const name of ['leaves', 'seasons', 'goals', 'insights', 'reference', 'rules']) {
   steps.push({
     name,
     cmd: process.execPath,

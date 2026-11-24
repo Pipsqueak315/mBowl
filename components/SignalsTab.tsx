@@ -10,6 +10,8 @@ import {
   UIManager,
 } from 'react-native';
 import { animateNextLayout } from '@/src/v2/motion';
+import SegmentedControl from '@/components/v2/SegmentedControl';
+import { SWITCH_GUIDE_V2, LANE_READS_V2 } from '@/src/referenceContent';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -65,85 +67,9 @@ export interface SignalsTabProps {
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_SIGNALS: SignalsData = {
-  switchGuide: [
-    {
-      whatYoureSeeing: 'Ball rolling out before the pins',
-      cause: 'Too strong for current oil',
-      switchTo: 'Pearl or Phaze 5',
-      feet: 'Right 1–2 first',
-      direction: '🟢 Down',
-    },
-    {
-      whatYoureSeeing: 'Ball skidding through, weak entry',
-      cause: 'Too clean, not enough ball',
-      switchTo: 'Solid → Summit → Physix #2',
-      feet: 'Left 1–2 simultaneously',
-      direction: '🔴 Up',
-    },
-    {
-      whatYoureSeeing: 'Ball reading too early, over-hooking',
-      cause: 'Burned track or dry outside',
-      switchTo: 'Pearl or Phaze 5',
-      feet: 'Right 1–3, eyes stay at 12',
-      direction: '🟢 Down',
-    },
-    {
-      whatYoureSeeing: 'Good shape but leaving corners (7 or 10)',
-      cause: 'Entry angle — not a ball issue',
-      switchTo: 'Stay',
-      feet: 'Left 1 board only',
-      direction: '🟡 Feet only',
-    },
-    {
-      whatYoureSeeing: 'Leaving ringing 10 consistently',
-      cause: 'Too much entry angle',
-      switchTo: 'Solid or Summit',
-      feet: 'Left 1 board',
-      direction: '🔴 Slightly up',
-    },
-    {
-      whatYoureSeeing: 'Leaving solid 8 consistently',
-      cause: 'Entry too flush, deflection loss',
-      switchTo: 'Pearl',
-      feet: 'Right 1 board',
-      direction: '🟢 More angle',
-    },
-    {
-      whatYoureSeeing: 'Score dropping Game 3, losing pocket',
-      cause: 'Mid-transition, ball not reading friction',
-      switchTo: 'Phaze 5 → Solid → VE Blackout',
-      feet: 'Left 2–3 from current',
-      direction: '🔴 Up',
-    },
-    {
-      whatYoureSeeing: 'Fresh pair, unfamiliar condition',
-      cause: 'Unknown — read first',
-      switchTo: 'Summit or Physix #1',
-      feet: 'Board 20, eyes 12 — adjust after shot 1',
-      direction: '🟡 Conservative',
-    },
-    {
-      whatYoureSeeing: 'VE Blackout reads too early, rolling out',
-      cause: 'Lanes broken down, need more length',
-      switchTo: 'Primal Rage Evolution',
-      feet: 'Right 1–2, let ball breathe longer',
-      direction: '🟢 Down in strength, up in length',
-    },
-    {
-      whatYoureSeeing: 'On fresh long oil pattern',
-      cause: 'Need controlled early roll, not angular',
-      switchTo: 'Physix #2 Pin Down',
-      feet: 'Board 20, eyes 12 baseline',
-      direction: '🔴 Strong but controlled',
-    },
-    {
-      whatYoureSeeing: 'Physix #1 too arcy, not finishing',
-      cause: 'Need more angle on fresh shot',
-      switchTo: 'Pearl or Phaze 5',
-      feet: 'Right 1–2, open angle',
-      direction: '🟢 Down, more snap',
-    },
-  ],
+  // Phase 30B (Nov 24): right-handed, ball-free, short -- src/referenceContent.ts.
+  // The v1 text is in src/referenceUpgrade.ts (upgrades an unedited stored copy).
+  switchGuide: SWITCH_GUIDE_V2,
   arsenal: [
     {
       name: 'Spare Ball',
@@ -216,47 +142,7 @@ export const DEFAULT_SIGNALS: SignalsData = {
         'Heavy oil and mid-transition on the house shot. The ball you live in for most of league night. When the Solid and Summit give up, this takes over.',
     },
   ],
-  laneReads: [
-    {
-      whatYoureSeeing: 'Ball exits clean, snaps hard at the break',
-      whatItMeans: 'Sharp oil line with clear friction boundary. Ideal condition.',
-      recommendation: 'Stay with current ball. This is your window. Be precise with your line.',
-    },
-    {
-      whatYoureSeeing: 'Ball reads oil early, rolls flat to pins',
-      whatItMeans: 'Short oil or flooded heads. Ball finding traction too soon.',
-      recommendation: 'Move right 1–2 boards or step down to a longer, cleaner ball.',
-    },
-    {
-      whatYoureSeeing: 'Ball skids through, no reaction at the break',
-      whatItMeans: 'Very heavy oil or slick backends. Ball not finding friction.',
-      recommendation:
-        'Step up in ball strength. If already strong, adjust angle to find the friction zone.',
-    },
-    {
-      whatYoureSeeing: 'Ball rolls up and loses energy before the pins',
-      whatItMeans: 'Track area is burned or dry. Ball over-reading the worn spot.',
-      recommendation: 'Move right 2–3 boards to fresh oil. Consider stepping down in surface.',
-    },
-    {
-      whatYoureSeeing: 'Reaction inconsistent shot to shot',
-      whatItMeans: 'Uneven oil — gaps in the pattern creating unpredictable reads.',
-      recommendation:
-        'Go to a benchmark ball (Summit or Physix #1) to read through the noise.',
-    },
-    {
-      whatYoureSeeing: 'Ball arcs smoothly, no defined snap',
-      whatItMeans: 'Blended medium-oil condition. No hard friction boundary.',
-      recommendation:
-        'Predictable but low-ceiling condition. Hold position, prioritize consistency over angle.',
-    },
-    {
-      whatYoureSeeing: 'Reaction changing progressively through the set',
-      whatItMeans: 'Oil breaking down. Pattern shifting as volume builds.',
-      recommendation:
-        'Expect to move left as the set goes on. Have your next ball ready before you need it.',
-    },
-  ],
+  laneReads: LANE_READS_V2,
 };
 
 // ---------------------------------------------------------------------------
@@ -269,7 +155,11 @@ function directionColor(dir: string): string {
   return '#FFD60A';
 }
 
-const VIEWS: SignalsView[] = ['Switch Guide', 'Lane Reads'];
+// Phase 30B: the view toggle is the shared SegmentedControl (was teal pills).
+const VIEWS = [
+  { key: 'Switch Guide', label: 'Switch Guide' },
+  { key: 'Lane Reads', label: 'Lane Reads' },
+] as const satisfies readonly { key: SignalsView; label: string }[];
 
 export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) {
   const [view, setView] = useState<SignalsView>('Switch Guide');
@@ -319,7 +209,6 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="interactive"
       >
-        <Text style={s.sectionLabel}>SWITCH GUIDE</Text>
         {data.switchGuide.map((row, i) => {
           const isOpen = expandedGuide.has(i);
           return (
@@ -422,7 +311,6 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="interactive"
       >
-        <Text style={s.sectionLabel}>LANE READS</Text>
         {data.laneReads.map((read, i) => {
           const isOpen = expandedLane.has(i);
           return (
@@ -499,16 +387,12 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
     <View style={s.container}>
       {/* View toggle */}
       <View style={s.toggleRow}>
-        {VIEWS.map(v => (
-          <TouchableOpacity
-            key={v}
-            style={[s.togglePill, view === v && s.togglePillActive]}
-            onPress={() => setView(v)}
-            activeOpacity={0.7}
-          >
-            <Text style={[s.toggleText, view === v && s.toggleTextActive]}>{v}</Text>
-          </TouchableOpacity>
-        ))}
+        <SegmentedControl
+          segments={VIEWS}
+          value={view}
+          onChange={setView}
+          accessibilityLabel="Signals view"
+        />
       </View>
 
       {view === 'Switch Guide' && renderSwitchGuide()}
@@ -529,11 +413,9 @@ const s = StyleSheet.create({
 
   // Toggle
   toggleRow: {
-    flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 10,
-    gap: 8,
+    paddingTop: 4,
+    paddingBottom: 12,
   },
   togglePill: {
     flex: 1,

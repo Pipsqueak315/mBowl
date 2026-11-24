@@ -12,7 +12,6 @@ import {
   Alert,
 } from 'react-native';
 import { useSideInsets } from '@/src/v2/page';
-import * as Haptics from 'expo-haptics';
 import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 
 import HeaderIconButton from '@/components/v2/HeaderIconButton';
@@ -26,7 +25,9 @@ import { type PatternsData, DEFAULT_PATTERNS } from '@/components/PatternsTab';
 import { readReferenceResult, writeReference } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
 import { onDataChanged, notifyDataChanged } from '@/src/dataEvents';
-import ScalePressable from '@/components/ScalePressable';
+import SegmentedControl from '@/components/v2/SegmentedControl';
+import { upgradeReference } from '@/src/referenceUpgrade';
+import { YOUR_NUMBERS_KNOWN } from '@/src/referenceContent';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,11 +79,15 @@ interface ReferenceData {
 // Constants
 // ---------------------------------------------------------------------------
 
-const SUB_TABS: SubTab[] = [
-  'Signals',
-  'Pocket Diagnostics',
-  'Mental',
-];
+// Phase 30B (Nov 24, Marcus: "the toolbar going all the way... should look clean
+// like the history tab"): the sub-tabs are the shared SegmentedControl inside
+// the safe areas, not a grey band under the Duo rail. "Diagnostics" fits the
+// cover screen; the key stays 'Pocket Diagnostics'.
+const SUB_TABS = [
+  { key: 'Signals', label: 'Signals' },
+  { key: 'Pocket Diagnostics', label: 'Diagnostics' },
+  { key: 'Mental', label: 'Mental' },
+] as const satisfies readonly { key: SubTab; label: string }[];
 
 const DEFAULT_DATA: ReferenceData = {
   position: [
@@ -150,8 +155,8 @@ const DEFAULT_DATA: ReferenceData = {
     revRate: '',
     axisTilt: '',
     axisRotation: '',
-    pap: '',
-    dominantMiss: '',
+    pap: YOUR_NUMBERS_KNOWN.pap,
+    dominantMiss: YOUR_NUMBERS_KNOWN.dominantMiss,
     layDownBoard: '',
   },
   speedNotes: '',
@@ -286,7 +291,23 @@ export default function ReferenceScreen() {
         if (!active) return;
         readableRef.current = read.status === 'ok' || read.status === 'missing';
         warnedRef.current = false;
-        const stored = read.value;
+        let stored = read.value;
+        // Phase 30B: one-time content upgrade (src/referenceUpgrade.ts) --
+        // only on a clean read of real stored data; rows Marcus edited are
+        // never touched. REFERENCE has no shadow key, so a failed write just
+        // leaves the old copy and the upgrade runs again next time.
+        if (read.status === 'ok') {
+          const up = upgradeReference(stored);
+          if (up.changed) {
+            const ok = await writeReference(up.value);
+            if (!active) return;
+            if (ok) {
+              stored = up.value;
+              void writeBackup();
+              notifyDataChanged('reference');
+            }
+          }
+        }
         if (stored) {
           const merged = mergeWithDefaults(stored);
           setData(merged);
@@ -360,7 +381,7 @@ export default function ReferenceScreen() {
         keyboardDismissMode="interactive"
       >
         {/* ---- Shot Clock (static) ---- */}
-        <Text style={styles.sectionLabel}>SHOT CLOCK</Text>
+        <Text style={styles.sectionLabel}>Shot clock</Text>
         <View style={styles.card}>
           {/* Header */}
           <View style={[styles.shotClockRow, styles.shotClockHeaderRow]}>
@@ -387,7 +408,7 @@ export default function ReferenceScreen() {
         </View>
 
         {/* ---- Mental Cues (editable) ---- */}
-        <Text style={styles.sectionLabel}>MENTAL CUES</Text>
+        <Text style={styles.sectionLabel}>Mental cues</Text>
         {data.mentalCues.map((cue, index) => (
           <View key={index} style={styles.card}>
             <View style={styles.cueHeaderRow}>
@@ -432,7 +453,7 @@ export default function ReferenceScreen() {
         ))}
 
         {/* ---- Your Numbers (editable) ---- */}
-        <Text style={styles.sectionLabel}>YOUR NUMBERS</Text>
+        <Text style={styles.sectionLabel}>Your numbers</Text>
         <View style={styles.card}>
           {YOUR_NUMBERS_ROWS.map((row, index) => (
             <View key={row.key}>
@@ -495,30 +516,15 @@ export default function ReferenceScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={88}
       >
-        {/* Sub-tab bar — sticky, does not scroll with content */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={[styles.subTabBar, { marginLeft: -sideInsets.left, marginRight: -sideInsets.right }]}
-          contentContainerStyle={[styles.subTabBarContent, { paddingLeft: 4 + sideInsets.left, paddingRight: 4 + sideInsets.right }]}
-          bounces={false}
-        >
-          {SUB_TABS.map(tab => (
-            <ScalePressable
-              key={tab}
-              style={styles.subTabItem}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setActiveTab(tab);
-              }}
-            >
-              <Text style={[styles.subTabText, activeTab === tab && styles.subTabTextActive]}>
-                {tab}
-              </Text>
-              {activeTab === tab && <View style={styles.subTabIndicator} />}
-            </ScalePressable>
-          ))}
-        </ScrollView>
+        {/* Sub-tabs -- sticky, inside the safe areas (like History's filter) */}
+        <View style={styles.subTabBar}>
+          <SegmentedControl
+            segments={SUB_TABS}
+            value={activeTab}
+            onChange={setActiveTab}
+            accessibilityLabel="Reference section"
+          />
+        </View>
 
         {/* Tab content */}
         {!loaded ? (
@@ -576,43 +582,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // ---- Sub-tab bar ----
+  // ---- Sub-tabs (Phase 30B: segmented control, no band) ----
   subTabBar: {
-    height: 44,
-    backgroundColor: '#1C1C1E',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#38383A',
-    flexGrow: 0,
-  },
-  subTabBarContent: {
-    paddingHorizontal: 4,
-    flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  subTabItem: {
-    height: 44,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  subTabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#8E8E93',
-  },
-  subTabTextActive: {
-    color: '#00CEC9',
-    fontWeight: '600',
-  },
-  subTabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: 14,
-    right: 14,
-    height: 2,
-    backgroundColor: '#00CEC9',
-    borderRadius: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
   },
 
   // ---- Scroll + content ----
@@ -621,18 +595,17 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingTop: 4,
     paddingBottom: 40,
   },
 
   // ---- Section label ----
+  // Phase 30B: Stats-style section headers (20/600, sentence case).
   sectionLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#8E8E93',
-    letterSpacing: 0.8,
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
     marginBottom: 8,
-    marginLeft: 4,
   },
 
   // ---- Card ----

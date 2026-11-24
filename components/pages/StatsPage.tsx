@@ -29,6 +29,7 @@ import { goalRange, goalLevelSessions, pinsPerMissedSpare } from '@/src/recipe';
 import { cardsFromReference, topLeaveFixes, type LeaveFix } from '@/src/leaveFixes';
 import { computeTiltCost, type TiltCost } from '@/src/tiltCost';
 import { DEFAULT_DIAGNOSTICS } from '@/components/PocketDiagnosticsTab';
+import { upgradeReference } from '@/src/referenceUpgrade';
 
 // --- Types ---
 interface FrameStats {
@@ -1145,7 +1146,8 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
 
   // Leave -> fix (Phase 30A): the view's leaves + the Pocket Diagnostics cards.
   const fixCards = useMemo(
-    () => cardsFromReference(reference, DEFAULT_DIAGNOSTICS.cards),
+    // Phase 30B: the v1 -> v2 text upgrade in memory (the Reference tab writes it).
+    () => cardsFromReference(upgradeReference(reference).value, DEFAULT_DIAGNOSTICS.cards),
     [reference],
   );
   const leaveFixes = useMemo(() => topLeaveFixes(leaveStats.leaves, fixCards, 3), [leaveStats.leaves, fixCards]);

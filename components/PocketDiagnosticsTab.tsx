@@ -15,6 +15,8 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { readSessions } from '@/src/storage';
 import { computeLeaveStats } from '@/src/leaveUtils';
 import { CARD_LEAVE_KEYS } from '@/src/leaveFixes';
+import SegmentedControl from '@/components/v2/SegmentedControl';
+import { DIAGNOSTICS_V2 } from '@/src/referenceContent';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -65,118 +67,9 @@ interface CardLeaveData {
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_DIAGNOSTICS: DiagnosticsData = {
-  cards: [
-    {
-      name: 'Ringing 10 pin',
-      frequency: 'High Frequency',
-      why: 'Entry angle too aggressive. Ball drives through the 6 and deflects past the 10.',
-      fix: 'Move left 1 board or step down slightly in strength to tighten entry angle.',
-      pattern:
-        "If it's happening every time you strike, your angle is too sharp. It's a success diagnostic, not a miss.",
-    },
-    {
-      name: 'Solid 8 pin',
-      frequency: 'High Frequency',
-      why: 'Hit too flush. Ball deflects straight back through the 5 instead of driving diagonally into the 8.',
-      fix: 'Move right 1 board or use a ball with more backend to sharpen entry angle.',
-      pattern:
-        'Consistent solid 8s mean your entry is too flat. Check your ball path, not your spare shooting.',
-    },
-    {
-      name: 'Ringing 7 pin',
-      frequency: 'High Frequency',
-      why: 'Hit too high on the headpin. 2-pin kicks the 4, but the 4 misses the 7.',
-      fix: 'Move right 1–2 boards to hit the headpin slightly lighter and drive pins left.',
-      pattern:
-        "Pairs with ringing 10 — if you're getting both, your line is too direct. Open up slightly.",
-    },
-    {
-      name: 'Big 4 (4-6-7-10)',
-      frequency: 'High Frequency',
-      why: 'High flush hit with zero angle. Ball drives straight through without spreading pins.',
-      fix: 'Critical read — your ball is going straight in. Revisit your entire line.',
-      pattern:
-        'If this happens more than once in a session, stop adjusting feet and change the ball.',
-    },
-    {
-      name: '6-7-10',
-      frequency: 'High Frequency',
-      why: 'Extreme high hit. 6-pin knocked flat across both corners.',
-      fix: 'Very light hit — move right 2+ boards to hit fuller on the headpin.',
-      pattern:
-        "Rare. If you see it twice in a night, you're playing too straight or too far outside.",
-    },
-    {
-      name: 'Washout',
-      frequency: 'High Frequency',
-      why: 'Missed the headpin. Ball went high or wide, leaving a non-pocket split with the headpin.',
-      fix: 'Execution miss — headpin must be hit for a washout to become a spare.',
-      pattern:
-        'Recurring washouts = inconsistent release or misread on the line. Check your target.',
-    },
-    {
-      name: 'Corner pin (7 or 10)',
-      frequency: 'Common',
-      why: 'Slightly light hit leaving the far corner. Common on good shots — not always a ball issue.',
-      fix: 'Not necessarily a problem. If consistent, fine-tune entry angle by 1 board.',
-      pattern:
-        "If you're leaving the same corner 3+ times in a session, it's a pattern. Move 1 board toward that corner.",
-    },
-    {
-      name: '2-8-10 bucket',
-      frequency: 'Common',
-      why: "Light hit on the headpin. 2-pin kicks back to the 8 but doesn't bridge to the 10.",
-      fix: 'Move left 1–2 boards to hit fuller and drive the 2-pin harder.',
-      pattern:
-        "Buckets are a light-hit diagnostic. If it's recurring, you're missing your target right.",
-    },
-    {
-      name: '2-4-5-8 bucket',
-      frequency: 'Common',
-      why: 'Entry angle too inside. Ball hits the 1-2 pocket with insufficient angle to scatter the cluster.',
-      fix: 'Open your angle — move left, target deeper, hit the 2-pin more squarely.',
-      pattern: "Repeat buckets on this side = you're playing too far inside. Open up.",
-    },
-    {
-      name: '4-6 split',
-      frequency: 'Common',
-      why: 'Dead flush hit, zero entry angle. Ball goes straight through without deflecting pins outward.',
-      fix: 'Carry issue — check entry angle first, then consider a sharper backend ball.',
-      pattern:
-        "If this shows up early in a set, your line is too direct. You need angle, not more speed.",
-    },
-    {
-      name: '5-7 split',
-      frequency: 'Common',
-      why: 'Light left hit. Headpin deflects right, 5-pin goes left and misses the 7.',
-      fix: 'Move right slightly to hit fuller and drive the headpin left into the 7.',
-      pattern: 'Consistent 5-7s = missing left. Your target is drifting.',
-    },
-    {
-      name: 'Baby split (2-7 or 3-10)',
-      frequency: 'Common',
-      why: 'Slightly light or slightly wide hit. One pin deflects the wrong direction.',
-      fix: 'Adjust 1 board toward the missed side. Execution more than ball.',
-      pattern:
-        "If you're getting the same baby split repeatedly, your ball is missing the same direction every time.",
-    },
-    {
-      name: '4-7-9 cluster',
-      frequency: 'Common',
-      why: 'Hit too far left of the pocket. Ball deflected left side pins but left a cluster.',
-      fix: 'Move right to hit more toward the pocket center.',
-      pattern:
-        "Consistent 4-7-9 = you're pulling the ball or your feet are too far left.",
-    },
-    {
-      name: 'Sleeper pocket (2-8 or 3-9)',
-      frequency: 'Situational',
-      why: "Hit the pocket but the 5-pin didn't fall. Light hit or deflection loss.",
-      fix: 'Increase entry angle or step up in ball strength to drive through the 5-pin harder.',
-      pattern:
-        "If it shows up in Game 3, your ball is losing energy. Time to switch.",
-    },
-  ],
+  // Phase 30B (Nov 24): right-handed, short -- src/referenceContent.ts. Card
+  // names unchanged (CARD_LEAVE_KEYS + the upgrade key on them).
+  cards: DIAGNOSTICS_V2,
 };
 
 // ---------------------------------------------------------------------------
@@ -189,7 +82,12 @@ export const DEFAULT_DIAGNOSTICS: DiagnosticsData = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const FILTER_PILLS: FilterPill[] = ['All Leaves', 'High Frequency', 'Common', 'Situational'];
+// Phase 30B: the frequency filter row is gone (My Data shows real counts);
+// the mode toggle is the shared SegmentedControl.
+const MODES = [
+  { key: 'reference', label: 'Reference' },
+  { key: 'mydata', label: 'My Data' },
+] as const satisfies readonly { key: ViewMode; label: string }[];
 
 function frequencyColor(tier: FrequencyTier): string {
   if (tier === 'High Frequency') return '#FF453A';
@@ -212,7 +110,6 @@ export default function PocketDiagnosticsTab({
   onUpdate,
   onSave,
 }: DiagnosticsTabProps) {
-  const [activeFilter, setActiveFilter] = useState<FilterPill>('All Leaves');
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [mode, setMode] = useState<ViewMode>('reference');
   const [leaveEntries, setLeaveEntries] = useState<LeaveEntry[]>([]);
@@ -259,10 +156,7 @@ export default function PocketDiagnosticsTab({
     };
   }
 
-  const visibleCards =
-    activeFilter === 'All Leaves'
-      ? data.cards
-      : data.cards.filter(c => c.frequency === activeFilter);
+  const visibleCards = data.cards;
 
   // Original index needed so patches update the right card in data.cards
   const visibleWithIndex = visibleCards.map(card => ({
@@ -298,10 +192,6 @@ export default function PocketDiagnosticsTab({
     });
   }
 
-  function handleFilterChange(pill: FilterPill) {
-    setActiveFilter(pill);
-    setExpanded(new Set());
-  }
 
   // ---- Shared expanded body ------------------------------------------------
 
@@ -361,43 +251,14 @@ export default function PocketDiagnosticsTab({
     <View style={s.container}>
       {/* Mode toggle */}
       <View style={s.modeToggleWrap}>
-        <View style={s.modeToggle}>
-          <TouchableOpacity
-            style={[s.modeBtn, mode === 'reference' && s.modeBtnActive]}
-            onPress={() => setMode('reference')}
-            activeOpacity={0.8}
-          >
-            <Text style={[s.modeBtnText, mode === 'reference' && s.modeBtnTextActive]}>
-              Reference
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.modeBtn, mode === 'mydata' && s.modeBtnActive]}
-            onPress={() => setMode('mydata')}
-            activeOpacity={0.8}
-          >
-            <Text style={[s.modeBtnText, mode === 'mydata' && s.modeBtnTextActive]}>
-              My Data
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <SegmentedControl
+          segments={MODES}
+          value={mode}
+          onChange={setMode}
+          accessibilityLabel="Pocket Diagnostics view"
+        />
       </View>
 
-      {/* Filter pill bar */}
-      <View style={s.pillBar}>
-        {FILTER_PILLS.map(pill => (
-          <TouchableOpacity
-            key={pill}
-            style={[s.pill, activeFilter === pill && s.pillActive]}
-            onPress={() => handleFilterChange(pill)}
-            activeOpacity={0.7}
-          >
-            <Text style={[s.pillText, activeFilter === pill && s.pillTextActive]}>
-              {pill}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
 
       {/* ---- Reference mode ---- */}
       {mode === 'reference' && (
@@ -529,8 +390,8 @@ const s = StyleSheet.create({
   // Mode toggle
   modeToggleWrap: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
+    paddingTop: 4,
+    paddingBottom: 12,
   },
   modeToggle: {
     flexDirection: 'row',
@@ -597,7 +458,7 @@ const s = StyleSheet.create({
 
   // Card
   card: {
-    backgroundColor: '#2C2C2E',
+    backgroundColor: '#1C1C1E', // Phase 30B: same card color as Signals / Mental
     borderRadius: 13,
     paddingHorizontal: 16,
     marginBottom: 10,
