@@ -3,7 +3,7 @@ import { framesParam } from '../../src/framesParam.ts';
 import {
   parseSpeed, parseBoard, parseSwitchFrame, gameExtrasFromForm, gameExtrasToForm,
   normalizeDrill, drillTotals, drillShots, gamesSince, startHere, computeMissStats,
-  computeSeasonRecap, sessionsToCsv, lastHouse, computeConditionStats, computeSpeedStats,
+  computeSeasonRecap, sessionsToCsv, gameExtrasInvalid, lastHouse, computeConditionStats, computeSpeedStats,
 } from '../../src/extras.ts';
 import { check, eq, done } from './lib.mjs';
 
@@ -113,5 +113,10 @@ const sess = (date, games, extra = {}) => ({ id: date, type: 'league', date, wee
   check(csv.includes('"Phaze, ""Pearl"""'), 'csv quotes commas and quotes');
   check(csv.includes('"line\nbreak"'), 'csv quotes newlines');
 }
+
+// --- review fixes ---
+eq(gameExtrasInvalid({ speed: '7.5', feet: '0', target: '12', switchFrame: '1' }).length, 3, 'out-of-range fields are reported');
+eq(gameExtrasInvalid({ speed: '', feet: '', target: '', switchFrame: '' }).length, 0, 'blank is fine');
+check(sessionsToCsv([sess('2026-10-01', [g('a', 1, { notes: '=SUM(A1)' })])]).includes("'=SUM(A1)"), 'csv formula cell neutralised');
 
 done('extras');

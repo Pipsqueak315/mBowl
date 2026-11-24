@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
-import { readSettingsResult, writeSettings, readBallsResult, writeBalls } from '@/src/storage';
+import { readSettingsResult, writeSettings, readBallsResult, writeBalls, readSessionsResult } from '@/src/storage';
 import {
   writeBackup,
   restoreBackup,
@@ -309,7 +309,9 @@ export default function SettingsContent({ onClose }: Props) {
 
   function parseDate(iso?: string | null): Date {
     if (!iso) return new Date();
-    return new Date(iso + 'T12:00:00');
+    const d = new Date(iso + 'T12:00:00');
+    // A malformed stored date must never reach the native date picker.
+    return Number.isNaN(d.getTime()) ? new Date() : d;
   }
 
   function formatDateDisplay(iso?: string | null): string {
@@ -896,8 +898,17 @@ export default function SettingsContent({ onClose }: Props) {
             if (exportingCsv) return;
             setExportingCsv(true);
             try {
-              const saved = await readSessions();
-              const result = await exportCsv(sessionsToCsv(saved));
+              // Read with status: never share an empty CSV because a read failed.
+              const read = await readSessionsResult();
+              if (read.status === 'invalid' || read.status === 'error') {
+                Alert.alert('Export Failed', "Your saved sessions couldn't be read, so no CSV was made. Relaunch the app and try again.");
+                return;
+              }
+              if (read.value.length === 0) {
+                Alert.alert('Nothing to export', 'There are no saved sessions yet.');
+                return;
+              }
+              const result = await exportCsv(sessionsToCsv(read.value));
               if (!result.success) Alert.alert('Export Failed', result.error ?? 'Unknown error.');
             } finally {
               setExportingCsv(false);

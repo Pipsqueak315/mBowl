@@ -20,7 +20,7 @@ import { readBalls } from '@/src/storage';
 import type { ThrowEntry, GameEntry, Ball, Session, LaneCondition } from '@/src/types';
 import GameExtrasFields from '@/components/GameExtrasFields';
 import SegmentedControl from '@/components/v2/SegmentedControl';
-import { gameExtrasFromForm, gameExtrasToForm, isCondition, DEFAULT_HOUSE } from '@/src/extras';
+import { gameExtrasFromForm, gameExtrasToForm, gameExtrasInvalid, isCondition, DEFAULT_HOUSE, drillShots, normalizeDrill } from '@/src/extras';
 
 const CONDITION_SEGMENTS = [
   { key: '', label: '—' },
@@ -247,7 +247,8 @@ export default function EditSessionModal({
       notes: sessionNotes.trim() || null,
       house: house.trim() || null,
       condition,
-      drill: sessionType === 'practice' ? session.drill ?? null : null,
+      // Kept whatever the type (a type change must never delete drill counts).
+      drill: session.drill ?? null,
     };
   }
 
@@ -284,8 +285,16 @@ export default function EditSessionModal({
   function handleSave() {
     if (!session) return;
     const hasScore = games.some(g => g.score !== '');
-    if (!hasScore) {
+    if (!hasScore && !(sessionType === 'practice' && drillShots(normalizeDrill(session.drill)) > 0)) {
       Alert.alert('No scores entered', 'Enter at least one score before saving.');
+      return;
+    }
+    const bad = games.findIndex(g => gameExtrasInvalid(g).length > 0);
+    if (bad >= 0) {
+      Alert.alert(
+        'Check game ' + games[bad].game,
+        `${gameExtrasInvalid(games[bad]).join(', ')} can't be saved. Fix or clear it, then save.`
+      );
       return;
     }
     const updated = buildSession();

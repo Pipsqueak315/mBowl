@@ -5,7 +5,8 @@ import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { GameExtrasForm, StartHere } from '@/src/extras';
-import { formatLine, gameExtrasHaveContent } from '@/src/extras';
+import * as Haptics from 'expo-haptics';
+import { formatLine, gameExtrasHaveContent, gameExtrasInvalid } from '@/src/extras';
 
 type Field = keyof GameExtrasForm;
 
@@ -44,7 +45,10 @@ export default function GameExtrasFields({
       ) : null}
       <TouchableOpacity
         style={styles.row}
-        onPress={() => setOpen((v) => !v)}
+        onPress={() => {
+          Haptics.selectionAsync();
+          setOpen((v) => !v);
+        }}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
       >
@@ -125,6 +129,9 @@ export default function GameExtrasFields({
           ) : null}
         </View>
       </View>
+      {gameExtrasInvalid(value).length > 0 && (
+        <Text style={styles.invalid}>Can't save: {gameExtrasInvalid(value).join(', ')}</Text>
+      )}
       </>
       )}
     </View>
@@ -132,6 +139,7 @@ export default function GameExtrasFields({
 }
 
 const styles = StyleSheet.create({
+  invalid: { fontSize: 13, color: '#FF453A', marginTop: 4 },
   hint: { fontSize: 13, color: '#00CEC9', marginTop: 2, marginBottom: 2 },
   row: {
     flexDirection: 'row',

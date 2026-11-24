@@ -56,6 +56,7 @@ import {
   drillShots,
   gameExtrasFromForm,
   gameExtrasHaveContent,
+  gameExtrasInvalid,
   lastHouse,
   normalizeDrill,
   startHere,
@@ -157,8 +158,9 @@ function draftHasContent(d: DraftData): boolean {
 // a score, ball, frames, game or session notes? Typing only the opponent (or
 // the session type / tournament name) a day early to get ahead is prep, not
 // bowling, so S19's date/week refresh may still move that form's date to today.
-function draftHasGameContent(d: Pick<DraftData, 'games' | 'sessionNotes'>): boolean {
+function draftHasGameContent(d: Pick<DraftData, 'games' | 'sessionNotes' | 'drill'>): boolean {
   if (d.sessionNotes?.trim()) return true;
+  if (drillShots(d.drill) > 0) return true; // Phase 31B: drill shots belong to their night
   for (const g of d.games ?? []) {
     if (g.score || g.ball || g.notes?.trim()) return true;
     if (g.frames && g.frames.length > 0) return true;
@@ -470,7 +472,7 @@ export default function LogPage() {
   };
   liveFormRef.current = {
     // F7: only game content pins the date; an opponent typed ahead does not.
-    hasContent: draftHasGameContent({ games, sessionNotes }),
+    hasContent: draftHasGameContent({ games, sessionNotes, drill }),
     blocked: draftResumeVisible || pendingDraft !== null || showDatePicker,
     date,
     week,
@@ -795,9 +797,35 @@ export default function LogPage() {
 
   async function submitSession(): Promise<boolean> {
     const hasScore = games.some((g) => g.score !== '');
-    if (!hasScore) {
+    // Phase 31B: a Practice night can be drill-only.
+    const drillOnly = sessionType === 'practice' && drillShots(drill) > 0;
+    if (!hasScore && !drillOnly) {
       Alert.alert('No scores entered', 'Enter at least one score before submitting.');
       return false;
+    }
+    // Phase 31B: say so instead of silently dropping a number that can't be
+    // saved (speed 8-30 mph, boards 1-39, switch frame 2-10).
+    const badGame = games.findIndex((g) => gameExtrasInvalid(g).length > 0);
+    if (badGame >= 0) {
+      Alert.alert(
+        'Check game ' + (badGame + 1),
+        `${gameExtrasInvalid(games[badGame]).join(', ')} can't be saved. Fix or clear it, then submit.`
+      );
+      return false;
+    }
+    if (drill && drillShots(drill) > 0 && sessionType !== 'practice') {
+      const go = await new Promise<boolean>((resolve) =>
+        Alert.alert(
+          'Drop the spare drill?',
+          'Drill counts are only kept on Practice sessions. Switch the type back to Practice to keep them, or submit without them.',
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'Submit without drill', style: 'destructive', onPress: () => resolve(true) },
+          ],
+          { cancelable: true, onDismiss: () => resolve(false) }
+        )
+      );
+      if (!go) return false;
     }
     if (sessionType === 'league' && !opponent.trim()) {
       Alert.alert('Opponent required', 'Enter an opponent name for League sessions.');

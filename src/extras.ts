@@ -79,6 +79,16 @@ export function gameExtrasToForm(g: Partial<GameEntry>): Required<GameExtrasForm
   };
 }
 
+/** Fields typed but not savable (out of range), as labels for an alert. */
+export function gameExtrasInvalid(f: GameExtrasForm): string[] {
+  const bad: string[] = [];
+  if (f.speed?.trim() && parseSpeed(f.speed) == null) bad.push('Speed (8–30 mph)');
+  if (f.feet?.trim() && parseBoard(f.feet) == null) bad.push('Feet board (1–39)');
+  if (f.target?.trim() && parseBoard(f.target) == null) bad.push('Target board (1–39)');
+  if (f.switchFrame?.trim() && parseSwitchFrame(f.switchFrame) == null) bad.push('Switch frame (2–10)');
+  return bad;
+}
+
 export function gameExtrasHaveContent(f: GameExtrasForm): boolean {
   return !!(f.speed?.trim() || f.feet?.trim() || f.target?.trim() || f.switchFrame?.trim());
 }
@@ -320,7 +330,7 @@ export function computeMissStats(sessions: Session[]): MissStats {
 export type SpeedStats = {
   games: number;
   avgSpeed: number | null;
-  /** Average score in games at/above the median speed vs below it. */
+  /** Average score in games above the median speed vs at/below it. */
   fasterAvg: number | null;
   slowerAvg: number | null;
   median: number | null;
@@ -445,7 +455,9 @@ export function computeSeasonRecap(sessions: Session[]): SeasonRecap {
 
 function csvCell(v: unknown): string {
   if (v === null || v === undefined) return '';
-  const s = String(v);
+  let s = String(v);
+  // A text cell starting with = + @ would run as a spreadsheet formula.
+  if (typeof v === 'string' && /^[=+@]/.test(s)) s = "'" + s;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
