@@ -7,6 +7,7 @@
 > - **F1 fix direction changed:** "refuse to replace a file whose sessions are not a subset of the live ones" is **rejected** — after any legitimate delete the old file holds an id the live list lacks, so every later backup would be refused and the file would freeze. Build instead: copy-then-overwrite (kept copies when ids would be lost + one daily copy) → REV28 A5. Seed-from-backup → A6. Restore from file… → A7.
 > - **New F15:** `writeBackup()` only guards the sessions read; `readBalls()` / `readSettings()` / `readReference()` return defaults on a failed or corrupt read, and those defaults go into the backup file (settings and reference have no shadow). → REV28 A4.
 > - **Nov 17:** F1-F7, F9-F13, F15 built on `after-league` (not shipped); F8 (atomic write) skipped -- expo-file-system 58 move(overwrite) is remove-then-move; F14 waits on a device check. REV29.
+> - **Nov 24: CLOSED.** F1-F7, F9-F13, F15 shipped Nov 18 (update group 766e68a8). **F14** (goal fields saved on blur only) fixed in Phase 31A (`684e8eb`, update group f6e4a8ef): goals save as you type and flush on blur / Done / close. F8 stays skipped.
 > - Mapping to the build order: F1 → A5-A7 · F2 → Part B · F3 → A1 · F4 + F10 → A2 · F5 → A3 · F6 → A5 · F7 → D3 · F8 → D7 · F9 → Part B · F11 → D4 · F12 + F13 → A9 · F14 → D5 · F15 → A4.
 
 ---

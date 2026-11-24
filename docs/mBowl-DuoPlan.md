@@ -343,7 +343,7 @@ Same bundle ID, so the data stays. Take a fresh backup copy first anyway, then v
 
 **28.4 — v2 visual pass across all tabs.** Rules in the Design spec.
 
-**28.5 — Reference and Settings.** Restyle to v2. Reference uses the full width of the open screen, with a max text width. No structural redesign.
+**28.5 — Reference and Settings.** *(Done: Reference Nov 24 in Phase 30B, Settings Nov 24 in Phase 31A.)* Restyle to v2. Reference uses the full width of the open screen, with a max text width. No structural redesign.
 
 **28.6 — Fold/unfold torture test:**
 - Fold and unfold mid-Log Frames entry, mid-draft, and mid-edit modal. No lost state, no draft reset.
@@ -459,3 +459,5 @@ The mockups use Inter as a stand-in for SF Pro, with sample numbers. **Build to 
 | Sat Nov 14 (cont.) | League Week 10 on the Duo. Midday: independent re-audit on Claude Fable (`docs/AUDIT-FABLE-NOV14.md`) -> new MUST F1 (backup overwrite) + F5-F7, F11-F15. |
 | After league | **Rebuilt Nov 14 (REV28 → NEXT):** Part A data-safety pass (S21, S22, F1, F5, F6, F15, Restore from file…; Level 2) → Part B mid-game save (S24 + N17; Level 2) → Part C 26A.7 rollback + 26A.8 dry run → Part D Level 1 batch (Reference trim, S23, F7, F11, F14, NICE N16–N28, N1/N9/N13, split-leave colors) → Part E 28.5 Reference + Settings restyle. Log the 11/7 makeup when bowled. |
 | Tue Nov 17 | Parts A-D built on `after-league` (data safety, mid-game save, rollback workflow, Level 1 batch); 3 reviewer passes, CI green; not shipped (cert expired). Part E next. REV29. |
+| Wed Nov 18 – Mon Nov 23 | ✅ A-D shipped Nov 18 (766e68a8, confirmed good Nov 20). ✅ Phase 29 Path to goal + Spare leak (e7cd0dff); ✅ Phase 30A 190 recipe / Leave -> fix / Tilt cost (814db029). |
+| Tue Nov 24 | ✅ Phase 30B Reference restyle + right-handed content (7ac39a2a); ✅ **Phase 31A v2 close-out = Part E done** (Settings restyle + leftover NICE items, f6e4a8ef); ✅ Phase 31B Tier 2 (miss tags, line / speed / switch, house + lanes, spare drill, ball care, CSV; 1c64459a). **The Duo plan (Phases 25-28) is complete.** Next phase: TBD with Marcus. REV34. |

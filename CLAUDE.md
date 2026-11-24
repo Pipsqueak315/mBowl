@@ -2,10 +2,10 @@
 
 **Full spec:** `mBowl-SPEC.md` in this project folder. Read it before writing any code.
 **Session state:** `mBowl-SessionBrief-REV34.md` — check this for current phase and notes (START HERE + NEXT).
-**Audit fix lists:** `docs/PHASE28-AUDIT.md` (Nov 11 — M / S / N IDs; pre-league batch M2, S17–S20 shipped `20bfa97`) + `docs/AUDIT-FABLE-NOV14.md` (Nov 14 independent re-audit — F IDs; new MUST F1 backup overwrite). **After-league batch (Nov 17):** Parts A–D built on branch `after-league` (CI green, 3 reviewer passes), **shipped Nov 18** (update group 766e68a8, confirmed good on the Duo Nov 20). Part E (28.5 restyle) still to do.
-**Duo roadmap + design spec:** `docs/mBowl-DuoPlan.md` (v1.8) — Phases 25–28. Read the brief's START HERE section first.
+**Audit fix lists:** `docs/PHASE28-AUDIT.md` (Nov 11 — M / S / N IDs; pre-league batch M2, S17–S20 shipped `20bfa97`) + `docs/AUDIT-FABLE-NOV14.md` (Nov 14 independent re-audit — F IDs; new MUST F1 backup overwrite). **After-league batch (Nov 17):** Parts A–D built on branch `after-league` (CI green, 3 reviewer passes), **shipped Nov 18** (update group 766e68a8, confirmed good on the Duo Nov 20). Both audits are **closed** (Nov 24): Part E + the leftover NICE items shipped in Phase 31A.
+**Duo roadmap + design spec:** `docs/mBowl-DuoPlan.md` (v1.8) — Phases 25–28, **all complete** (Nov 24). Read the brief's START HERE section first.
 **Phase 28 (v2 redesign):** `docs/mBowl-Phase28-BuildSpec.md` — WP1–WP7 all built and shipped Nov 10 night; v2 tokens + layout/page/live-game helpers in `src/v2/`, shared controls in `components/v2/`, tab pages in `components/pages/`.
-**Phase 31A (Nov 24):** v2 close-out shipped (`684e8eb`, update group f6e4a8ef). **Phase 31B (Nov 24):** Tier 2 shipped (`72936ba`, update group 1c64459a) -- new optional fields (frame `missTag`; game `speed`/`feet`/`target`/`switchFrame`/`switchBall`; session `house`/`condition`/`drill`; ball `resurfacedOn`/`oilExtractedOn`), helpers in `src/extras.ts`, UI in `components/GameExtrasFields.tsx` -- REV34 START HERE. **Phase 30B (Nov 24):** Reference restyle + right-handed content v2 (`src/referenceContent.ts`) + one-time REFERENCE upgrade (`src/referenceUpgrade.ts`, stamp `referenceVersion`), update group 7ac39a2a. **Marcus is right-handed** -- Reference directions depend on it. **Phase 29 (Nov 21) + 30A (Nov 23):** Path to goal + Spare leak (`02db869`, e7cd0dff), then 190 recipe + Leave -> fix + Tilt cost (`492209a`, update group 814db029) on Stats -- REV34 START HERE. **Status (Nov 17):** `master` = **2.0.0 / SDK 58**, app code `20bfa97` (`c20bc8c` = OTA workflow fix; later commits docs only), everything shipped over the air to the Duo (last OTA run 43091822546, update group ee0882ee): Phase 28 WP1–WP7 + polish rounds, the Log Frames game-over hang fix (`97de587`, SDK 58 `usePreventRemove` → `repeat()`), rotation unlocked (`1ea0f6c`), cover-landscape Log Frames + season-based Week suggestion (`4d4ec3b`, `1ab5e24`), and the pre-league audit batch M2/S17/S18/S19/S20 (`20bfa97`). OTAs from `master` reach only 2.0.0 builds (runtime policy `appVersion`); the old phone stays on 1.0.0 as the fallback. League Week 10 + the 11/7 makeup bowled clean on the Duo. Next: REV34 → START HERE (first look at 31A + 31B). Run `npm run check` (CI runs it on every push) before calling anything done.
+**Phase 31A (Nov 24):** v2 close-out shipped (`684e8eb`, update group f6e4a8ef). **Phase 31B (Nov 24):** Tier 2 shipped (`72936ba`, update group 1c64459a) -- new optional fields (frame `missTag`; game `speed`/`feet`/`target`/`switchFrame`/`switchBall`; session `house`/`condition`/`drill`; ball `resurfacedOn`/`oilExtractedOn`), helpers in `src/extras.ts`, UI in `components/GameExtrasFields.tsx` -- REV34 START HERE. **Phase 30B (Nov 24):** Reference restyle + right-handed content v2 (`src/referenceContent.ts`) + one-time REFERENCE upgrade (`src/referenceUpgrade.ts`, stamp `referenceVersion`), update group 7ac39a2a. **Marcus is right-handed** -- Reference directions depend on it. **Phase 29 (Nov 21) + 30A (Nov 23):** Path to goal + Spare leak (`02db869`, e7cd0dff), then 190 recipe + Leave -> fix + Tilt cost (`492209a`, update group 814db029) on Stats -- REV34 START HERE. **Status (Nov 24):** `master` = **2.0.0 / SDK 58** @ `72936ba` (+ docs), live on the Duo as update group 1c64459a; every change since the v2 binary has shipped over the air (`ota.yml`, manual dispatch from `master`; history + rollback targets in `docs/ROLLBACK.md`). OTAs reach only 2.0.0 builds (runtime policy `appVersion`); the old phone stays on 1.0.0 as the fallback. Data baseline (export 2026-11-24 18:09Z): 46 sessions / 143 games. **Next:** REV34 → START HERE (first look at 31A + 31B); the next phase is TBD with Marcus. Run `npm run check` (CI runs it on every push) before calling anything done.
 
 ---
 
@@ -192,11 +192,12 @@ mBowl/
 │   │   └── HistoryPage.tsx      — History page (rows + filter + expand/edit/share/delete); `embedded` prop
 │   ├── v2/                      — Phase 28 controls: SegmentedControl, SeasonMenu, FilterHeader, Scorecard, Keypad, SplitPages, SwipeRow, LiveGameButton, LiveGameRailButton, HeaderIconButton
 │   ├── ScalePressable.tsx       — animated press-scale wrapper
-│   ├── SettingsContent.tsx      — Settings modal content (dates + ball roster + goals + restore)
+│   ├── SettingsContent.tsx      — Settings modal content (seasons + goals + ball roster + ball care + backup card)
+│   ├── GameExtrasFields.tsx     — Phase 31B: per-game Line · speed · switch rows + "Start here" (Log form + edit sheet)
 │   ├── EditSessionModal.tsx     — session edit sheet (buildSession shared builder)
 │   ├── SignalsTab.tsx           — Reference: Signals sub-tab
 │   ├── PocketDiagnosticsTab.tsx — Reference: Pocket Diagnostics sub-tab
-│   ├── PatternsTab.tsx          — Reference: Patterns sub-tab
+│   ├── PatternsTab.tsx          — Reference: Patterns sub-tab (hidden since Nov 15; data kept)
 │   ├── PinDeck.tsx              — visual pin deck input component
 │   ├── FrameGrid.tsx            — shared mini-scorecard (compact | full)
 │   ├── TabStack.tsx             — per-tab native stack + header (title, Settings gear via setOptions)
@@ -211,6 +212,16 @@ mBowl/
 │   ├── types.ts             — canonical shared types (do not redefine locally)
 │   ├── backup.ts            — writeBackup (+ Backups/ copies) / restoreBackup / restoreFromPickedJson / restoreForFirstLaunch / exportBackup
 │   ├── dataEvents.ts        — notifyDataChanged / onDataChanged (pages re-read after a write elsewhere or a Restore)
+│   ├── goalPath.ts          — Phase 29: Path to goal (needed league avg / series)
+│   ├── spareLeak.ts         — Phase 29: pins lost to missed makeable spares
+│   ├── recipe.ts            — Phase 30A: "Your 180-200 games" + pins per missed spare
+│   ├── leaveFixes.ts        — Phase 30A: leave -> Pocket Diagnostics card (CARD_LEAVE_KEYS)
+│   ├── tiltCost.ts          — Phase 30A: opens after an open vs chance
+│   ├── referenceContent.ts  — Phase 30B: right-handed Reference text v2
+│   ├── referenceUpgrade.ts  — Phase 30B: one-time REFERENCE upgrade (referenceVersion)
+│   ├── extras.ts            — Phase 31B: miss tags, line/speed/switch, house/condition, drill, ball wear, recap, CSV
+│   ├── framesParam.ts       — N23: safe frames route param
+│   ├── pinLayout.ts         — N9: the one PIN_ROWS
 │   ├── v2/                  — Phase 28: theme.ts (tokens), layout.ts (useLayoutClass), page.tsx (PageContext, usePageWidth, useSideInsets, usePageVisible, useBleed), motion.ts (animateNextLayout), liveGame.ts
 │   ├── notifications.ts     — SideStore cert reminder (6-day repeating, iOS only)
 │   ├── seeds.js             — 18 historical sessions (ids 1001–1018)
@@ -219,7 +230,7 @@ mBowl/
 ├── scripts/
 │   ├── gen-assets.js        — icon/splash asset generation
 │   ├── phase24-verify.mjs   — Phase 24 season/metric harness (--data <file>, --seeds)
-│   ├── checks/              — npm run check + backup-check
+│   ├── checks/              — npm run check (leaves, seasons, goals, insights, reference, extras, rules + seeds harness) + backup-check
 │   ├── mac-build.sh         — Mac build helper: setup + open Xcode, then `package` → .ipa → iCloud/GitHub (signing stays in Xcode)
 │   └── ship-ota.mjs         — npm run ship:ota — the only hand-run OTA path
 ├── .claude/                 — hooks, skills (/feature /ship /audit /backup-check), reviewer agent

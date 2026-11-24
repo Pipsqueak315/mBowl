@@ -118,7 +118,9 @@ Metrics, `CELL_BANDS`, `filterSessions`, comparison logic **unchanged** — layo
 - Placement: NativeTabs bottom accessory if SDK 58 exposes one; **fallback:** floating capsule just above the tab bar (cover: bottom of the content area on the rail side). On the open screen, tapping it swaps the non-Stats half for Log Frames.
 - **Check:** start a draft, leave to History, tap Live → Log Frames for the right game; finish → back with the score in the draft.
 
-### After league (not Saturday)
+### After league (not Saturday) -- all done
+> **Nov 24:** all four shipped -- Restore from file + mid-game resume (Nov 18, 766e68a8), Reference restyle (Phase 30B, 7ac39a2a), Settings restyle + split-leave colors (Phase 31A, f6e4a8ef).
+
 - 28.5 Reference + Settings v2 restyle (max text width on the open screen).
 - "Restore from file…" button using `expo-document-picker` (already in the v2 build) — Level 2: audit + backup gates.
 - Mid-game resume for Log Frames (D5) — Level 2.

@@ -7,6 +7,8 @@
 Then one separate verification agent re-read every cited line: **13 CONFIRMED, 4 PLAUSIBLE, 2 CUT.**
 **IDs continue from `docs/PHASE20-AUDIT.md`** (M2+, S17+, N16+).
 
+> **Nov 24 status: CLOSED.** Everything below is shipped: S21-S24, N17, N18, N25, N26 (Nov 18, update group 766e68a8); N16, N19, N21, N23, N24, N27, N1, N9, N13 + split-leave colors (Phase 31A, Nov 24, `684e8eb`, update group f6e4a8ef). Left as is: N22 (arguably fine), N28 (atomic backup write skipped -- the Backups/ copies are the protection). REV33 -> "Phase 31A -- what was built".
+>
 > **Nov 17 status:** S21, S22, S23, S24, N17, N18, N25, N26 (+ F1, F3-F7, F9-F13, F15) **built on branch `after-league`, not shipped** -- REV29 -> "What was built". Open: N16, N19, N21-N24, N27, N28 (partly: atomic write skipped), N1/N9/N13.
 >
 > **Nov 14 update -- independent re-audit:** `docs/AUDIT-FABLE-NOV14.md` (blind, read-only, Claude Fable, app code `20bfa97`). It re-found S21, S22, S24, N17, N28 on its own and adds **F1** (MUST: the launch auto-backup / seeding can overwrite the restore source), **F5** (Settings / balls / Reference save over a failed read), **F6** (no undo after a delete), **F7** (draft with only an opponent keeps an old date), **F11-F14** (NICE). Opus review added **F15** (`writeBackup()` writes default balls / settings / reference on a failed read) and replaced F1's subset guard with copy-then-overwrite. **This audit's "Checked and clean" line for the backup / seed guards is superseded by F1.** The after-league order below is superseded by `mBowl-SessionBrief-REV28.md` -> NEXT Parts A-E (S21 + S22 + F-items = Part A, S24 = Part B, rollback = Part C, S23 + NICE = Part D).
