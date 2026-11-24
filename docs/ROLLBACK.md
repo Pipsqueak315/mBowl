@@ -23,5 +23,6 @@
 | `766e68a8-fbdc-4a50-955f-18e294806e60` | `a8b3dca` | After-league batch A-D (data safety, mid-game save, Reference trim), Nov 18 (OTA run 44336666836) | Yes -- Marcus, Nov 20: "all on my phone, I think we're good" |
 | `e7cd0dff-5bfa-455a-bd90-943e5c3a0d61` | `02db869` | Phase 29: Path to goal + Spare leak on Stats, Nov 21 (OTA run 44958332762). Rollback-safe: older code ignores the new optional `Season.weeks` | Yes -- Marcus, Nov 22: "everything checks out" |
 | `814db029-5007-4f67-9069-1934733e5df7` | `492209a` | Phase 30A: 190 recipe, Leave -> fix, Tilt cost on Stats, Nov 23 (OTA run 45277551319). Read-only; rollback-safe | Pending -- first look after the update |
+| `7ac39a2a-3932-4e0e-a3f1-3ea2b7dcc0f9` | `d9121f3` | Phase 30B: Reference restyle + right-handed content + one-time REFERENCE upgrade, Nov 24 (OTA run 45445539433). **Data:** the upgrade rewrites REFERENCE once (stamp `referenceVersion: 2`); rolling back to 814db029 is safe -- older code ignores the stamp and shows the upgraded text as-is (it won't revert it) | Pending -- first look after the update |
 
 Add a row after every OTA (the `Update group ID` from the run log).

@@ -8,6 +8,7 @@
 
 ## Done since this plan was written
 - **Phase 30A (Nov 23, update group 814db029):** three more read-only Stats cards Marcus asked for after Phase 29 -- 190 recipe ("Your 180-200 games"), Leave -> fix, Tilt cost. Details in REV31.
+- **Phase 30B (Nov 24, update group 7ac39a2a):** Reference restyle (part of Part E) + right-handed content check + one-time upgrade. Details in REV32.
 - Offered, not picked: **Closing frames** (9th/10th mark % vs frames 1-8) -- close to the Oct cut of open-rate-by-frame; only if Marcus asks.
 
 ## Bowling sensors (researched Nov 22 -- Marcus passed: "just another thing to buy")
@@ -20,7 +21,7 @@
 USBC had no electronic sensors on its approved list (Oct 2026) -- practice-only. If revisited: Witsee CSV import (document picker already in the binary, OTA), or type in per-game numbers (extends item 3 below). Check semi-thumb fit first.
 
 ## Before Phase 30: close out v2
-- **Part E:** 28.5 restyle of Reference + Settings (needs Marcus's screenshots; ships as its own update)
+- **Part E:** ~~Reference restyle~~ (done Nov 24, 30B); Settings restyle still to do (needs Marcus's screenshots)
 - Leftover NICE items: N16, N19, N21–N24, N27, D8 (N1, N9, N13, PocketDiagnostics split-leave colors)
 - D5 / F14: do the goal fields save when you tap Done with the keyboard up? Fix only if not.
 
