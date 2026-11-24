@@ -22,7 +22,12 @@ import {
   pickBackupFile,
   summarizeBackup,
   restoreFromPickedJson,
+  lastBackupAt,
+  exportCsv,
 } from '@/src/backup';
+import { readSessions } from '@/src/storage';
+import { ballWear, sessionsToCsv } from '@/src/extras';
+import type { Session } from '@/src/types';
 import { notifyDataChanged } from '@/src/dataEvents';
 import ScalePressable from '@/components/ScalePressable';
 import type { Settings, Ball, Season } from '@/src/types';
@@ -64,6 +69,33 @@ function TappableStrengthDots({
 // Main component
 // ---------------------------------------------------------------------------
 
+function withCare(b: Ball, field: 'resurfacedOn' | 'oilExtractedOn', v: string | null): Ball {
+  return field === 'resurfacedOn' ? { ...b, resurfacedOn: v } : { ...b, oilExtractedOn: v };
+}
+
+// Phase 31B data health: "45 sessions · 140 games · 98 with frames · backed up today".
+function healthLine(sessions: Session[], backupAt: string | null): string {
+  let games = 0;
+  let framed = 0;
+  for (const s of sessions) {
+    for (const g of s.games ?? []) {
+      if (g.score == null) continue;
+      games++;
+      if (g.frames && g.frames.length > 0) framed++;
+    }
+  }
+  let backed = 'no backup file yet';
+  if (backupAt) {
+    const d = new Date(backupAt);
+    const today = new Date();
+    const sameDay = d.toDateString() === today.toDateString();
+    backed = sameDay
+      ? `backed up today ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+      : `backed up ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  }
+  return `${sessions.length} sessions · ${games} games · ${framed} with frames · ${backed}`;
+}
+
 export default function SettingsContent({ onClose }: Props) {
   const [settings, setSettings] = useState<Settings>({});
   // Export in flight — ignores a second tap so two share sheets can't stack.
@@ -92,6 +124,18 @@ export default function SettingsContent({ onClose }: Props) {
   const settingsReadable = useRef(false);
   const ballsReadable = useRef(false);
   const [restoring, setRestoring] = useState(false);
+  // Phase 31B: data health + ball care (display-only reads; ball dates save
+  // through saveBallsData like every other ball change).
+  const [sessionsForStats, setSessionsForStats] = useState<Session[]>([]);
+  const [backupAt, setBackupAt] = useState<string | null>(null);
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [careEdit, setCareEdit] = useState<{ ballId: string; field: 'resurfacedOn' | 'oilExtractedOn'; date: Date } | null>(null);
+  async function loadHealth() {
+    const [saved, at] = await Promise.all([readSessions(), lastBackupAt()]);
+    setSessionsForStats(saved);
+    setBackupAt(at);
+  }
+  useEffect(() => { void loadHealth(); }, []);
 
   // D5 / F14 (Phase 31A): goal fields used to save only on blur, with the
   // settings from the last render -- tapping Done with the keyboard up could
@@ -132,6 +176,7 @@ export default function SettingsContent({ onClose }: Props) {
     setBalls(b.value);
     lastSavedSettings.current = s.value;
     lastSavedBalls.current = b.value;
+    void loadHealth();
   }
 
   // Load settings + balls on mount
@@ -729,8 +774,97 @@ export default function SettingsContent({ onClose }: Props) {
         {/* ----------------------------------------------------------------
             Export Backup (Phase 26.0b) + Restore from Backup
         ---------------------------------------------------------------- */}
+        {/* ----------------------------------------------------------------
+            Phase 31B: Ball care -- games since the last resurface / oil
+            extraction, counted from history. No thresholds; just the count.
+        ---------------------------------------------------------------- */}
+        {balls.some(b => b.active) && (
+          <>
+            <Text style={styles.sectionLabel}>Ball care</Text>
+            <View style={styles.card}>
+              {balls.filter(b => b.active).map((ball, index) => {
+                const wear = ballWear(sessionsForStats, ball);
+                return (
+                  <View key={ball.id}>
+                    {index > 0 && <View style={styles.separator} />}
+                    <View style={styles.careBlock}>
+                      <Text style={styles.careName} numberOfLines={1}>{ball.name}</Text>
+                      {(['resurfacedOn', 'oilExtractedOn'] as const).map(field => {
+                        const w = field === 'resurfacedOn' ? wear.resurfaced : wear.oil;
+                        const editing = careEdit?.ballId === ball.id && careEdit.field === field;
+                        return (
+                          <View key={field}>
+                            <TouchableOpacity
+                              style={styles.careRow}
+                              onPress={() =>
+                                setCareEdit(editing ? null : {
+                                  ballId: ball.id,
+                                  field,
+                                  date: ball[field] ? parseDate(ball[field]) : new Date(),
+                                })
+                              }
+                            >
+                              <Text style={styles.careLabel}>
+                                {field === 'resurfacedOn' ? 'Resurfaced' : 'Oil extracted'}
+                              </Text>
+                              <Text style={w ? styles.careValue : styles.valueDim}>
+                                {w ? `${formatDateShort(w.date)} · ${w.games} game${w.games === 1 ? '' : 's'} since` : 'Not set'}
+                              </Text>
+                            </TouchableOpacity>
+                            {editing && careEdit && (
+                              <View style={styles.pickerWrap}>
+                                <View style={styles.careActions}>
+                                  {ball[field] ? (
+                                    <TouchableOpacity
+                                      style={styles.careAction}
+                                      onPress={() => {
+                                        setCareEdit(null);
+                                        saveBallsData(balls.map(b => (b.id === ball.id ? withCare(b, field, null) : b)));
+                                      }}
+                                    >
+                                      <Text style={styles.careClear}>Clear</Text>
+                                    </TouchableOpacity>
+                                  ) : <View />}
+                                  <TouchableOpacity
+                                    style={styles.careAction}
+                                    onPress={() => {
+                                      const iso = toISODate(careEdit.date);
+                                      setCareEdit(null);
+                                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                      saveBallsData(balls.map(b => (b.id === ball.id ? withCare(b, field, iso) : b)));
+                                    }}
+                                  >
+                                    <Text style={styles.pickerDoneText}>Save</Text>
+                                  </TouchableOpacity>
+                                </View>
+                                <DateTimePicker
+                                  value={careEdit.date}
+                                  mode="date"
+                                  display="spinner"
+                                  maximumDate={new Date()}
+                                  onChange={(_e, d) => {
+                                    if (d) setCareEdit(prev => (prev ? { ...prev, date: d } : prev));
+                                  }}
+                                  textColor="#FFFFFF"
+                                  style={styles.datePicker}
+                                />
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        )}
+
         {/* Phase 31A: one grouped "Backup" card instead of three loose buttons. */}
         <Text style={styles.sectionLabel}>Backup</Text>
+        {/* Phase 31B: data health at a glance */}
+        <Text style={styles.healthLine}>{healthLine(sessionsForStats, backupAt)}</Text>
         <View style={[styles.card, styles.backupCard]}>
         <ScalePressable
           style={styles.backupRow}
@@ -744,6 +878,7 @@ export default function SettingsContent({ onClose }: Props) {
               if (!result.success) {
                 Alert.alert('Export Failed', result.error ?? 'Unknown error.');
               }
+              void loadHealth();
             } finally {
               setExporting(false);
             }
@@ -751,6 +886,26 @@ export default function SettingsContent({ onClose }: Props) {
         >
           <Text style={[styles.exportText, exporting && styles.exportTextBusy]}>
             {exporting ? 'Exporting…' : 'Export Backup'}
+          </Text>
+        </ScalePressable>
+        <View style={styles.separator} />
+        <ScalePressable
+          style={styles.backupRow}
+          disabled={exportingCsv}
+          onPress={async () => {
+            if (exportingCsv) return;
+            setExportingCsv(true);
+            try {
+              const saved = await readSessions();
+              const result = await exportCsv(sessionsToCsv(saved));
+              if (!result.success) Alert.alert('Export Failed', result.error ?? 'Unknown error.');
+            } finally {
+              setExportingCsv(false);
+            }
+          }}
+        >
+          <Text style={[styles.exportText, exportingCsv && styles.exportTextBusy]}>
+            {exportingCsv ? 'Exporting…' : 'Export Games (CSV)'}
           </Text>
         </ScalePressable>
         <View style={styles.separator} />
@@ -1085,6 +1240,15 @@ const styles = StyleSheet.create({
 
   // Restore from backup
   backupCard: { paddingVertical: 0 },
+  healthLine: { fontSize: 13, color: '#8E8E93', marginBottom: 8 },
+  careBlock: { paddingVertical: 8 },
+  careName: { fontSize: 15, fontWeight: '600', color: '#FFFFFF', paddingVertical: 4 },
+  careRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 44 },
+  careLabel: { fontSize: 15, color: '#FFFFFF' },
+  careValue: { fontSize: 15, color: '#00CEC9' },
+  careActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  careAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
+  careClear: { fontSize: 15, color: '#FF453A' },
   backupRow: { minHeight: 50, justifyContent: 'center', paddingVertical: 14 },
   restoreText: {
     fontSize: 15,

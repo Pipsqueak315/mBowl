@@ -8,7 +8,13 @@ export type ThrowEntry = {
   note?: string | null;
   throwNotes?: Record<string, string | null>;
   pinsStanding?: Array<boolean[] | null> | null;
+  // Phase 31B, additive + optional: a first ball that missed, and how. No tag
+  // = a good shot (Marcus only tags misses). Analytics only, never scoring.
+  missTag?: MissTag | null;
 };
+
+/** Phase 31B miss tags (first ball only). */
+export type MissTag = 'yank' | 'fast' | 'target';
 
 /**
  * Per-frame data during live editing in log-frames.tsx.
@@ -19,6 +25,7 @@ export type FrameData = {
   note: string;
   throwNotes: Record<string, string | null>;
   pinsStanding?: Array<boolean[] | null>;
+  missTag?: MissTag | null;
 };
 
 export type GameEntry = {
@@ -27,7 +34,24 @@ export type GameEntry = {
   ball: string | null;
   frames: ThrowEntry[] | null;
   notes: string | null;
+  // Phase 31B, all additive + optional (old games simply lack them):
+  /** Average first-ball speed off the overhead, mph (e.g. 16.4). */
+  speed?: number | null;
+  /** Line: feet board -> target board (boards counted from the right, right-handed). */
+  feet?: number | null;
+  target?: number | null;
+  /** Switched balls mid-game: from this frame on, with switchBall. Stats keep
+   *  the game's one ball (the spec's "one ball per game"); this is a note. */
+  switchFrame?: number | null;
+  switchBall?: string | null;
 };
+
+/** Phase 31B lane condition. */
+export type LaneCondition = 'fresh' | 'broken' | 'pattern';
+
+/** Phase 31B spare drill (Practice): makes / misses per target. */
+export type DrillTarget = 'tenPin' | 'sevenPin' | 'single' | 'multi';
+export type DrillCounts = Record<DrillTarget, { made: number; missed: number }>;
 
 export type Session = {
   id: number | string;
@@ -42,6 +66,11 @@ export type Session = {
   placement: string | null;
   games: GameEntry[];
   notes: string | null;
+  // Phase 31B, additive + optional:
+  house?: string | null;
+  condition?: LaneCondition | null;
+  /** Practice only. */
+  drill?: DrillCounts | null;
 };
 
 export type Ball = {
@@ -50,6 +79,9 @@ export type Ball = {
   short: string;
   strength: number;
   active: boolean;
+  // Phase 31B, additive + optional: last service dates ("YYYY-MM-DD").
+  resurfacedOn?: string | null;
+  oilExtractedOn?: string | null;
 };
 
 /**
@@ -97,6 +129,16 @@ export type DraftData = {
     ball: string;
     notes: string;
     frames?: ThrowEntry[];
+    // Phase 31B (form strings; optional so older drafts still load)
+    speed?: string;
+    feet?: string;
+    target?: string;
+    switchFrame?: string;
+    switchBall?: string;
   }>;
   sessionNotes: string;
+  // Phase 31B
+  house?: string;
+  condition?: LaneCondition | null;
+  drill?: DrillCounts | null;
 };

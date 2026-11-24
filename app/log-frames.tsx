@@ -23,6 +23,8 @@ import { KEYS, readFramesInProgress, writeFramesInProgress, clearFramesInProgres
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import PinDeck from '@/components/PinDeck';
+import { MISS_TAGS, MISS_LABELS, isMissTag } from '@/src/extras';
+import type { MissTag } from '@/src/types';
 import SegmentedControl from '@/components/v2/SegmentedControl';
 import Scorecard from '@/components/v2/Scorecard';
 import Keypad from '@/components/v2/Keypad';
@@ -484,9 +486,19 @@ function framesKey(frames: FrameData[]): string {
         n: f.note ?? '',
         tn: notes,
         p: ps.some((x) => x != null) ? ps.map((x) => x ?? null) : null,
+        m: f.missTag ?? null,
       };
     })
   );
+}
+
+// Phase 31B: a miss tag belongs to a non-strike first ball; once that ball
+// is deleted (or the frame is now a strike) the tag goes too.
+function dropTagIfNoFirstBall(f: FrameData): FrameData {
+  if (!f.missTag) return f;
+  if (f.throws.length > 0 && f.throws[0] !== 'X') return f;
+  const { missTag: _drop, ...rest } = f;
+  return rest;
 }
 
 function emptyFrames(): FrameData[] {
@@ -502,6 +514,7 @@ function throwEntriesToFrameData(entries: ThrowEntry[]): FrameData[] {
       note: e.note ?? '',
       throwNotes: e.throwNotes ?? {},
       pinsStanding: e.pinsStanding ?? undefined,
+      ...(isMissTag(e.missTag) ? { missTag: e.missTag } : {}),
     };
   }
   return result;
@@ -717,11 +730,11 @@ function LogFramesBody() {
       setFrames((prev) =>
         prev.map((f, i) => {
           if (i !== currentFrame) return f;
-          return {
+          return dropTagIfNoFirstBall({
             ...f,
             throws: f.throws.slice(0, -1),
             pinsStanding: f.pinsStanding?.slice(0, f.throws.length - 1),
-          };
+          });
         })
       );
     } else if (currentFrame > 0) {
@@ -729,15 +742,30 @@ function LogFramesBody() {
       setFrames((prev) =>
         prev.map((f, i) => {
           if (i !== prevFi) return f;
-          return {
+          return dropTagIfNoFirstBall({
             ...f,
             throws: f.throws.slice(0, -1),
             pinsStanding: f.pinsStanding?.slice(0, f.throws.length - 1),
-          };
+          });
         })
       );
       setCurrentFrame(prevFi);
     }
+  }
+
+  // Phase 31B: tag the first ball of a frame as a miss (tap again to clear).
+  function setMissTag(fi: number, tag: MissTag) {
+    Haptics.selectionAsync();
+    setFrames((prev) =>
+      prev.map((f, i) => {
+        if (i !== fi) return f;
+        if (f.missTag === tag) {
+          const { missTag: _drop, ...rest } = f;
+          return rest;
+        }
+        return { ...f, missTag: tag };
+      })
+    );
   }
 
   function updateFrameNote(fi: number, note: string) {
@@ -907,6 +935,11 @@ function LogFramesBody() {
   }
 
   const isGameOver = allComplete && currentFrame === 9;
+  // Phase 31B: miss tags show once the frame's first ball is in and wasn't a
+  // strike. Not on the cover screen in portrait (too tight); there, tag later
+  // on the open screen or in History -> Edit Frames.
+  const firstBall = frames[currentFrame].throws[0];
+  const showMissTags = !compact && !isGameOver && firstBall !== undefined && firstBall !== 'X';
 
   // --- Pieces shared by every arrangement ---------------------------------
 
@@ -1003,6 +1036,27 @@ function LogFramesBody() {
           compact={compact}
         />
         </>
+      )}
+      {showMissTags && (
+        <View style={styles.missRow} accessibilityLabel="Tag this first ball as a miss">
+          <Text style={styles.missLabel}>Miss?</Text>
+          {MISS_TAGS.map((t) => {
+            const on = frames[currentFrame].missTag === t;
+            return (
+              <TouchableOpacity
+                key={t}
+                style={[styles.missChip, on && styles.missChipOn]}
+                onPress={() => setMissTag(currentFrame, t)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+              >
+                <Text style={[styles.missChipText, on && styles.missChipTextOn]} numberOfLines={1}>
+                  {MISS_LABELS[t]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       )}
       {showThrowNoteBar && (
         <ThrowNoteBar
@@ -1260,6 +1314,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 48,
   },
   doneButtonText: { fontSize: 17, fontWeight: '600', color: '#000000' },
+  missRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' },
+  missLabel: { fontSize: 13, color: '#8E8E93', marginRight: 2 },
+  missChip: {
+    minHeight: 44,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#2C2C2E',
+    justifyContent: 'center',
+  },
+  missChipOn: { backgroundColor: '#FF9F0A' },
+  missChipText: { fontSize: 15, color: '#FFFFFF' },
+  missChipTextOn: { color: '#000000', fontWeight: '600' },
   doneInline: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -17,7 +17,21 @@ import * as Haptics from 'expo-haptics';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ScalePressable from '@/components/ScalePressable';
 import { readBalls } from '@/src/storage';
-import type { ThrowEntry, GameEntry, Ball, Session } from '@/src/types';
+import type { ThrowEntry, GameEntry, Ball, Session, LaneCondition } from '@/src/types';
+import GameExtrasFields from '@/components/GameExtrasFields';
+import SegmentedControl from '@/components/v2/SegmentedControl';
+import { gameExtrasFromForm, gameExtrasToForm, isCondition, DEFAULT_HOUSE } from '@/src/extras';
+
+const CONDITION_SEGMENTS = [
+  { key: '', label: '—' },
+  { key: 'fresh', label: 'Fresh' },
+  { key: 'broken', label: 'Broken' },
+  { key: 'pattern', label: 'Pattern' },
+] as const satisfies readonly { key: LaneCondition | ''; label: string }[];
+
+// Phase 31B: the per-game extras are rebuilt from the form, so an old copy of
+// any of them never rides along after Marcus clears it.
+const EXTRA_KEYS = ['speed', 'feet', 'target', 'switchFrame', 'switchBall'] as const;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,6 +45,12 @@ type EditGame = {
   ball: string;
   notes: string;
   frames: ThrowEntry[] | null;
+  // Phase 31B form strings
+  speed: string;
+  feet: string;
+  target: string;
+  switchFrame: string;
+  switchBall: string;
 };
 type SessionType = EditableSession['type'];
 type MadeCut = 'Yes' | 'No' | 'N/A';
@@ -122,6 +142,10 @@ export default function EditSessionModal({
   const [sessionNotes, setSessionNotes] = useState('');
   const [ballPickerOpen, setBallPickerOpen] = useState(false);
   const [ballPickerForIndex, setBallPickerForIndex] = useState<number | null>(null);
+  const ballPickerFieldRef = useRef<'ball' | 'switchBall'>('ball');
+  // Phase 31B
+  const [house, setHouse] = useState('');
+  const [condition, setCondition] = useState<LaneCondition | null>(null);
   const [availableBalls, setAvailableBalls] = useState<Ball[]>([]);
   const isDirty = useRef(false);
   const savedScoresRef = useRef<string[]>([]);
@@ -156,9 +180,12 @@ export default function EditSessionModal({
         ball: g.ball ?? '',
         notes: g.notes ?? '',
         frames: g.frames ?? null,
+        ...gameExtrasToForm(g),
       }))
     );
     setSessionNotes(session.notes ?? '');
+    setHouse(session.house ?? '');
+    setCondition(isCondition(session.condition) ? session.condition : null);
     readBalls().then(b => {
       if (active) setAvailableBalls(b.filter(ball => ball.active).sort((a, b) => a.strength - b.strength));
     });
@@ -185,6 +212,9 @@ export default function EditSessionModal({
   function buildSession(): EditableSession | null {
     if (!session) return null;
     return {
+      // Phase 31B: start from the saved session so any field this sheet does
+      // not edit (drill counts, anything newer) is carried, never dropped.
+      ...session,
       id: session.id,
       type: sessionType,
       date: dateStr,
@@ -201,14 +231,23 @@ export default function EditSessionModal({
       pattern: sessionType === 'tournament' ? tournamentPattern.trim() || null : null,
       madeCut: sessionType === 'tournament' ? madeCut : null,
       placement: sessionType === 'tournament' ? placement.trim() || null : null,
-      games: games.map(g => ({
-        game: g.game,
-        score: g.score ? parseInt(g.score, 10) : null,
-        ball: g.ball || null,
-        frames: g.frames,
-        notes: g.notes.trim() || null,
-      })),
+      games: games.map((g, i) => {
+        const saved: Partial<GameEntry> = { ...(session.games[i] ?? {}) };
+        for (const k of EXTRA_KEYS) delete saved[k];
+        return {
+          ...saved,
+          game: g.game,
+          score: g.score ? parseInt(g.score, 10) : null,
+          ball: g.ball || null,
+          frames: g.frames,
+          notes: g.notes.trim() || null,
+          ...gameExtrasFromForm(g),
+        };
+      }),
       notes: sessionNotes.trim() || null,
+      house: house.trim() || null,
+      condition,
+      drill: sessionType === 'practice' ? session.drill ?? null : null,
     };
   }
 
@@ -495,6 +534,36 @@ export default function EditSessionModal({
               </>
             )}
 
+            {/* Phase 31B: house + lanes */}
+            <View style={styles.card}>
+              <View style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>House</Text>
+                <TextInput
+                  style={styles.inlineInput}
+                  value={house}
+                  onChangeText={v => {
+                    setHouse(v);
+                    markDirty();
+                  }}
+                  placeholder={DEFAULT_HOUSE}
+                  placeholderTextColor="#48484A"
+                  returnKeyType="done"
+                />
+              </View>
+              <View style={styles.laneRow}>
+                <Text style={styles.fieldLabel}>Lanes</Text>
+                <SegmentedControl
+                  segments={CONDITION_SEGMENTS}
+                  value={condition ?? ''}
+                  onChange={k => {
+                    setCondition(k === '' ? null : k);
+                    markDirty();
+                  }}
+                  accessibilityLabel="Lane condition"
+                />
+              </View>
+            </View>
+
             {/* Games */}
             {games.map((g, i) => (
               <View key={g.game} style={styles.gameCard}>
@@ -528,6 +597,7 @@ export default function EditSessionModal({
                 <TouchableOpacity
                   style={styles.ballRow}
                   onPress={() => {
+                    ballPickerFieldRef.current = 'ball';
                     setBallPickerForIndex(i);
                     setBallPickerOpen(true);
                   }}
@@ -537,6 +607,20 @@ export default function EditSessionModal({
                     {g.ball || 'Select...'}
                   </Text>
                 </TouchableOpacity>
+
+                {/* Phase 31B: line, speed, ball switch */}
+                <GameExtrasFields
+                  value={g}
+                  onChange={(field, v) => {
+                    setGames(prev => prev.map((gm, idx) => (idx === i ? { ...gm, [field]: v } : gm)));
+                    markDirty();
+                  }}
+                  onPickSwitchBall={() => {
+                    ballPickerFieldRef.current = 'switchBall';
+                    setBallPickerForIndex(i);
+                    setBallPickerOpen(true);
+                  }}
+                />
 
                 {/* Frame data edit button */}
                 {onEditFrames && (
@@ -617,7 +701,7 @@ export default function EditSessionModal({
                 availableBalls.map(ball => {
                   const isSelected =
                     ballPickerForIndex !== null &&
-                    games[ballPickerForIndex]?.ball === ball.name;
+                    games[ballPickerForIndex]?.[ballPickerFieldRef.current] === ball.name;
                   return (
                     <TouchableOpacity
                       key={ball.id}
@@ -629,7 +713,9 @@ export default function EditSessionModal({
                         if (ballPickerForIndex !== null) {
                           setGames(prev =>
                             prev.map((g, idx) =>
-                              idx === ballPickerForIndex ? { ...g, ball: ball.name } : g
+                              idx === ballPickerForIndex
+                                ? { ...g, [ballPickerFieldRef.current]: ball.name }
+                                : g
                             )
                           );
                           markDirty();
@@ -661,6 +747,12 @@ export default function EditSessionModal({
 // ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
+  laneRow: {
+    paddingVertical: 10,
+    gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#38383A',
+  },
   flex: { flex: 1 },
   container: { flex: 1, backgroundColor: '#000000' },
 

@@ -1,4 +1,6 @@
 import { framesParam } from '@/src/framesParam';
+import { CONDITION_LABELS, DRILL_LABELS, DRILL_TARGETS, formatLine, isCondition, normalizeDrill, MISS_LABELS, isMissTag } from '@/src/extras';
+import type { MissTag } from '@/src/types';
 import { useState, useLayoutEffect, useCallback, useRef, useEffect } from 'react';
 import SettingsContent from '@/components/SettingsContent';
 import EditSessionModal, { type EditableSession } from '@/components/EditSessionModal';
@@ -457,6 +459,9 @@ function SessionCard({
                     <Text style={styles.gameBall}>{g.ball}</Text>
                   ) : null}
                 </View>
+                {gameExtrasLine(g) ? (
+                  <Text style={styles.gameExtras}>{gameExtrasLine(g)}</Text>
+                ) : null}
                 {g.notes ? (
                   <Text style={styles.gameNotes}>{g.notes}</Text>
                 ) : null}
@@ -488,6 +493,14 @@ function SessionCard({
                   <Text style={styles.statLabel}>Opens</Text>
                 </View>
               </View>
+            ) : null}
+
+            {/* Phase 31B: house / lanes, spare drill */}
+            {sessionExtrasLine(session) ? (
+              <Text style={styles.gameExtras}>{sessionExtrasLine(session)}</Text>
+            ) : null}
+            {drillLine(session) ? (
+              <Text style={styles.gameExtras}>{drillLine(session)}</Text>
             ) : null}
 
             {/* Tournament extras */}
@@ -543,6 +556,41 @@ function SessionCard({
       </Pressable>
     </SwipeRow>
   );
+}
+
+// Phase 31B: one dim line per game / session for the optional extras.
+function gameExtrasLine(g: GameEntry): string {
+  const parts: string[] = [];
+  if (g.feet != null || g.target != null) parts.push(`Line ${formatLine(g.feet, g.target)}`);
+  if (g.speed != null) parts.push(`${g.speed} mph`);
+  if (g.switchFrame != null) parts.push(`Switched f${g.switchFrame}${g.switchBall ? ` to ${g.switchBall}` : ''}`);
+  const tags: Record<MissTag, number> = { yank: 0, fast: 0, target: 0 };
+  let any = false;
+  for (const f of g.frames ?? []) {
+    if (isMissTag(f?.missTag)) { tags[f.missTag]++; any = true; }
+  }
+  if (any) {
+    parts.push(
+      (Object.keys(tags) as MissTag[]).filter((t) => tags[t] > 0).map((t) => `${MISS_LABELS[t]} ×${tags[t]}`).join(', ')
+    );
+  }
+  return parts.join(' · ');
+}
+
+function sessionExtrasLine(s: Session): string {
+  const parts: string[] = [];
+  if (s.house?.trim()) parts.push(s.house.trim());
+  if (isCondition(s.condition)) parts.push(CONDITION_LABELS[s.condition]);
+  return parts.join(' · ');
+}
+
+function drillLine(s: Session): string {
+  const d = normalizeDrill(s.drill);
+  if (!d) return '';
+  const parts = DRILL_TARGETS.filter((t) => d[t].made + d[t].missed > 0).map(
+    (t) => `${DRILL_LABELS[t]} ${d[t].made}/${d[t].made + d[t].missed}`
+  );
+  return `Spare drill: ${parts.join(' · ')}`;
 }
 
 export default function HistoryPage({ embedded = false }: { embedded?: boolean }) {
@@ -1064,6 +1112,7 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'right',
   },
+  gameExtras: { fontSize: 13, color: '#8E8E93', marginTop: 2, marginBottom: 2 },
   gameNotes: {
     color: '#8E8E93',
     fontSize: 13,

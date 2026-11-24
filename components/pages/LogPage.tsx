@@ -33,6 +33,7 @@ import SegmentedControl from '@/components/v2/SegmentedControl';
 import { useLayoutClass } from '@/src/v2/layout';
 import {
   readSessionsResult,
+  readSessions,
   writeSessions,
   revertSessionsCache,
   readBalls,
@@ -45,7 +46,21 @@ import {
   KEYS,
 } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
-import { notifyDataChanged } from '@/src/dataEvents';
+import { notifyDataChanged, onDataChanged } from '@/src/dataEvents';
+import GameExtrasFields from '@/components/GameExtrasFields';
+import {
+  DEFAULT_HOUSE,
+  DRILL_LABELS,
+  DRILL_TARGETS,
+  emptyDrill,
+  drillShots,
+  gameExtrasFromForm,
+  gameExtrasHaveContent,
+  lastHouse,
+  normalizeDrill,
+  startHere,
+  isCondition,
+} from '@/src/extras';
 import {
   notifyDraftChanged,
   onLiveGameRequest,
@@ -53,7 +68,7 @@ import {
   clearLiveGameRequest,
   firstUnscoredGame,
 } from '@/src/v2/liveGame';
-import type { ThrowEntry, Ball, DraftData, Settings } from '@/src/types';
+import type { ThrowEntry, Ball, DraftData, Settings, Session, LaneCondition, DrillCounts, DrillTarget } from '@/src/types';
 import { getSeasons, seasonForDate } from '@/src/seasons';
 
 // ---------------------------------------------------------------------------
@@ -129,7 +144,12 @@ function draftHasContent(d: DraftData): boolean {
     if (g.ball) return true;
     if (g.notes?.trim()) return true;
     if (g.frames && g.frames.length > 0) return true;
+    if (gameExtrasHaveContent(g)) return true; // Phase 31B
   }
+  // Phase 31B: a lane condition or a drill shot is content; the house is not
+  // (it is pre-filled from the last session).
+  if (d.condition) return true;
+  if (drillShots(d.drill) > 0) return true;
   return false;
 }
 
@@ -142,6 +162,7 @@ function draftHasGameContent(d: Pick<DraftData, 'games' | 'sessionNotes'>): bool
   for (const g of d.games ?? []) {
     if (g.score || g.ball || g.notes?.trim()) return true;
     if (g.frames && g.frames.length > 0) return true;
+    if (gameExtrasHaveContent(g)) return true;
   }
   return false;
 }
@@ -152,7 +173,26 @@ function draftHasGameContent(d: Pick<DraftData, 'games' | 'sessionNotes'>): bool
 
 type SessionType = 'league' | 'makeup' | 'tournament' | 'practice';
 type MadeCut = 'Yes' | 'No' | 'N/A';
-type Game = { id: string; score: string; ball: string; notes: string; frames?: ThrowEntry[]; calculatedScore?: number };
+type Game = {
+  id: string; score: string; ball: string; notes: string; frames?: ThrowEntry[]; calculatedScore?: number;
+  // Phase 31B (optional form strings)
+  speed?: string; feet?: string; target?: string; switchFrame?: string; switchBall?: string;
+};
+type GameField = 'score' | 'ball' | 'notes' | 'speed' | 'feet' | 'target' | 'switchFrame' | 'switchBall';
+
+const CONDITION_SEGMENTS = [
+  { key: '', label: '—' },
+  { key: 'fresh', label: 'Fresh' },
+  { key: 'broken', label: 'Broken' },
+  { key: 'pattern', label: 'Pattern' },
+] as const satisfies readonly { key: LaneCondition | ''; label: string }[];
+
+const DRILL_SEGMENTS = [
+  { key: 'tenPin', label: '10 pin' },
+  { key: 'sevenPin', label: '7 pin' },
+  { key: 'single', label: 'Single' },
+  { key: 'multi', label: 'Multi' },
+] as const satisfies readonly { key: DrillTarget; label: string }[];
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -171,14 +211,16 @@ function StrengthDots({ strength }: { strength: number }) {
 type GameRowProps = {
   game: Game;
   index: number;
-  onChange: (field: 'score' | 'ball' | 'notes', value: string) => void;
+  onChange: (field: GameField, value: string) => void;
   onPickBall: () => void;
+  onPickSwitchBall: () => void;
+  history: Session[];
   onLogFrames: () => void;
   /** Edge-to-edge card background (Phase 28 polish): corner + padding styles. */
   cardStyle?: import('react-native').StyleProp<import('react-native').ViewStyle>;
 };
 
-function GameRow({ game, index, onChange, onPickBall, onLogFrames, cardStyle }: GameRowProps) {
+function GameRow({ game, index, onChange, onPickBall, onPickSwitchBall, history, onLogFrames, cardStyle }: GameRowProps) {
   function handleScoreEndEditing() {
     if (game.calculatedScore === undefined) return;
     const entered = parseInt(game.score, 10);
@@ -224,6 +266,15 @@ function GameRow({ game, index, onChange, onPickBall, onLogFrames, cardStyle }: 
           {game.ball || 'Select...'}
         </Text>
       </TouchableOpacity>
+
+      {/* Phase 31B: line, speed, ball switch (collapsed) + "start here" */}
+      <GameExtrasFields
+        value={game}
+        onChange={(f, v) => onChange(f, v)}
+        onPickSwitchBall={onPickSwitchBall}
+        startHere={game.ball ? startHere(history, game.ball) : null}
+        ballName={game.ball}
+      />
 
       {/* Inline mini scorecard — shown when frame data exists */}
       {game.frames && game.frames.length > 0 && (
@@ -306,6 +357,17 @@ export default function LogPage() {
   const [games, setGames] = useState<Game[]>([makeGame()]);
   // Session notes
   const [sessionNotes, setSessionNotes] = useState('');
+  // Phase 31B: house + lane condition (every type), spare drill (Practice).
+  const [house, setHouse] = useState(DEFAULT_HOUSE);
+  const [condition, setCondition] = useState<LaneCondition | null>(null);
+  const [drill, setDrill] = useState<DrillCounts | null>(null);
+  const [drillTarget, setDrillTarget] = useState<DrillTarget>('tenPin');
+  const drillUndo = useRef<Array<{ t: DrillTarget; made: boolean }>>([]);
+  // Saved sessions, for "start here" and the house default (display only).
+  const [history, setHistory] = useState<Session[]>([]);
+  const defaultHouseRef = useRef(DEFAULT_HOUSE);
+  // Ball picker target: the game's ball, or its mid-game switch ball.
+  const ballPickerFieldRef = useRef<'ball' | 'switchBall'>('ball');
   // Ball picker
   const [ballPickerOpen, setBallPickerOpen] = useState(false);
   const [ballPickerForGameId, setBallPickerForGameId] = useState<string | null>(null);
@@ -340,7 +402,10 @@ export default function LogPage() {
   // ---- Mount: load balls + check for draft --------------------------------
   useEffect(() => {
     async function init() {
-      const [balls, draft, settingsData] = await Promise.all([readBalls(), readDraft(), readSettings()]);
+      const [balls, draft, settingsData, saved] = await Promise.all([readBalls(), readDraft(), readSettings(), readSessions()]);
+      setHistory(saved);
+      defaultHouseRef.current = lastHouse(saved);
+      setHouse(defaultHouseRef.current);
       if (balls) {
         setAvailableBalls(balls.filter((b) => b.active).sort((a, b) => a.strength - b.strength));
       }
@@ -399,6 +464,9 @@ export default function LogPage() {
     placement,
     games,
     sessionNotes,
+    house,
+    condition,
+    drill,
   };
   liveFormRef.current = {
     // F7: only game content pins the date; an opponent typed ahead does not.
@@ -443,6 +511,15 @@ export default function LogPage() {
     });
     return () => sub.remove();
   }, [refreshFormDate]);
+
+  // Phase 31B: keep "start here" / the house default current after a save or
+  // restore anywhere (display-only read).
+  useEffect(() => onDataChanged(() => {
+    void readSessions().then((saved) => {
+      setHistory(saved);
+      defaultHouseRef.current = lastHouse(saved);
+    });
+  }), []);
 
   // ---- Reload balls (+ S19 settings) when Settings modal closes -----------
   const wasSettingsOpen = useRef(false);
@@ -520,6 +597,9 @@ export default function LogPage() {
       placement,
       games,
       sessionNotes,
+      house,
+      condition,
+      drill,
     };
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
     draftSaveTimer.current = setTimeout(() => {
@@ -534,7 +614,7 @@ export default function LogPage() {
   }, [
     sessionType, date, week, opponent,
     tournamentName, tournamentFormat, tournamentPattern, madeCut, placement,
-    games, sessionNotes,
+    games, sessionNotes, house, condition, drill,
   ]);
 
   // ---- Header gear icon ---------------------------------------------------
@@ -573,10 +653,11 @@ export default function LogPage() {
     ]);
   };
 
-  const updateGame = (id: string, field: 'score' | 'ball' | 'notes', value: string) =>
+  const updateGame = (id: string, field: GameField, value: string) =>
     setGames((prev) => prev.map((g) => (g.id === id ? { ...g, [field]: value } : g)));
 
-  const openBallPicker = (gameId: string) => {
+  const openBallPicker = (gameId: string, field: 'ball' | 'switchBall' = 'ball') => {
+    ballPickerFieldRef.current = field;
     setBallPickerForGameId(gameId);
     readBalls().then(b => {
       if (b) setAvailableBalls(b.filter(ball => ball.active).sort((a, b) => a.strength - b.strength));
@@ -585,11 +666,38 @@ export default function LogPage() {
   };
 
   const selectBall = (ballName: string) => {
-    if (ballPickerForGameId) updateGame(ballPickerForGameId, 'ball', ballName);
+    if (ballPickerForGameId) updateGame(ballPickerForGameId, ballPickerFieldRef.current, ballName);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setBallPickerOpen(false);
     setBallPickerForGameId(null);
   };
+
+  // Phase 31B spare drill: one tap per shot; Undo walks back this sitting's taps.
+  function logDrillShot(made: boolean) {
+    Haptics.impactAsync(made ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
+    drillUndo.current.push({ t: drillTarget, made });
+    setDrill((prev) => {
+      const base = prev ?? emptyDrill();
+      const cur = base[drillTarget];
+      return { ...base, [drillTarget]: made ? { ...cur, made: cur.made + 1 } : { ...cur, missed: cur.missed + 1 } };
+    });
+  }
+  function undoDrillShot() {
+    const last = drillUndo.current.pop();
+    if (!last) return;
+    Haptics.selectionAsync();
+    setDrill((prev) => {
+      if (!prev) return prev;
+      const cur = prev[last.t];
+      const next = {
+        ...prev,
+        [last.t]: last.made
+          ? { ...cur, made: Math.max(0, cur.made - 1) }
+          : { ...cur, missed: Math.max(0, cur.missed - 1) },
+      };
+      return drillShots(next) > 0 ? next : null;
+    });
+  }
 
   function resetForm() {
     submitIdRef.current = null;
@@ -607,6 +715,10 @@ export default function LogPage() {
     setPlacement('');
     setGames([makeGame()]);
     setSessionNotes('');
+    setHouse(defaultHouseRef.current);
+    setCondition(null);
+    setDrill(null);
+    drillUndo.current = [];
     setShowDatePicker(false);
   }
 
@@ -631,6 +743,10 @@ export default function LogPage() {
     const resumedGames = d.games?.length ? d.games : [makeGame()];
     setGames(resumedGames);
     setSessionNotes(d.sessionNotes ?? '');
+    setHouse(d.house?.trim() ? d.house : defaultHouseRef.current);
+    setCondition(isCondition(d.condition) ? d.condition : null);
+    setDrill(normalizeDrill(d.drill));
+    drillUndo.current = [];
     setDraftResumeVisible(false);
     setPendingDraft(null);
     // S24: a game that was open in Log Frames when the app died reopens.
@@ -713,11 +829,17 @@ export default function LogPage() {
               note: f.note || null,
               throwNotes: f.throwNotes ?? {},
               pinsStanding: f.pinsStanding ?? null,
+              ...(f.missTag ? { missTag: f.missTag } : {}),
             }))
           : null,
         notes: g.notes.trim() || null,
+        ...gameExtrasFromForm(g),
       })),
       notes: sessionNotes.trim() || null,
+      // Phase 31B (optional; absent when blank)
+      ...(house.trim() ? { house: house.trim() } : {}),
+      ...(condition ? { condition } : {}),
+      ...(sessionType === 'practice' && drillShots(drill) > 0 ? { drill } : {}),
     };
 
     // writeSessions is a full replace — `existing` becomes the entire store.
@@ -764,6 +886,9 @@ export default function LogPage() {
         placement,
         games,
         sessionNotes,
+        house,
+        condition,
+        drill,
       };
       await writeDraft(draft);
       notifyDraftChanged();
@@ -774,6 +899,7 @@ export default function LogPage() {
       return false;
     }
     void writeBackup();
+    if (house.trim()) defaultHouseRef.current = house.trim();
     notifyDataChanged('log');
     await writeDraft(null);
     await clearFramesInProgress(); // S24: nothing in progress outlives its session
@@ -854,9 +980,9 @@ export default function LogPage() {
   const showOpponent = sessionType === 'league' || sessionType === 'makeup';
   const showTournament = sessionType === 'tournament';
 
-  const currentBallForPicker = ballPickerForGameId
-    ? games.find((g) => g.id === ballPickerForGameId)?.ball ?? ''
-    : '';
+  const pickerGame = ballPickerForGameId ? games.find((g) => g.id === ballPickerForGameId) : undefined;
+  const currentBallForPicker =
+    (ballPickerFieldRef.current === 'switchBall' ? pickerGame?.switchBall : pickerGame?.ball) ?? '';
 
   return (
     <>
@@ -1026,6 +1152,34 @@ export default function LogPage() {
             </>
           )}
 
+          {/* ---- Phase 31B: house + lanes (every session type) ---- */}
+          <View style={styles.groupRow}>
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>House</Text>
+              <TextInput
+                style={styles.inlineInput}
+                value={house}
+                onChangeText={setHouse}
+                placeholder={DEFAULT_HOUSE}
+                placeholderTextColor="#48484A"
+                returnKeyType="done"
+              />
+            </View>
+          </View>
+          <View style={styles.groupRow}>
+            <View style={styles.laneRow}>
+              <Text style={styles.fieldLabel}>Lanes</Text>
+              <View style={styles.laneBar}>
+                <SegmentedControl
+                  segments={CONDITION_SEGMENTS}
+                  value={condition ?? ''}
+                  onChange={(k) => setCondition(k === '' ? null : k)}
+                  accessibilityLabel="Lane condition"
+                />
+              </View>
+            </View>
+          </View>
+
           </View>
           </View>
 
@@ -1053,10 +1207,54 @@ export default function LogPage() {
                 index={index}
                 onChange={(f, v) => updateGame(game.id, f, v)}
                 onPickBall={() => openBallPicker(game.id)}
+                onPickSwitchBall={() => openBallPicker(game.id, 'switchBall')}
+                history={history}
                 onLogFrames={() => openLogFrames(index)}
               />
             </SwipeRow>
           ))}
+
+          {/* ---- Phase 31B: spare drill (Practice) ---- */}
+          {sessionType === 'practice' && (
+            <>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Spare drill</Text>
+                {drillUndo.current.length > 0 && (
+                  <TouchableOpacity onPress={undoDrillShot} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <Text style={styles.addGameText}>Undo</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <View style={[styles.card, styles.drillCard]}>
+                <SegmentedControl
+                  segments={DRILL_SEGMENTS}
+                  value={drillTarget}
+                  onChange={setDrillTarget}
+                  accessibilityLabel="Drill target"
+                />
+                <View style={styles.drillButtons}>
+                  <ScalePressable style={[styles.drillBtn, styles.drillMade]} onPress={() => logDrillShot(true)}>
+                    <Text style={styles.drillBtnText}>Made</Text>
+                  </ScalePressable>
+                  <ScalePressable style={[styles.drillBtn, styles.drillMissed]} onPress={() => logDrillShot(false)}>
+                    <Text style={styles.drillBtnTextLight}>Missed</Text>
+                  </ScalePressable>
+                </View>
+                {DRILL_TARGETS.filter((t) => drill && drill[t].made + drill[t].missed > 0).map((t) => {
+                  const c = drill![t];
+                  const shots = c.made + c.missed;
+                  return (
+                    <View key={t} style={styles.drillLine}>
+                      <Text style={styles.drillLabel}>{DRILL_LABELS[t]}</Text>
+                      <Text style={styles.drillValue}>
+                        {c.made}/{shots} · {Math.round((c.made / shots) * 100)}%
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </>
+          )}
           </View>
           </View>
 
@@ -1269,6 +1467,19 @@ const styles = StyleSheet.create({
 
   // Made Cut
   madeCutBar: { width: 170 },
+  // Phase 31B
+  laneRow: { paddingVertical: 10, gap: 8 },
+  laneBar: { alignSelf: 'stretch' },
+  drillCard: { paddingVertical: 16, gap: 12 },
+  drillButtons: { flexDirection: 'row', gap: 10 },
+  drillBtn: { flex: 1, minHeight: 52, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  drillMade: { backgroundColor: '#00CEC9' },
+  drillMissed: { backgroundColor: '#2C2C2E' },
+  drillBtnText: { fontSize: 17, fontWeight: '600', color: '#000000' },
+  drillBtnTextLight: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
+  drillLine: { flexDirection: 'row', justifyContent: 'space-between', minHeight: 28, alignItems: 'center' },
+  drillLabel: { fontSize: 15, color: '#FFFFFF' },
+  drillValue: { fontSize: 15, color: '#8E8E93', fontVariant: ['tabular-nums'] },
 
 
   // Game card

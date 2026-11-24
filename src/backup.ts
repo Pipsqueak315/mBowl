@@ -546,3 +546,42 @@ export async function restoreForFirstLaunch(): Promise<{ restored: number; faile
   }
   return { restored: 0, failed: false };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 31B: data health (last backup time) + CSV export
+// ---------------------------------------------------------------------------
+
+/** When the on-phone backup file was last written (its exportedAt), or null. */
+export async function lastBackupAt(): Promise<string | null> {
+  try {
+    const file = backupFile();
+    if (!file.exists) return null;
+    const parsed = JSON.parse(await file.text());
+    return typeof parsed?.exportedAt === 'string' ? parsed.exportedAt : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Share a CSV of every game (one row per game). Read-only: the file goes to
+ *  the cache folder, nothing in AsyncStorage is touched. */
+export async function exportCsv(csv: string): Promise<Result> {
+  try {
+    if (!(await Sharing.isAvailableAsync())) {
+      return { success: false, error: 'Sharing is not available on this device.' };
+    }
+    const d = new Date();
+    const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const file = new File(Paths.cache, `mBowl-games-${stamp}.csv`);
+    await file.write(csv);
+    await Sharing.shareAsync(file.uri, {
+      mimeType: 'text/csv',
+      UTI: 'public.comma-separated-values-text',
+      dialogTitle: 'Export mBowl games (CSV)',
+    });
+    return { success: true };
+  } catch (e) {
+    console.error('[backup] exportCsv failed', e);
+    return { success: false, error: 'An unexpected error occurred during the CSV export.' };
+  }
+}

@@ -31,6 +31,24 @@ import { cardsFromReference, topLeaveFixes, type LeaveFix } from '@/src/leaveFix
 import { computeTiltCost, type TiltCost } from '@/src/tiltCost';
 import { DEFAULT_DIAGNOSTICS } from '@/components/PocketDiagnosticsTab';
 import { upgradeReference } from '@/src/referenceUpgrade';
+import {
+  computeMissStats,
+  computeSpeedStats,
+  computeConditionStats,
+  computeHouseStats,
+  computeSeasonRecap,
+  drillTotals,
+  DRILL_LABELS,
+  DRILL_TARGETS,
+  MISS_LABELS,
+  MISS_TAGS,
+  type MissStats,
+  type SpeedStats,
+  type ConditionRow,
+  type HouseRow,
+  type SeasonRecap,
+} from '@/src/extras';
+import type { DrillCounts } from '@/src/types';
 
 // --- Types ---
 interface FrameStats {
@@ -973,6 +991,164 @@ function TiltCard({ tilt, pinsPerMiss }: { tilt: TiltCost; pinsPerMiss: number |
   );
 }
 
+// ---------------------------------------------------------------------------
+// Phase 31B cards -- each shows only once there is data for it.
+// ---------------------------------------------------------------------------
+
+const shortDate = (iso: string) =>
+  new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+function SeasonRecapCard({ recap, label }: { recap: SeasonRecap; label: string }) {
+  if (recap.games === 0) return null;
+  return (
+    <View style={styles.leavesCard}>
+      <Text style={styles.leavesTitle}>Season recap</Text>
+      <Text style={styles.pathCaption}>{label} · {recap.games} games</Text>
+      <View style={styles.pathRows}>
+        <PathRow label="Average" value={recap.avg != null ? recap.avg.toFixed(1) : '—'} />
+        <PathRow
+          label="High game"
+          value={recap.highGame ? `${recap.highGame.score} · ${shortDate(recap.highGame.date)}` : '—'}
+        />
+        <PathRow
+          label="High series"
+          value={recap.highSeries ? `${recap.highSeries.score} · ${shortDate(recap.highSeries.date)}` : '—'}
+        />
+        <PathRow
+          label="Best night"
+          value={recap.bestNight ? `${recap.bestNight.avg.toFixed(1)} avg · ${shortDate(recap.bestNight.date)}` : '—'}
+        />
+        <PathRow
+          label="Most used ball"
+          value={recap.topBall ? `${recap.topBall.name} · ${recap.topBall.games} games` : '—'}
+          last
+        />
+      </View>
+    </View>
+  );
+}
+
+function MissCard({ miss }: { miss: MissStats }) {
+  if (miss.taggedGames === 0) return null;
+  const total = MISS_TAGS.reduce((n, t) => n + miss.counts[t], 0);
+  const top = [...MISS_TAGS].sort((a, b) => miss.counts[b] - miss.counts[a])[0];
+  return (
+    <View style={styles.leavesCard}>
+      <Text style={styles.leavesTitle}>Misses</Text>
+      <Text style={styles.pathBig}>{MISS_LABELS[top]}</Text>
+      <Text style={styles.pathCaption}>
+        your most common miss · {total} tagged in {miss.taggedGames} game{miss.taggedGames === 1 ? '' : 's'}
+      </Text>
+      <View style={styles.pathRows}>
+        {MISS_TAGS.map((t) => (
+          <PathRow
+            key={t}
+            label={MISS_LABELS[t]}
+            value={`${miss.counts[t]} · ${total ? Math.round((miss.counts[t] / total) * 100) : 0}%`}
+          />
+        ))}
+        {miss.byGame.length > 1 && (
+          <PathRow
+            label="Per game, by game number"
+            value={miss.byGame.map((g) => `G${g.game} ${g.perGame.toFixed(1)}`).join(' · ')}
+          />
+        )}
+        <PathRow
+          label="Avg with a yank · without"
+          value={
+            miss.avgWithYank != null && miss.avgWithoutYank != null
+              ? `${miss.avgWithYank.toFixed(0)} · ${miss.avgWithoutYank.toFixed(0)}`
+              : '—'
+          }
+          last
+        />
+      </View>
+      <Text style={styles.leakNote}>Only games where you tagged at least one miss. No tag = a good shot.</Text>
+    </View>
+  );
+}
+
+function SpeedCard({ speed }: { speed: SpeedStats }) {
+  if (speed.games < 3 || speed.avgSpeed == null || speed.median == null) return null;
+  return (
+    <View style={styles.leavesCard}>
+      <Text style={styles.leavesTitle}>Ball speed</Text>
+      <Text style={styles.pathBig}>{speed.avgSpeed.toFixed(1)} mph</Text>
+      <Text style={styles.pathCaption}>average over {speed.games} games with a speed logged</Text>
+      <View style={styles.pathRows}>
+        <PathRow
+          label={`Faster than ${speed.median.toFixed(1)}`}
+          value={speed.fasterAvg != null ? `${speed.fasterAvg.toFixed(1)} avg` : '—'}
+        />
+        <PathRow
+          label={`${speed.median.toFixed(1)} or slower`}
+          value={speed.slowerAvg != null ? `${speed.slowerAvg.toFixed(1)} avg` : '—'}
+          last
+        />
+      </View>
+    </View>
+  );
+}
+
+function LanesCard({ conditions, houses }: { conditions: ConditionRow[]; houses: HouseRow[] }) {
+  const anySet = conditions.some((r) => r.key !== 'unset');
+  if (!anySet && houses.length < 2) return null;
+  return (
+    <View style={styles.leavesCard}>
+      <Text style={styles.leavesTitle}>Lanes</Text>
+      <View style={styles.pathRows}>
+        {anySet &&
+          conditions.map((r, i) => (
+            <PathRow
+              key={r.key}
+              label={r.label}
+              value={`${r.avg.toFixed(1)} · ${r.games} games`}
+              last={i === conditions.length - 1 && houses.length < 2}
+            />
+          ))}
+        {houses.length >= 2 &&
+          houses.map((h, i) => (
+            <PathRow key={h.house} label={h.house} value={`${h.avg.toFixed(1)} · ${h.games} games`} last={i === houses.length - 1} />
+          ))}
+      </View>
+    </View>
+  );
+}
+
+function DrillCard({ drill, leak }: { drill: DrillCounts; leak: SpareLeak }) {
+  const rows = DRILL_TARGETS.filter((t) => drill[t].made + drill[t].missed > 0);
+  if (!rows.length) return null;
+  const pct = (m: number, n: number) => (n > 0 ? `${Math.round((m / n) * 100)}%` : '—');
+  const game: Record<string, SpareBucket> = {
+    tenPin: leak.tenPin,
+    sevenPin: leak.sevenPin,
+    single: leak.single,
+    multi: leak.multi,
+  };
+  return (
+    <View style={styles.leavesCard}>
+      <Text style={styles.leavesTitle}>Spare drill</Text>
+      <Text style={styles.pathCaption}>practice makes · in games</Text>
+      <View style={styles.pathRows}>
+        {rows.map((t, i) => {
+          const c = drill[t];
+          const shots = c.made + c.missed;
+          const g = game[t];
+          return (
+            <PathRow
+              key={t}
+              label={DRILL_LABELS[t]}
+              value={`${pct(c.made, shots)} of ${shots} · ${g && g.attempts ? pct(g.made, g.attempts) : '—'}`}
+              last={i === rows.length - 1}
+            />
+          );
+        })}
+      </View>
+      <Text style={styles.leakNote}>Game column: Spare leak's numbers for the same view ("Other single" compares with all single pins).</Text>
+    </View>
+  );
+}
+
 // --- Component ---
 export default function StatsPage({ embedded = false }: { embedded?: boolean }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1155,6 +1331,25 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
 
   // Tilt cost (Phase 30A).
   const tilt = useMemo<TiltCost>(() => computeTiltCost(filtered), [filtered]);
+
+  // Phase 31B extras (read-time).
+  const missStats = useMemo(() => computeMissStats(filtered), [filtered]);
+  const speedStats = useMemo(() => computeSpeedStats(filtered), [filtered]);
+  const conditionStats = useMemo(() => computeConditionStats(filtered), [filtered]);
+  const houseStats = useMemo(() => computeHouseStats(filtered), [filtered]);
+  // Drills are logged on Practice nights: the selected season, any type.
+  const drill = useMemo(
+    () => drillTotals(filterSessions(sessions, seasonSel, seasons, 'all')),
+    [sessions, seasonSel, seasons],
+  );
+  // Recap only for a season that has ended.
+  const recap = useMemo<{ recap: SeasonRecap; label: string } | null>(() => {
+    if (seasonSel === ALL_TIME) return null;
+    const season = seasons.find(x => x.id === seasonSel);
+    const range = resolveSeasonRanges(seasons).find(r => r.id === seasonSel);
+    if (!season || range?.end == null || todayISO() <= range.end) return null;
+    return { recap: computeSeasonRecap(filtered), label: season.label };
+  }, [seasonSel, seasons, filtered]);
 
   // Path to goal (Phase 29): the selected season's league + makeup games, so
   // only with a single season selected and a type filter that includes league
@@ -1425,6 +1620,12 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
             />
             <LeaveFixCard hasPinData={leaveStats.hasPinData} fixes={leaveFixes} />
             <TiltCard tilt={tilt} pinsPerMiss={pinsPerMiss} />
+            {/* Phase 31B */}
+            <MissCard miss={missStats} />
+            <SpeedCard speed={speedStats} />
+            <LanesCard conditions={conditionStats} houses={houseStats} />
+            <DrillCard drill={drill} leak={spareLeak} />
+            {recap && <SeasonRecapCard recap={recap.recap} label={recap.label} />}
 
             {/* Series chart */}
             <View style={styles.chartCard}>
