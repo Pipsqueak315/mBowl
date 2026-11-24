@@ -20,7 +20,11 @@
 | Ruby | not listed | Installs in the ball; early |
 USBC had no electronic sensors on its approved list (Oct 2026) -- practice-only. If revisited: Witsee CSV import (document picker already in the binary, OTA), or type in per-game numbers (extends item 3 below). Check semi-thumb fit first.
 
-## Before Phase 30: close out v2
+## Status (Nov 24)
+- **v2 close-out: DONE** -- Phase 31A shipped (update group f6e4a8ef): Settings restyle, D5/F14, D8, N16/N19/N21/N23/N24/N27/N1/N9/N13 (N22 left as is).
+- **Items 1-7 below: BUILT** as Phase 31B on branch `phase31b-tier2`, not shipped yet (Level 2 backup gate). Defaults used: miss tags only on misses (Yank · Fast · Missed target), switch saved like a note (one ball per game kept), house pre-filled + Fresh / Broken / Pattern, drill = 10 / 7 / other single / multi.
+
+## Before Phase 30: close out v2 (done -- 31A)
 - **Part E:** ~~Reference restyle~~ (done Nov 24, 30B); Settings restyle still to do (needs Marcus's screenshots)
 - Leftover NICE items: N16, N19, N21–N24, N27, D8 (N1, N9, N13, PocketDiagnostics split-leave colors)
 - D5 / F14: do the goal fields save when you tap Done with the keyboard up? Fix only if not.
