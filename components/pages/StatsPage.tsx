@@ -1454,7 +1454,8 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
   useEffect(() => { setShowAllLeaves(false); }, [filtered]);
 
   const emptyTitle =
-    typeFilter === 'all' ? 'No sessions yet' : `No ${TYPE_FULL_LABEL[typeFilter]} sessions`;
+    // v2.1 P11: lower-case type mid-sentence ("No league sessions")
+    typeFilter === 'all' ? 'No sessions yet' : `No ${TYPE_FULL_LABEL[typeFilter].toLowerCase()} sessions`;
   const emptySubtitle =
     typeFilter === 'all'
       ? 'Log your first session to see stats here.'
@@ -1803,7 +1804,7 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
                   <LeaveRow key={leave.pins.join('-')} leave={leave} showBorder={i > 0} />
                 ))}
                 {sortedLeaves.length > 6 && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={0.6}
                     onPress={() => setShowAllLeaves(v => !v)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     style={styles.showAllRow}

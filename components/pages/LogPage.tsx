@@ -26,7 +26,7 @@ import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router, useIsFocused } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/src/haptics';
 
 import HeaderIconButton from '@/components/v2/HeaderIconButton';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -231,7 +231,7 @@ function GameRow({ game, index, onChange, onPickBall, onPickSwitchBall, history,
     const entered = parseInt(game.score, 10);
     if (isNaN(entered) || entered === game.calculatedScore) return;
     Alert.alert(
-      'Override Calculated Score?',
+      'Override calculated score?',
       `This game has a calculated score of ${game.calculatedScore} from frame data. Replace with ${entered}?`,
       [
         { text: 'Cancel', style: 'cancel', onPress: () => onChange('score', String(game.calculatedScore)) },
@@ -266,7 +266,7 @@ function GameRow({ game, index, onChange, onPickBall, onPickSwitchBall, history,
       </View>
 
       {/* Ball */}
-      <TouchableOpacity style={styles.ballRow} onPress={onPickBall}>
+      <TouchableOpacity activeOpacity={0.6} style={styles.ballRow} onPress={onPickBall}>
         <Text style={styles.fieldLabel}>Ball</Text>
         <Text style={game.ball ? styles.fieldValueTeal : styles.fieldValueDim}>
           {game.ball || 'Select...'}
@@ -291,7 +291,7 @@ function GameRow({ game, index, onChange, onPickBall, onPickSwitchBall, history,
       )}
 
       {/* Log / Edit Frames button */}
-      <TouchableOpacity
+      <TouchableOpacity activeOpacity={0.6}
         style={styles.logFramesButton}
         onPress={onLogFrames}
       >
@@ -656,12 +656,16 @@ export default function LogPage() {
   const addGame = () => setGames((prev) => [...prev, makeGame()]);
 
   const confirmRemove = (id: string) => {
-    Alert.alert('Remove Game', 'Are you sure?', [
+    const n = games.findIndex((g) => g.id === id) + 1;
+    Alert.alert(`Remove game ${n}?`, 'Its score, ball and frames will be removed from this session.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
         style: 'destructive',
-        onPress: () => setGames((prev) => prev.filter((g) => g.id !== id)),
+        onPress: () => {
+          haptic.warning(); // v2.1 P7
+          setGames((prev) => prev.filter((g) => g.id !== id));
+        },
       },
     ]);
   };
@@ -681,14 +685,14 @@ export default function LogPage() {
 
   const selectBall = (ballName: string) => {
     if (ballPickerForGameId) updateGame(ballPickerForGameId, ballPickerFieldRef.current, ballName);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    haptic.select();
     setBallPickerOpen(false);
     setBallPickerForGameId(null);
   };
 
   // Phase 31B spare drill: one tap per shot; Undo walks back this sitting's taps.
   function logDrillShot(made: boolean) {
-    Haptics.impactAsync(made ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
+    if (made) haptic.mark(); else haptic.tap();
     drillUndo.current.push({ t: drillTarget, made });
     setDrill((prev) => {
       const base = prev ?? emptyDrill();
@@ -699,7 +703,7 @@ export default function LogPage() {
   function undoDrillShot() {
     const last = drillUndo.current.pop();
     if (!last) return;
-    Haptics.selectionAsync();
+    haptic.select();
     setDrill((prev) => {
       if (!prev) return prev;
       const cur = prev[last.t];
@@ -783,7 +787,7 @@ export default function LogPage() {
         { title, message, options: ['Discard session', 'Cancel'], destructiveButtonIndex: 0, cancelButtonIndex: 1 },
         (i) => {
           if (i === 0) {
-            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            haptic.warning();
             void discardDraft();
           }
         },
@@ -970,7 +974,7 @@ export default function LogPage() {
     await writeDraft(null);
     await clearFramesInProgress(); // S24: nothing in progress outlives its session
     notifyDraftChanged();
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    haptic.success(); // v2.1 P7: after the write landed
 
     submitIdRef.current = null;
     resetForm();
@@ -1085,7 +1089,7 @@ export default function LogPage() {
           <View style={styles.detailsGroup}>
           {/* ---- Date ---- */}
           <View style={styles.groupRowFirst}>
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={0.6}
               style={styles.fieldRow}
               onPress={() => {
                 Keyboard.dismiss(); // v2.1 P1
@@ -1097,7 +1101,7 @@ export default function LogPage() {
             </TouchableOpacity>
             {showDatePicker && (
               <>
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={0.6}
                   onPress={() => setShowDatePicker(false)}
                   style={styles.pickerDoneRow}
                 >
@@ -1266,7 +1270,7 @@ export default function LogPage() {
           {/* ---- Games ---- */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Games</Text>
-            <TouchableOpacity onPress={addGame} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity activeOpacity={0.6} onPress={addGame} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Text style={styles.addGameText}>Add game</Text>
             </TouchableOpacity>
           </View>
@@ -1299,7 +1303,7 @@ export default function LogPage() {
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Spare drill</Text>
                 {drillUndo.current.length > 0 && (
-                  <TouchableOpacity onPress={undoDrillShot} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <TouchableOpacity activeOpacity={0.6} onPress={undoDrillShot} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                     <Text style={styles.addGameText}>Undo</Text>
                   </TouchableOpacity>
                 )}
@@ -1382,7 +1386,7 @@ export default function LogPage() {
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Select Ball</Text>
-            <TouchableOpacity onPress={() => setBallPickerOpen(false)}>
+            <TouchableOpacity activeOpacity={0.6} onPress={() => setBallPickerOpen(false)}>
               <Text style={styles.doneText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -1397,7 +1401,7 @@ export default function LogPage() {
               availableBalls.map((ball) => {
                 const selected = ball.name === currentBallForPicker;
                 return (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={0.6}
                     key={ball.id}
                     style={styles.ballPickerRow}
                     onPress={() => selectBall(ball.name)}
@@ -1413,7 +1417,7 @@ export default function LogPage() {
             )}
           </ScrollView>
           <View style={styles.manageBallsRow}>
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={0.6}
               onPress={() => {
                 pendingOpenSettings.current = true;
                 setBallPickerOpen(false);
@@ -1443,7 +1447,7 @@ export default function LogPage() {
       >
         <BlurView intensity={60} tint="dark" style={styles.resumeOverlay}>
           <Animated.View style={[styles.resumeSheet, resumeSheetStyle]}>
-            <Text style={styles.resumeTitle}>Resume Session?</Text>
+            <Text style={styles.resumeTitle}>Resume session?</Text>
             <Text style={styles.resumeSubtitle}>
               You have an unfinished session in progress.
             </Text>
@@ -1587,6 +1591,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   scoreInput: {
+    fontVariant: ['tabular-nums'], // v2.1 P10
     fontSize: 28,
     fontWeight: '300',
     color: '#FFFFFF',

@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
+import { haptic } from '@/src/haptics';
 import { readSettingsResult, writeSettings, readBallsResult, writeBalls, readSessionsResult } from '@/src/storage';
 import {
   writeBackup,
@@ -75,7 +76,7 @@ function TappableStrengthDots({
     );
   }
   return (
-    <TouchableOpacity
+    <TouchableOpacity activeOpacity={0.6}
       style={styles.dotsTap}
       onPress={choose}
       accessibilityRole="button"
@@ -294,12 +295,12 @@ export default function SettingsContent({ onClose }: Props) {
     }
     if (picked === null) return; // cancelled
     if ('error' in picked) {
-      Alert.alert('Restore Failed', picked.error);
+      Alert.alert("Couldn't restore", picked.error);
       return;
     }
     const summary = summarizeBackup(picked.json);
     if ('error' in summary) {
-      Alert.alert('Restore Failed', summary.error);
+      Alert.alert("Couldn't restore", summary.error);
       return;
     }
     const { sessions, games, exportedAt } = summary.summary;
@@ -322,11 +323,11 @@ export default function SettingsContent({ onClose }: Props) {
                 await loadData();
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 Alert.alert(
-                  'Backup Restored',
+                  'Backup restored',
                   `${sessions} sessions restored. If anything still looks out of date, close and reopen the app.`
                 );
               } else {
-                Alert.alert('Restore Failed', result.error ?? 'Unknown error.');
+                Alert.alert("Couldn't restore", result.error ?? 'Something went wrong. Nothing was changed.');
               }
             } finally {
               setRestoring(false);
@@ -389,7 +390,7 @@ export default function SettingsContent({ onClose }: Props) {
   }
 
   function changeStrength(id: string, value: number) {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    haptic.select();
     saveBallsData(balls.map(b => (b.id === id ? { ...b, strength: value } : b)));
   }
 
@@ -462,7 +463,7 @@ export default function SettingsContent({ onClose }: Props) {
       );
     }
     updated.sort((a, b) => a.start.localeCompare(b.start));
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    haptic.tap();
     saveSettingsData({ ...settings, seasons: updated });
     closeSeasonEditor();
   }
@@ -471,11 +472,11 @@ export default function SettingsContent({ onClose }: Props) {
     if (!seasonDraft || seasonDraftIsNew) return;
     const current = getSeasons(settings);
     if (current.length <= 1) {
-      Alert.alert('Cannot Delete', 'At least one season must remain.');
+      Alert.alert("Can't delete this season", 'At least one season must remain.');
       return;
     }
     Alert.alert(
-      'Delete Season?',
+      'Delete season?',
       `"${seasonDraft.label}" will be removed. Sessions are never deleted — they will fall into the adjacent season.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -523,7 +524,7 @@ export default function SettingsContent({ onClose }: Props) {
           autoCorrect={false}
           maxLength={16}
         />
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={0.6}
           style={styles.fieldRow}
           onPress={() => {
             Keyboard.dismiss(); // v2.1 P1
@@ -537,7 +538,7 @@ export default function SettingsContent({ onClose }: Props) {
         </TouchableOpacity>
         {showSeasonStartPicker && (
           <View style={styles.pickerWrap}>
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={0.6}
               style={styles.pickerDoneRow}
               onPress={() => setShowSeasonStartPicker(false)}
             >
@@ -599,7 +600,7 @@ export default function SettingsContent({ onClose }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Settings</Text>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={0.6}
           onPress={() => {
             flushGoals();
             onClose();
@@ -632,7 +633,7 @@ export default function SettingsContent({ onClose }: Props) {
         ---------------------------------------------------------------- */}
         <View style={styles.sectionRow}>
           <Text style={styles.sectionLabel}>Seasons</Text>
-          <TouchableOpacity
+          <TouchableOpacity activeOpacity={0.6}
             style={styles.addLinkTap}
             hitSlop={{ left: 12, right: 12 }}
             onPress={() =>
@@ -656,7 +657,7 @@ export default function SettingsContent({ onClose }: Props) {
               {seasonDraft && !seasonDraftIsNew && seasonDraft.id === s.id ? (
                 renderSeasonEditor()
               ) : (
-                <TouchableOpacity style={styles.seasonRow} onPress={() => openEditSeason(s)}>
+                <TouchableOpacity activeOpacity={0.6} style={styles.seasonRow} onPress={() => openEditSeason(s)}>
                   <View style={styles.seasonRowText}>
                     <Text style={styles.seasonLabel}>{s.label}</Text>
                     <Text style={styles.seasonRange}>
@@ -717,7 +718,7 @@ export default function SettingsContent({ onClose }: Props) {
         ---------------------------------------------------------------- */}
         <View style={styles.sectionRow}>
           <Text style={styles.sectionLabel}>Ball roster</Text>
-          <TouchableOpacity
+          <TouchableOpacity activeOpacity={0.6}
             style={styles.addLinkTap}
             hitSlop={{ left: 12, right: 12 }}
             onPress={() => setAddingBall(v => !v)}
@@ -787,7 +788,7 @@ export default function SettingsContent({ onClose }: Props) {
                       autoCorrect={false}
                     />
                   ) : (
-                    <TouchableOpacity
+                    <TouchableOpacity activeOpacity={0.6}
                       style={styles.ballNameTap}
                       onPress={() => startRename(ball)}
                       accessibilityHint="Tap to rename"
@@ -834,7 +835,7 @@ export default function SettingsContent({ onClose }: Props) {
                         const editing = careEdit?.ballId === ball.id && careEdit.field === field;
                         return (
                           <View key={field}>
-                            <TouchableOpacity
+                            <TouchableOpacity activeOpacity={0.6}
                               style={styles.careRow}
                               onPress={() =>
                                 setCareEdit(editing ? null : {
@@ -855,7 +856,7 @@ export default function SettingsContent({ onClose }: Props) {
                               <View style={styles.pickerWrap}>
                                 <View style={styles.careActions}>
                                   {ball[field] ? (
-                                    <TouchableOpacity
+                                    <TouchableOpacity activeOpacity={0.6}
                                       style={styles.careAction}
                                       onPress={() => {
                                         setCareEdit(null);
@@ -865,7 +866,7 @@ export default function SettingsContent({ onClose }: Props) {
                                       <Text style={styles.careClear}>Clear</Text>
                                     </TouchableOpacity>
                                   ) : <View />}
-                                  <TouchableOpacity
+                                  <TouchableOpacity activeOpacity={0.6}
                                     style={styles.careAction}
                                     onPress={() => {
                                       const iso = toISODate(careEdit.date);
@@ -916,7 +917,7 @@ export default function SettingsContent({ onClose }: Props) {
             try {
               const result = await exportBackup();
               if (!result.success) {
-                Alert.alert('Export Failed', result.error ?? 'Unknown error.');
+                Alert.alert("Couldn't export", result.error ?? 'Something went wrong. Try again.');
               }
               void loadHealth();
             } finally {
@@ -939,7 +940,7 @@ export default function SettingsContent({ onClose }: Props) {
               // Read with status: never share an empty CSV because a read failed.
               const read = await readSessionsResult();
               if (read.status === 'invalid' || read.status === 'error') {
-                Alert.alert('Export Failed', "Your saved sessions couldn't be read, so no CSV was made. Relaunch the app and try again.");
+                Alert.alert("Couldn't export", "Your saved sessions couldn't be read, so no CSV was made. Relaunch the app and try again.");
                 return;
               }
               if (read.value.length === 0) {
@@ -947,7 +948,7 @@ export default function SettingsContent({ onClose }: Props) {
                 return;
               }
               const result = await exportCsv(sessionsToCsv(read.value));
-              if (!result.success) Alert.alert('Export Failed', result.error ?? 'Unknown error.');
+              if (!result.success) Alert.alert("Couldn't export", result.error ?? 'Something went wrong. Try again.');
             } finally {
               setExportingCsv(false);
             }
@@ -958,12 +959,12 @@ export default function SettingsContent({ onClose }: Props) {
           </Text>
         </ScalePressable>
         <View style={styles.separator} />
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={0.6}
           style={styles.backupRow}
           onPress={() => {
             Alert.alert(
-              'Restore from Backup?',
-              'This will replace ALL current data (sessions, balls, settings, reference) with the data from your last backup. This cannot be undone.',
+              'Restore from backup?',
+              'This replaces all current data (sessions, balls, settings, Reference) with your last backup. A copy of what is on the phone now is kept in Backups first.',
               [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -974,9 +975,9 @@ export default function SettingsContent({ onClose }: Props) {
                     if (result.success) {
                       await loadData();
                       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      Alert.alert('Backup Restored', 'Your data has been restored. If anything still looks out of date, close and reopen the app.');
+                      Alert.alert('Backup restored', 'Your data has been restored. If anything still looks out of date, close and reopen the app.');
                     } else {
-                      Alert.alert('Restore Failed', result.error ?? 'Unknown error.');
+                      Alert.alert("Couldn't restore", result.error ?? 'Something went wrong. Nothing was changed.');
                     }
                   },
                 },
@@ -987,7 +988,7 @@ export default function SettingsContent({ onClose }: Props) {
           <Text style={styles.restoreText}>Restore from Backup</Text>
         </TouchableOpacity>
         <View style={styles.separator} />
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={0.6}
           style={styles.backupRow}
           disabled={restoring}
           onPress={() => { void startRestoreFromFile(); }}

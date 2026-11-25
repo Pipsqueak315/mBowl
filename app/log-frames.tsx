@@ -13,7 +13,7 @@ import { useNavigation, usePreventRemove } from 'expo-router/react-navigation';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Haptics from 'expo-haptics';
+import { haptic, hapticForThrow } from '@/src/haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
@@ -327,7 +327,7 @@ function FrameNoteField({
   const [open, setOpen] = useState(() => value.trim() !== '');
   return (
     <View style={styles.frameNoteWrapper}>
-      <TouchableOpacity style={styles.frameNoteToggle} onPress={() => setOpen((v) => !v)}>
+      <TouchableOpacity activeOpacity={0.6} style={styles.frameNoteToggle} onPress={() => setOpen((v) => !v)}>
         <Text style={styles.frameNoteLabel}>Frame note</Text>
         <IconSymbol
           name={open ? 'chevron.up' : 'chevron.down'}
@@ -440,7 +440,7 @@ function ThrowNoteBar({
   const note = frame.throwNotes[ti] ?? '';
   return (
     <View style={styles.throwNoteBar}>
-      <TouchableOpacity style={styles.throwNoteToggle} onPress={() => setOpen((v) => !v)}>
+      <TouchableOpacity activeOpacity={0.6} style={styles.throwNoteToggle} onPress={() => setOpen((v) => !v)}>
         <Text style={styles.throwNoteLabel}>Throw {ti + 1} note</Text>
         <IconSymbol
           name={open ? 'chevron.up' : 'chevron.down'}
@@ -678,11 +678,19 @@ function LogFramesBody() {
     if (strikeStreak >= 2 && strikeStreak > prev) {
       streakAnim.value = 0;
       streakAnim.value = withSpring(1, { damping: 12, stiffness: 200 });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // v2.1 P7: no second buzz here -- the strike itself already gave one.
     } else if (strikeStreak < 2) {
       streakAnim.value = 0;
     }
   }, [strikeStreak]);
+
+  // v2.1 P7: the game scoring out gets a success tap (once, on the change --
+  // opening an already-finished game from History stays quiet).
+  const wasCompleteRef = useRef(allComplete);
+  useEffect(() => {
+    if (allComplete && !wasCompleteRef.current) haptic.success();
+    wasCompleteRef.current = allComplete;
+  }, [allComplete]);
 
   const streakAnimStyle = useAnimatedStyle(() => ({
     opacity: streakAnim.value,
@@ -693,9 +701,7 @@ function LogFramesBody() {
 
   function addThrow(chip: string) {
     if (currentFrameComplete) return;
-    if (chip === 'X') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    hapticForThrow(chip); // v2.1 P7: strike/spare = medium, a count = light
     const newFrames = frames.map((f, i) =>
       i === currentFrame ? { ...f, throws: [...f.throws, chip] } : f
     );
@@ -708,9 +714,7 @@ function LogFramesBody() {
   // Called by PinDeck.onConfirm — records both the notation and the raw pin state.
   function addThrowWithPins(notation: string, throwPinsStanding: boolean[]) {
     if (currentFrameComplete) return;
-    if (notation === 'X') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    hapticForThrow(notation); // v2.1 P7: Confirm always answers; strike/spare stronger
     const throwIdx = frames[currentFrame].throws.length;
     const newFrames = frames.map((f, i) => {
       if (i !== currentFrame) return f;
@@ -725,6 +729,7 @@ function LogFramesBody() {
   }
 
   function deleteLastThrow() {
+    haptic.select(); // v2.1 P7 (Keypad no longer fires its own)
     pendingPinsRef.current = null;
     if (frames[currentFrame].throws.length > 0) {
       setFrames((prev) =>
@@ -755,7 +760,7 @@ function LogFramesBody() {
 
   // Phase 31B: tag the first ball of a frame as a miss (tap again to clear).
   function setMissTag(fi: number, tag: MissTag) {
-    Haptics.selectionAsync();
+    haptic.select();
     setFrames((prev) =>
       prev.map((f, i) => {
         if (i !== fi) return f;
@@ -789,7 +794,7 @@ function LogFramesBody() {
     if (savedRef.current) return;
     // Backstop: never persist a placeholder 0 over a game that has not scored out.
     if (scores[9] === null) {
-      Alert.alert('Game Not Complete', 'Fill in every frame before saving.');
+      Alert.alert('Game not complete', 'Fill in every frame before saving.');
       return;
     }
     const result = {
@@ -808,9 +813,10 @@ function LogFramesBody() {
     } catch (e) {
       savedRef.current = false;
       console.error('[log-frames] saving frame result failed', e);
-      Alert.alert('Save Failed', 'Your frames were not saved. Tap Done to try again.');
+      Alert.alert("Couldn't save frames", 'Your frames were not saved. Tap Done to try again.');
       return;
     }
+    haptic.tap();
     navigation.goBack();
   }
 
@@ -860,15 +866,15 @@ function LogFramesBody() {
       return;
     }
     Alert.alert(
-      'Discard Frames?',
+      'Discard frames?',
       'Your frame data will not be saved.',
       [
-        { text: 'Keep Editing', style: 'cancel' },
+        { text: 'Keep editing', style: 'cancel' },
         {
           text: 'Discard',
           style: 'destructive',
           onPress: () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            haptic.warning();
             // S24: a discarded game must not come back on the next open.
             // savedRef blocks the writer effect from re-saving it meanwhile.
             if (fromLog && gameId) {
@@ -900,7 +906,7 @@ function LogFramesBody() {
     navigation.setOptions({
       title: gameNum ? `Game ${gameNum}` : 'Log Frames',
       headerLeft: () => (
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={0.6}
           onPress={() => handleCancelRef.current()}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           style={styles.headerIconBtn}
@@ -930,7 +936,7 @@ function LogFramesBody() {
   function selectFrame(index: number) {
     if (index === currentFrame) return;
     pendingPinsRef.current = null;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    haptic.select();
     setCurrentFrame(index);
   }
 
@@ -1054,7 +1060,7 @@ function LogFramesBody() {
           {MISS_TAGS.map((t) => {
             const on = frames[currentFrame].missTag === t;
             return (
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={0.6}
                 key={t}
                 style={[styles.missChip, on && styles.missChipOn]}
                 onPress={() => setMissTag(currentFrame, t)}
@@ -1255,10 +1261,10 @@ const styles = StyleSheet.create({
   totalCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   totalRight: { alignItems: 'flex-end', flexShrink: 0 },
   totalLabel: { fontSize: 13, color: '#8E8E93', fontWeight: '500' },
-  totalValue: { fontSize: 22, fontWeight: '300', color: '#FFFFFF' },
+  totalValue: { fontSize: 22, fontWeight: '300', color: '#FFFFFF', fontVariant: ['tabular-nums'] },
   totalValueFinal: { color: '#00CEC9' },
-  maxLabel: { fontSize: 12, fontWeight: '500', color: '#8E8E93', textAlign: 'right' },
-  seriesText: { fontSize: 12, fontWeight: '500', color: '#8E8E93', marginTop: 2 },
+  maxLabel: { fontSize: 12, fontWeight: '500', color: '#8E8E93', textAlign: 'right', fontVariant: ['tabular-nums'] },
+  seriesText: { fontSize: 12, fontWeight: '500', color: '#8E8E93', marginTop: 2, fontVariant: ['tabular-nums'] },
 
   // Strike streak badge
   streakBadge: {

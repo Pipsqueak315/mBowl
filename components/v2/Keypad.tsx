@@ -5,7 +5,6 @@
 //   4 columns (landscape, open portrait): X / — ⌫ · 1 2 3 4 · 5 6 7 8 · 9 0
 // Every key is >= 44pt tall and spans its whole cell.
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import * as Haptics from 'expo-haptics';
 import { color } from '@/src/v2/theme';
 
 export const DELETE_KEY = '⌫';
@@ -42,7 +41,8 @@ export default function Keypad({
                 key={k}
                 disabled={!enabled}
                 onPress={() => {
-                  Haptics.selectionAsync();
+                  // v2.1 P7: the screen gives the haptic (strike/spare stronger
+                  // than a count); firing one here too made X buzz twice.
                   if (isDelete) onDelete();
                   else onKey(k);
                 }}

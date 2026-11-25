@@ -401,9 +401,9 @@ export default function ReferenceScreen() {
         <View style={styles.card}>
           {/* Header */}
           <View style={[styles.shotClockRow, styles.shotClockHeaderRow]}>
-            <Text style={[styles.shotClockFrame, styles.shotClockHeaderText]}>FRAME</Text>
-            <Text style={[styles.shotClockRole, styles.shotClockHeaderText]}>ROLE</Text>
-            <Text style={[styles.shotClockAction, styles.shotClockHeaderText]}>ACTION</Text>
+            <Text style={[styles.shotClockFrame, styles.shotClockHeaderText]}>Frame</Text>
+            <Text style={[styles.shotClockRole, styles.shotClockHeaderText]}>Role</Text>
+            <Text style={[styles.shotClockAction, styles.shotClockHeaderText]}>Action</Text>
           </View>
           {SHOT_CLOCK.map(row => (
             <View key={row.frame}>
@@ -692,11 +692,11 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 6,
   },
+  // v2.1 P11: sentence case 13pt (was 10pt all-caps)
   shotClockHeaderText: {
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '500',
     color: '#8E8E93',
-    letterSpacing: 0.6,
   },
   shotClockFrame: {
     width: 66,

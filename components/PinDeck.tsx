@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { PIN_ROWS } from '@/src/pinLayout';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/src/haptics';
+import ScalePressable from '@/components/ScalePressable';
 
 // ---------------------------------------------------------------------------
 // Pin layout
@@ -127,7 +128,7 @@ export default function PinDeck({
   // Non-available pins are not interactive (already down from a prior throw).
   function togglePin(index: number) {
     if (!availablePins[index]) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    haptic.select(); // v2.1 P7
     const next = standing.map((s, i) => (i === index ? !s : s));
     setStanding(next);
     onChange?.(next);
@@ -135,7 +136,7 @@ export default function PinDeck({
 
   // Strike / Spare quick-action: knock all currently-available pins down at once.
   function handleQuickAction() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    haptic.tap(); // v2.1 P7: Confirm gives the strike/spare buzz
     const next = standing.map((s, i) => (availablePins[i] ? false : s));
     setStanding(next);
     onChange?.(next);
@@ -191,21 +192,23 @@ export default function PinDeck({
 
       {/* Quick-action + Confirm buttons */}
       <View style={[styles.actions, side && styles.actionsSide]}>
-        <TouchableOpacity
+        {/* v2.1 P9: the two main league-night buttons scale on press like every
+            other button (CLAUDE.md), instead of fading. */}
+        <ScalePressable
           style={[styles.quickBtn, compact && styles.btnCompact, side && styles.btnSide]}
           onPress={handleQuickAction}
-          activeOpacity={0.75}
+          accessibilityRole="button"
         >
           <Text style={styles.quickBtnText}>{quickLabel}</Text>
-        </TouchableOpacity>
+        </ScalePressable>
 
-        <TouchableOpacity
+        <ScalePressable
           style={[styles.confirmBtn, compact && styles.btnCompact, side && styles.btnSide]}
           onPress={handleConfirm}
-          activeOpacity={0.75}
+          accessibilityRole="button"
         >
           <Text style={styles.confirmBtnText}>Confirm</Text>
-        </TouchableOpacity>
+        </ScalePressable>
       </View>
     </View>
   );

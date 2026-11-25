@@ -46,7 +46,7 @@ export default function GameExtrasFields({
           {startHere.score != null ? ` (shot ${startHere.score})` : ''}
         </Text>
       ) : null}
-      <TouchableOpacity
+      <TouchableOpacity activeOpacity={0.6}
         style={styles.row}
         onPress={() => {
           Haptics.selectionAsync();
@@ -124,7 +124,7 @@ export default function GameExtrasFields({
             accessibilityLabel="Frame the ball switch happened"
           />
           {value.switchFrame ? (
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={0.6}
               style={styles.ballBtn}
               onPress={() => {
                 Keyboard.dismiss(); // v2.1 P1

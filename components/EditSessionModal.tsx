@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/src/haptics';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { readBalls } from '@/src/storage';
 import type { ThrowEntry, GameEntry, Ball, Session, LaneCondition } from '@/src/types';
@@ -205,8 +205,8 @@ export default function EditSessionModal({
 
   function handleCancel() {
     if (isDirty.current) {
-      Alert.alert('Discard changes?', 'Are you sure you want to discard your edits?', [
-        { text: 'Keep Editing', style: 'cancel' },
+      Alert.alert('Discard changes?', 'Your edits to this session will be lost.', [
+        { text: 'Keep editing', style: 'cancel' },
         { text: 'Discard', style: 'destructive', onPress: onClose },
       ]);
     } else {
@@ -276,7 +276,7 @@ export default function EditSessionModal({
     if (!g || !g.frames || g.frames.length === 0) return;
     if (g.score === '' || g.score === saved) return;
     Alert.alert(
-      'Override Saved Score?',
+      'Override saved score?',
       `This game has frame data and was saved as ${saved || 'no score'}. Save ${g.score} instead? The frames stay as they are.`,
       [
         {
@@ -315,7 +315,7 @@ export default function EditSessionModal({
     const updated = buildSession();
     if (!updated) return;
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    // v2.1 P7: the success haptic fires in History once the save landed.
     onSave(updated);
   }
 
@@ -336,14 +336,14 @@ export default function EditSessionModal({
       <SafeAreaView style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity
+          <TouchableOpacity activeOpacity={0.6}
             onPress={handleCancel}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Text style={styles.cancelBtn}>Cancel</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Edit Session</Text>
-          <TouchableOpacity
+          <TouchableOpacity activeOpacity={0.6}
             onPress={handleSave}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
@@ -377,7 +377,7 @@ export default function EditSessionModal({
 
             {/* Date */}
             <View style={styles.card}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={0.6}
                 style={styles.fieldRow}
                 onPress={() => {
                   Keyboard.dismiss(); // v2.1 P1
@@ -389,7 +389,7 @@ export default function EditSessionModal({
               </TouchableOpacity>
               {showDatePicker && (
                 <>
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={0.6}
                     onPress={() => setShowDatePicker(false)}
                     style={styles.pickerDoneRow}
                   >
@@ -607,7 +607,7 @@ export default function EditSessionModal({
                 </View>
 
                 {/* Ball */}
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={0.6}
                   style={styles.ballRow}
                   onPress={() => {
                     Keyboard.dismiss(); // v2.1 P1
@@ -639,7 +639,7 @@ export default function EditSessionModal({
 
                 {/* Frame data edit button */}
                 {onEditFrames && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={0.6}
                     style={styles.editFramesButton}
                     onPress={() => {
                       // v2.1 P1: with the keyboard up, closing it can run the
@@ -709,7 +709,7 @@ export default function EditSessionModal({
           <SafeAreaView style={styles.ballPickerContainer}>
             <View style={styles.ballPickerHeader}>
               <Text style={styles.ballPickerTitle}>Select Ball</Text>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={0.6}
                 onPress={() => setBallPickerOpen(false)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
@@ -727,7 +727,7 @@ export default function EditSessionModal({
                     ballPickerForIndex !== null &&
                     games[ballPickerForIndex]?.[ballPickerFieldRef.current] === ball.name;
                   return (
-                    <TouchableOpacity
+                    <TouchableOpacity activeOpacity={0.6}
                       key={ball.id}
                       style={[
                         styles.ballPickerRow,
@@ -744,7 +744,7 @@ export default function EditSessionModal({
                           );
                           markDirty();
                         }
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        haptic.select();
                         setBallPickerOpen(false);
                         setBallPickerForIndex(null);
                       }}
@@ -866,6 +866,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#38383A',
   },
   scoreInput: {
+    fontVariant: ['tabular-nums'], // v2.1 P10
     fontSize: 22,
     fontWeight: '300',
     color: '#00CEC9',

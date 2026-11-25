@@ -21,7 +21,7 @@ import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from 'expo-router/react-navigation';
-import * as Haptics from 'expo-haptics';
+import { haptic } from '@/src/haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { readSessions, readSessionsResult, writeSessions, revertSessionsCache, readSettings, KEYS } from '@/src/storage';
@@ -48,13 +48,28 @@ type FilterType = TypeFilter;
 const SWIPE_EDIT = '#0A84FF';
 
 
-const EMPTY_LABELS: Record<FilterType, string> = {
-  all: 'No sessions yet',
-  league: 'No league sessions yet',
-  makeup: 'No makeup sessions yet',
-  practice: 'No practice sessions yet',
-  tournament: 'No tournament sessions yet',
+// v2.1 P12: the empty state names the season. History opens on the current
+// season, so on the first night of a new one it said "No sessions yet" with
+// all of last season still there.
+const TYPE_WORD: Record<FilterType, string> = {
+  all: '',
+  league: 'league ',
+  makeup: 'makeup ',
+  practice: 'practice ',
+  tournament: 'tournament ',
 };
+
+function emptyCopy(filter: FilterType, seasonLabel: string | null, anySessions: boolean) {
+  const title = seasonLabel
+    ? `No ${TYPE_WORD[filter]}sessions in ${seasonLabel} yet`
+    : `No ${TYPE_WORD[filter]}sessions yet`;
+  const subtitle = !anySessions
+    ? 'Log your first session to see it here.'
+    : seasonLabel
+      ? 'Pick another season or All-Time from the menu above.'
+      : 'Nothing matches this filter yet.';
+  return { title, subtitle };
+}
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00');
@@ -350,6 +365,7 @@ function SessionCard({
     if (Platform.OS !== 'ios') return;
     const canShare = await Sharing.isAvailableAsync();
     if (!canShare) return;
+    haptic.tap(); // v2.1 P7: on the tap, not after the share sheet closes
     setSharing(true);
     try {
       await new Promise<void>((resolve) => setTimeout(resolve, 100));
@@ -359,18 +375,17 @@ function SessionCard({
       // share cancelled or failed — silent
     } finally {
       setSharing(false);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   }
 
   const confirmDelete = () => {
-    Alert.alert('Delete Session', 'Are you sure? This cannot be undone.', [
+    Alert.alert('Delete this session?', 'Its games and frames will be removed from History and Stats.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: () => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          haptic.warning();
           onDelete(session.id);
         },
       },
@@ -673,6 +688,15 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
     }
   }, [editModalOpen]);
 
+  // v2.1 P6: set on every focus (this effect's deps never change, so it runs
+  // on focus only); the load below resets the season filter once per focus.
+  const resetSeasonRef = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      resetSeasonRef.current = true;
+    }, []),
+  );
+
   useFocusEffect(
     useCallback(() => {
       // A hidden page still finishes a frame edit it started (the FRAME_RESULT
@@ -694,10 +718,14 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
           setSessions(raw);
           setSettings(settingsData);
         }
-        if (!pendingFrameEditRef.current) {
+        // v2.1 P6: reset the season on a real focus only. This load also
+        // re-runs on a data change (a Settings save, a Submit on the other
+        // page), which used to snap a picked season back to the current one.
+        if (!pendingFrameEditRef.current && resetSeasonRef.current) {
           const cur = currentSeason(getSeasons(settingsData), todayISO());
           setSeasonSel(cur ? cur.id : ALL_TIME);
         }
+        resetSeasonRef.current = false;
         setLoaded(true);
 
         // Only act when WE sent the user to the frame editor. The Log tab consumes
@@ -847,6 +875,7 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
     }, 'save changes');
     // On failure the sheet stays open with the edits, so nothing typed is lost.
     if (!saved) return;
+    haptic.success(); // v2.1 P7: after the write landed
     setEditModalOpen(false);
     setEditingSession(null);
     setEditModalDirty(false);
@@ -878,6 +907,11 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
   }, []);
 
   const seasons = getSeasons(settings);
+  const empty = emptyCopy(
+    filter,
+    seasonSel === ALL_TIME ? null : seasons.find((x) => x.id === seasonSel)?.label ?? null,
+    sessions.length > 0,
+  );
   // Season pills: most-recent season first, then All-Time (matches Stats).
   const seasonPills = [...resolveSeasonRanges(seasons)]
     .reverse()
@@ -923,8 +957,8 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
           </View>
         ) : filtered.length === 0 ? (
           <View style={styles.emptyState}>
-            <IconSymbol name="list.bullet" size={48} color="#48484A" />
-            <Text style={styles.emptyText}>{EMPTY_LABELS[filter]}</Text>
+            <Text style={styles.emptyTitle}>{empty.title}</Text>
+            <Text style={styles.emptySubtitle}>{empty.subtitle}</Text>
           </View>
         ) : (
           <FlatList
@@ -1005,16 +1039,24 @@ const styles = StyleSheet.create({
   rowSeparator: { height: StyleSheet.hairlineWidth, backgroundColor: '#38383A' },
 
   // Empty state
+  // v2.1 P12: same look as Stats' empty state (they sit side by side on the open screen)
   emptyState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: 8,
+    paddingHorizontal: 32,
   },
-  emptyText: {
-    color: '#48484A',
-    fontSize: 16,
-    fontWeight: '500',
+  emptyTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    color: '#8E8E93',
+    fontSize: 15,
+    textAlign: 'center',
   },
 
   // Card
@@ -1094,15 +1136,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  // v2.1 P11: no tiny all-caps labels (theme.ts)
   gameLabel: {
     color: '#8E8E93',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
     flex: 0,
   },
   gameExpandScore: {
+    fontVariant: ['tabular-nums'], // v2.1 P10
     fontSize: 18,
     fontWeight: '400',
   },
