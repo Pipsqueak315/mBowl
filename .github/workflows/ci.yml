@@ -20,3 +20,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      # v2.1 P39 (Nov 24): ESLint, report-only for now. Lists react-hooks issues,
+      # including the patterns that make React Compiler skip a component.
+      # It does not fail the build yet; make it a gate once the list is clean.
+      - name: Lint (report only)
+        continue-on-error: true
+        run: npx eslint . --format stylish
