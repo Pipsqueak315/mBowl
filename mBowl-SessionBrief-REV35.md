@@ -79,10 +79,10 @@
 7. **Settings.** Strength dots -> action sheet. Add ball / Add season are easy to hit. Rename ball A, tap ball B's name: A keeps its new name.
 8. **History.** Pick Winners 25, open Settings, change a goal, close: still Winners 25. A season with no sessions shows "No sessions in ... yet".
 9. **Edit sheet.** Segmented type / Made cut. Edit frames with the keyboard up behaves like item 2.
+10. **Keyboard position.** Notes fields on the cover (portrait + landscape) and the open screen sit just above the keyboard.
 11. **Live game + override (Duo rail, open screen).** Retype a framed game's score, then tap Live with the keyboard up. The first tap only closes the keyboard. Answer Override, then tap Submit. Come back to Log: Log Frames must NOT open by itself.
 12. **Rename + strength.** Rename ball A, then tap A's strength dots and pick a value. Both the name and the strength stick.
 13. **SeasonMenu.** The season name on Stats / History is easy to hit, including slightly above or below the text.
-10. **Keyboard position.** Notes fields on the cover (portrait + landscape) and the open screen sit just above the keyboard.
 
 ---
 
