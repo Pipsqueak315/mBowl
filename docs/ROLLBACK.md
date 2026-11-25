@@ -27,4 +27,6 @@
 | `f6e4a8ef-8d6d-41cd-ac3a-0fd2f86c00ae` | `684e8eb` | Phase 31A: v2 close-out (Settings restyle, goal save, split colors, Log Frames N16/N19/N24, History N21/N27/N1, frames param N23), Nov 24 (OTA run 45454847061). Level 1, no data change; rollback-safe to 7ac39a2a | Pending -- first look after the update |
 | `1c64459a-d8f2-4e10-8191-e628b8d4931f` | `72936ba` | Phase 31B: miss tags, line / speed / ball switch, house + lanes, spare drill, ball care, data health, CSV, 5 Stats cards, Nov 24 (OTA run 45457301222). **Data:** new optional fields; rolling back to f6e4a8ef is safe to read, but that version's Submit / edit sheet drop the new fields on any session it saves -- restore the 18:09Z export if needed | Pending -- first look after the update |
 
+| `65139eb1-2d20-4295-95a2-f5b5657c67d3` | `f9c54dd` | **v2.1 Batch 1 (Feel):** first-tap fix (keyboardShouldPersistTaps + score-override hold), haptics map, 44pt controls, Discard confirm, steady Log Frames card, Reference keeps its place, copy, History season / empty state, Nov 24 (OTA run 45552986586). Level 1, no data change; rollback-safe to 1c64459a | Pending -- device checks in REV35 |
+
 Add a row after every OTA (the `Update group ID` from the run log).

@@ -11,16 +11,16 @@
 
 **Naming (Marcus, Nov 24):** everything after the Nov 24 audit is **v2.1**. Batches 1-5 below are v2.1 Batch 1 ... Batch 5 (no more phase numbers for this work).
 
-**One-line status:** **v2.1 Batch 1 (Feel) BUILT** on branch **`v2.1-batch1`** (head = `git log -1 origin/v2.1-batch1`; commits below). CI green on every push. Reviews:
+**One-line status:** **v2.1 Batch 1 (Feel) SHIPPED Nov 24 ~21:30** (Marcus: "ship it"). `master` was fast-forwarded to `f9c54dd` (= `v2.1-batch1`, confirmed via API) -> OTA run 45552986586 -> **update group `65139eb1-2d20-4295-95a2-f5b5657c67d3`**, runtime 2.0.0. CI green on every push. Reviews:
 - Pass 1 = **BLOCK** (Submit could save past the "Override calculated score?" question) + 9 warnings, fixed in `d373998`.
 - Pass 2 = PASS WITH WARNINGS, fixed in `8bfe839`.
 - Pass 3 (narrow) = PASS WITH WARNINGS, fixed in `f8ea77d`.
 - Left as is (low): an "Override" answer lives in memory only, so after a kill + Resume a hand-overridden score makes Submit take a second tap with the keyboard up.
-- PLAUSIBLE, device check: SeasonMenu's 44pt comes from hit slop. **Not merged, not shipped.** Level 1: no change to scoring, stats math, storage keys or saved data. **Live on the phone:** still update group `1c64459a` (Phase 31B). **Rollback target once Batch 1 ships:** `1c64459a-d8f2-4e10-8191-e628b8d4931f` (no data-shape change, so rollback is safe).
+- PLAUSIBLE, device check: SeasonMenu's 44pt comes from hit slop. Level 1: no change to scoring, stats math, storage keys or saved data. **Rollback target:** `1c64459a-d8f2-4e10-8191-e628b8d4931f` (Phase 31B). There is no data-shape change, so rollback is safe (`docs/ROLLBACK.md`).
 
 **Next:**
-1. Marcus: "ship it" (or hold). Claude: confirm CI green -> fast-forward `master` to `v2.1-batch1` -> confirm via API that `master` moved -> dispatch `ota.yml` -> add the update group to `docs/ROLLBACK.md`.
-2. Marcus: the device checks below (~10 min, cover + open screen).
+1. ~~"ship it"~~ done Nov 24 night (group `65139eb1-2d20-4295-95a2-f5b5657c67d3`, ROLLBACK.md row added).
+2. **Marcus: open mBowl, swipe it closed, reopen** (the update downloads on one launch and applies on the next). Then the device checks below (~10 min, cover + open screen). Report anything off; anything wrong -> `docs/ROLLBACK.md` to `1c64459a` while it's fixed on a branch.
 3. Then **v2.1 Batch 2 (Plumbing, Level 2)**: P13-P20. Needs a fresh Export Backup off the phone first, plus the full reviewer + device-check gate.
 
 ### v2.1 -- the audit and the decisions (Nov 24)
@@ -579,6 +579,7 @@ This is an Expo Router project -- not bare React Navigation.
 | 46 | Planning + Phase 29 (Claude.ai project cloud session, Opus) | Nov 20-21 | Nov 20 brainstorm of next features (constraints: just Marcus, no social/iCloud/widgets/cost) -> Phase 30 plan doc. Marcus picked Path to 190 + Spare leak for now. Built on `phase29-goal-spares` (`c3db9ac`, `f4918cd`, `02db869`), 2 reviewer passes, CI green. "ship it" -> `master` @ `02db869`, OTA run 44958332762, update group e7cd0dff. REV30. |
 | 47 | Phase 30A + sensor research (Claude.ai project cloud session, Opus) | Nov 22-23 | Bowling sensor research (F5/Storm $199 + $99/yr membership; Witsee $319, CSV export on Premium; BowlSense Pro $199.99 no subscription; Ruby) -- Marcus passed. Marcus valued Path to 190 + Spare leak -> asked for more of that kind: 190 recipe, Leave -> fix, Tilt cost on `phase30a-insights` (`e4878dd`, `3335939`, `492209a`), 2 reviewer passes, CI green. "ship it" -> `master` @ `492209a`, OTA run 45277551319, update group 814db029. REV31. |
 | 48 | Phase 30B Reference (Claude.ai project cloud session, Opus) | Nov 24 | Reference restyle (segmented controls, no band under the rail) + content check: v1 moves were mirrored for a right-hander -> v2 right-handed, ball-free, short; one-time REFERENCE upgrade keeping Marcus's edits. Reviewer BLOCK (stamp lost on save) fixed; pass 2 PASS WITH WARNINGS. "ship it" -> `master` @ `d9121f3`, OTA run 45445539433, update group 7ac39a2a. REV32. |
+| 52 | v2.1 Batch 1 ship (same session) | Nov 24 night | Marcus: "ship it" -> `master` fast-forwarded to `f9c54dd`, OTA run 45552986586, update group 65139eb1. Device checks tomorrow. |
 | 51 | v2.1 audit + Batch 1 (Claude.ai project cloud session, Opus) | Nov 24 night | Multi-agent audit (7 auditors + 4 verifiers) -> 46 P items (`docs/V2.1-AUDIT.md`); D1-D5 decided; "call everything post audit v2.1". Batch 1 (P39, P1-P12) built on `v2.1-batch1`; CI green; reviewer pass 1 BLOCK -> `d373998`, pass 2 -> `8bfe839`, pass 3 -> `f8ea77d` (all PASS WITH WARNINGS after the first). Number-pad Done bar reverted (RN already draws one). Not shipped. REV35. |
 | 50 | Phase 31B ship (same session) | Nov 24 | Marcus: "ship B" -> backup gate (export 18:09Z: 46 / 143 / 175.9) -> `master` @ `72936ba`, OTA run 45457301222, update group 1c64459a. REV34. |
 | 49 | Phase 31A close-out + 31B build (Claude.ai project cloud session, Opus) | Nov 24 | Two-phase plan agreed. 31A: Settings restyle from Marcus's screenshots, goal-field save, split colors, N16/N19/N21/N23/N24/N27/N1/N9/N13; reviewer PASS WITH WARNINGS, fix `684e8eb`. "ship A first" -> `master` @ `684e8eb`, OTA run 45454847061, update group f6e4a8ef. 31B (Tier 2) built on `phase31b-tier2` @ `7e82391`, 2 reviews, waiting on backup gate. REV33. |
