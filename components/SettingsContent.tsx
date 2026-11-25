@@ -33,7 +33,6 @@ import type { Session } from '@/src/types';
 import { notifyDataChanged } from '@/src/dataEvents';
 import ScalePressable from '@/components/ScalePressable';
 import SegmentedControl from '@/components/v2/SegmentedControl';
-import KeyboardDoneBar, { DONE_BAR } from '@/components/v2/KeyboardDoneBar';
 import type { Settings, Ball, Season } from '@/src/types';
 import { getSeasons, resolveSeasonRanges } from '@/src/seasons';
 
@@ -377,6 +376,10 @@ export default function SettingsContent({ onClose }: Props) {
   }
 
   function startRename(ball: Ball) {
+    // v2.1 P1 (review W2): a tap on another ball's name now lands while the
+    // first rename is still open -- commit that one first, or its input
+    // unmounts before its onBlur can save the new name.
+    if (editingBallId && editingBallId !== ball.id) commitRename(editingBallId);
     setEditingBallId(ball.id);
     setEditingBallName(ball.name);
   }
@@ -573,7 +576,7 @@ export default function SettingsContent({ onClose }: Props) {
             placeholder="—"
             placeholderTextColor="#48484A"
             maxLength={2}
-            inputAccessoryViewID={DONE_BAR.settings}
+            returnKeyType="done"
             accessibilityLabel="League weeks in this season"
           />
         </View>
@@ -691,7 +694,7 @@ export default function SettingsContent({ onClose }: Props) {
               placeholder="—"
               placeholderTextColor="#48484A"
               maxLength={3}
-              inputAccessoryViewID={DONE_BAR.settings}
+              returnKeyType="done"
             />
           </View>
           <View style={[styles.fieldRow, styles.fieldRowLast]}>
@@ -708,7 +711,7 @@ export default function SettingsContent({ onClose }: Props) {
               placeholder="—"
               placeholderTextColor="#48484A"
               maxLength={3}
-              inputAccessoryViewID={DONE_BAR.settings}
+              returnKeyType="done"
             />
           </View>
         </View>
@@ -1002,7 +1005,6 @@ export default function SettingsContent({ onClose }: Props) {
         <View style={styles.bottomSpacer} />
       </ScrollView>
       </View>
-      <KeyboardDoneBar id={DONE_BAR.settings} />
     </SafeAreaView>
   );
 }

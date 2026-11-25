@@ -18,7 +18,6 @@ import {
 } from 'react-native';
 import { useSideInsets } from '@/src/v2/page';
 import SwipeRow from '@/components/v2/SwipeRow';
-import KeyboardDoneBar, { DONE_BAR } from '@/components/v2/KeyboardDoneBar';
 import { color, motion } from '@/src/v2/theme';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
@@ -260,7 +259,7 @@ function GameRow({ game, index, onChange, onPickBall, onPickSwitchBall, history,
           placeholder="—"
           placeholderTextColor="#48484A"
           maxLength={3}
-          inputAccessoryViewID={DONE_BAR.log}
+          returnKeyType="done"
           selectTextOnFocus
         />
       </View>
@@ -280,7 +279,6 @@ function GameRow({ game, index, onChange, onPickBall, onPickSwitchBall, history,
         onPickSwitchBall={onPickSwitchBall}
         startHere={game.ball ? startHere(history, game.ball) : null}
         ballName={game.ball}
-        doneBarId={DONE_BAR.log}
       />
 
       {/* Inline mini scorecard — shown when frame data exists */}
@@ -387,6 +385,13 @@ export default function LogPage() {
   // v2.1 P2: Resume sheet slide-up (the Modal itself fades).
   const resumeSheetY = useSharedValue(RESUME_SHEET_START);
   const resumeSheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: resumeSheetY.value }] }));
+  // Slides in alongside the fade, started from state (review W5: onShow could
+  // be missed and leave the card off-screen behind the blur).
+  useEffect(() => {
+    if (!draftResumeVisible) return;
+    resumeSheetY.value = RESUME_SHEET_START;
+    resumeSheetY.value = withSpring(0, motion.spring);
+  }, [draftResumeVisible, resumeSheetY]);
   const [pendingDraft, setPendingDraft] = useState<DraftData | null>(null);
   // Settings modal
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -653,6 +658,22 @@ export default function LogPage() {
     }
   };
 
+  // v2.1 P1 (review B1): with the keyboard up, a tap now reaches Submit / Ball
+  // / Log frames directly. Closing the keyboard ends the score edit, which can
+  // ask "Override calculated score?". When that question is coming, the tap
+  // only closes the keyboard (the old behaviour), so the answer lands before
+  // anything is saved or opened.
+  function holdForScoreOverride(): boolean {
+    if (!Keyboard.isVisible()) return false;
+    const pending = games.some((g) => {
+      if (g.calculatedScore === undefined || g.score === '') return false;
+      const entered = parseInt(g.score, 10);
+      return !isNaN(entered) && entered !== g.calculatedScore;
+    });
+    if (pending) Keyboard.dismiss();
+    return pending;
+  }
+
   const addGame = () => setGames((prev) => [...prev, makeGame()]);
 
   const confirmRemove = (id: string) => {
@@ -674,6 +695,7 @@ export default function LogPage() {
     setGames((prev) => prev.map((g) => (g.id === id ? { ...g, [field]: value } : g)));
 
   const openBallPicker = (gameId: string, field: 'ball' | 'switchBall' = 'ball') => {
+    if (holdForScoreOverride()) return;
     Keyboard.dismiss(); // v2.1 P1: taps reach buttons with the keyboard up, so close it here
     ballPickerFieldRef.current = field;
     setBallPickerForGameId(gameId);
@@ -825,6 +847,7 @@ export default function LogPage() {
   // before React draws the cleared form, and that stale handler still holds
   // the old games. Early returns (alerts, refused read) release it at once.
   async function handleSubmit() {
+    if (holdForScoreOverride()) return;
     Keyboard.dismiss(); // v2.1 P1
     if (submittingRef.current) return;
     submittingRef.current = true;
@@ -990,6 +1013,7 @@ export default function LogPage() {
   // screens; cleared when this page is focused again.
   const openingFramesRef = useRef(false);
   function openLogFrames(index: number) {
+    if (holdForScoreOverride()) return;
     Keyboard.dismiss(); // v2.1 P1
     const game = games[index];
     if (!game || openingFramesRef.current) return;
@@ -1131,7 +1155,7 @@ export default function LogPage() {
                   keyboardType="number-pad"
                   placeholder="—"
                   placeholderTextColor="#48484A"
-                  inputAccessoryViewID={DONE_BAR.log}
+                  returnKeyType="done"
                   selectTextOnFocus
                 />
               </View>
@@ -1365,7 +1389,6 @@ export default function LogPage() {
           <View style={styles.bottomSpacer} />
         </ScrollView>
       </View>
-      <KeyboardDoneBar id={DONE_BAR.log} />
 
       {/* ================================================================
           Ball Picker Modal
@@ -1440,10 +1463,6 @@ export default function LogPage() {
         animationType="fade"
         supportedOrientations={['portrait', 'landscape']}
         onRequestClose={() => {}}
-        onShow={() => {
-          resumeSheetY.value = RESUME_SHEET_START;
-          resumeSheetY.value = withSpring(0, motion.spring);
-        }}
       >
         <BlurView intensity={60} tint="dark" style={styles.resumeOverlay}>
           <Animated.View style={[styles.resumeSheet, resumeSheetStyle]}>

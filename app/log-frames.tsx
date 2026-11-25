@@ -684,14 +684,6 @@ function LogFramesBody() {
     }
   }, [strikeStreak]);
 
-  // v2.1 P7: the game scoring out gets a success tap (once, on the change --
-  // opening an already-finished game from History stays quiet).
-  const wasCompleteRef = useRef(allComplete);
-  useEffect(() => {
-    if (allComplete && !wasCompleteRef.current) haptic.success();
-    wasCompleteRef.current = allComplete;
-  }, [allComplete]);
-
   const streakAnimStyle = useAnimatedStyle(() => ({
     opacity: streakAnim.value,
     transform: [{ scale: 0.85 + 0.15 * streakAnim.value }],
@@ -699,12 +691,21 @@ function LogFramesBody() {
 
   // ---- Actions ------------------------------------------------------------
 
+  // v2.1 P7: every throw answers -- the ball that finishes the game gets a
+  // success tap (instead of, not as well as, its own), a strike / spare gets
+  // medium, a count gets light. Only a throw does this, so opening or
+  // restoring a finished game stays quiet.
+  function throwHaptic(newFrames: FrameData[], notation: string) {
+    if (newFrames.every((_, i) => isFrameComplete(newFrames, i))) haptic.success();
+    else hapticForThrow(notation);
+  }
+
   function addThrow(chip: string) {
     if (currentFrameComplete) return;
-    hapticForThrow(chip); // v2.1 P7: strike/spare = medium, a count = light
     const newFrames = frames.map((f, i) =>
       i === currentFrame ? { ...f, throws: [...f.throws, chip] } : f
     );
+    throwHaptic(newFrames, chip);
     setFrames(newFrames);
     if (isFrameComplete(newFrames, currentFrame) && currentFrame < 9) {
       setCurrentFrame((p) => p + 1);
@@ -714,7 +715,6 @@ function LogFramesBody() {
   // Called by PinDeck.onConfirm — records both the notation and the raw pin state.
   function addThrowWithPins(notation: string, throwPinsStanding: boolean[]) {
     if (currentFrameComplete) return;
-    hapticForThrow(notation); // v2.1 P7: Confirm always answers; strike/spare stronger
     const throwIdx = frames[currentFrame].throws.length;
     const newFrames = frames.map((f, i) => {
       if (i !== currentFrame) return f;
@@ -722,6 +722,7 @@ function LogFramesBody() {
       pinsStanding[throwIdx] = throwPinsStanding;
       return { ...f, throws: [...f.throws, notation], pinsStanding };
     });
+    throwHaptic(newFrames, notation);
     setFrames(newFrames);
     if (isFrameComplete(newFrames, currentFrame) && currentFrame < 9) {
       setCurrentFrame((p) => p + 1);

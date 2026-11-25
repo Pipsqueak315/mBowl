@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   View,
+  Keyboard,
   Text,
   ScrollView,
   TouchableOpacity,
@@ -168,9 +169,19 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
 
   // ---- Toggle helpers ----
 
+  // v2.1 P1 (review W3): a tap that hides the focused field (collapse a card,
+  // switch views) now lands with the keyboard up. Save first -- the field's
+  // onBlur may never run once it unmounts.
+  function flushFocusedEdit() {
+    if (!Keyboard.isVisible()) return;
+    onSave();
+    Keyboard.dismiss();
+  }
+
   type SetUpdater = (updater: (prev: Set<number>) => Set<number>) => void;
 
   function toggle(setter: SetUpdater, i: number) {
+    flushFocusedEdit();
     animateNextLayout();
     setter(prev => {
       const next = new Set(prev);
@@ -394,7 +405,10 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
         <SegmentedControl
           segments={VIEWS}
           value={view}
-          onChange={setView}
+          onChange={(v) => {
+            flushFocusedEdit();
+            setView(v);
+          }}
           accessibilityLabel="Signals view"
         />
       </View>

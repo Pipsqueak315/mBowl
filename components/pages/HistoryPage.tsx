@@ -626,7 +626,11 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
   // Restore from the Settings sheet, an edit in the other pane) -- re-runs the
   // focus load below so the list on screen is never a stale copy.
   const [dataTick, setDataTick] = useState(0);
+  // v2.1 P6: true = the next load resets the season filter to the current
+  // season (a focus, or a Restore -- review W7).
+  const resetSeasonRef = useRef(true);
   useEffect(() => onDataChanged((source) => {
+    if (source === 'restore') resetSeasonRef.current = true;
     if (source !== 'history') setDataTick(n => n + 1);
   }), []);
   // One History write at a time (a fast second swipe-delete or Save).
@@ -690,7 +694,6 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
 
   // v2.1 P6: set on every focus (this effect's deps never change, so it runs
   // on focus only); the load below resets the season filter once per focus.
-  const resetSeasonRef = useRef(true);
   useFocusEffect(
     useCallback(() => {
       resetSeasonRef.current = true;
@@ -721,9 +724,18 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
         // v2.1 P6: reset the season on a real focus only. This load also
         // re-runs on a data change (a Settings save, a Submit on the other
         // page), which used to snap a picked season back to the current one.
-        if (!pendingFrameEditRef.current && resetSeasonRef.current) {
-          const cur = currentSeason(getSeasons(settingsData), todayISO());
-          setSeasonSel(cur ? cur.id : ALL_TIME);
+        {
+          const loadedSeasons = getSeasons(settingsData);
+          const cur = currentSeason(loadedSeasons, todayISO());
+          const fallback = cur ? cur.id : ALL_TIME;
+          if (!pendingFrameEditRef.current && resetSeasonRef.current) {
+            setSeasonSel(fallback);
+          } else {
+            // A season deleted in Settings while History stays open (review W7).
+            setSeasonSel((prev) =>
+              prev === ALL_TIME || loadedSeasons.some((x) => x.id === prev) ? prev : fallback,
+            );
+          }
         }
         resetSeasonRef.current = false;
         setLoaded(true);

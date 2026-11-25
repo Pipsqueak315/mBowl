@@ -18,7 +18,6 @@ import { readBalls } from '@/src/storage';
 import type { ThrowEntry, GameEntry, Ball, Session, LaneCondition } from '@/src/types';
 import GameExtrasFields from '@/components/GameExtrasFields';
 import SegmentedControl from '@/components/v2/SegmentedControl';
-import KeyboardDoneBar, { DONE_BAR } from '@/components/v2/KeyboardDoneBar';
 import { gameExtrasFromForm, gameExtrasToForm, gameExtrasInvalid, isCondition, DEFAULT_HOUSE, drillShots, normalizeDrill } from '@/src/extras';
 
 const CONDITION_SEGMENTS = [
@@ -262,12 +261,20 @@ export default function EditSessionModal({
   // F11 (Nov 15): typing a new score on a game that has frames used to save
   // silently, so the score (average) and the frames (strike %, leaves) then
   // disagreed. Same confirm the Log form uses: keep the frame score or override.
-  /** v2.1 P1: true when ending an edit would ask "Override Saved Score?". */
-  function overridePending(): boolean {
-    return games.some((g, i) => {
+  /**
+   * v2.1 P1: with the keyboard up, a tap reaches Edit frames / Ball directly.
+   * Closing the keyboard ends the score edit, which can ask "Override saved
+   * score?" -- when that question is coming, the tap only closes the keyboard
+   * so the answer lands before the sheet moves on.
+   */
+  function holdForScoreOverride(): boolean {
+    if (!Keyboard.isVisible()) return false;
+    const pending = games.some((g, i) => {
       const saved = savedScoresRef.current[i] ?? '';
       return !!g.frames && g.frames.length > 0 && g.score !== '' && g.score !== saved;
     });
+    if (pending) Keyboard.dismiss();
+    return pending;
   }
 
   function confirmScoreOverride(i: number) {
@@ -427,7 +434,7 @@ export default function EditSessionModal({
                     keyboardType="number-pad"
                     placeholder="—"
                     placeholderTextColor="#48484A"
-                    inputAccessoryViewID={DONE_BAR.edit}
+                    returnKeyType="done"
                     selectTextOnFocus
                   />
                 </View>
@@ -601,7 +608,7 @@ export default function EditSessionModal({
                     placeholder="—"
                     placeholderTextColor="#48484A"
                     maxLength={3}
-                    inputAccessoryViewID={DONE_BAR.edit}
+                    returnKeyType="done"
                     selectTextOnFocus
                   />
                 </View>
@@ -610,6 +617,7 @@ export default function EditSessionModal({
                 <TouchableOpacity activeOpacity={0.6}
                   style={styles.ballRow}
                   onPress={() => {
+                    if (holdForScoreOverride()) return;
                     Keyboard.dismiss(); // v2.1 P1
                     ballPickerFieldRef.current = 'ball';
                     setBallPickerForIndex(i);
@@ -630,11 +638,11 @@ export default function EditSessionModal({
                     markDirty();
                   }}
                   onPickSwitchBall={() => {
+                    if (holdForScoreOverride()) return;
                     ballPickerFieldRef.current = 'switchBall';
                     setBallPickerForIndex(i);
                     setBallPickerOpen(true);
                   }}
-                  doneBarId={DONE_BAR.edit}
                 />
 
                 {/* Frame data edit button */}
@@ -646,10 +654,7 @@ export default function EditSessionModal({
                       // score field's "Override Saved Score?" check. When that
                       // question is pending, this tap only closes the keyboard so
                       // the answer lands before the sheet closes.
-                      if (Keyboard.isVisible() && overridePending()) {
-                        Keyboard.dismiss();
-                        return;
-                      }
+                      if (holdForScoreOverride()) return;
                       Keyboard.dismiss();
                       const live = buildSession();
                       if (live) onEditFrames(i, live, isDirty.current);
@@ -696,7 +701,6 @@ export default function EditSessionModal({
 
             <View style={styles.bottomSpacer} />
           </ScrollView>
-          <KeyboardDoneBar id={DONE_BAR.edit} />
 
         {/* Ball picker modal */}
         <Modal

@@ -1,6 +1,7 @@
-import { useState, useLayoutEffect, useRef, useEffect } from 'react';
+import { useState, useLayoutEffect, useRef, useEffect, useCallback } from 'react';
 import {
   View,
+  Keyboard,
   Text,
   Modal,
   StyleSheet,
@@ -10,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { useSideInsets } from '@/src/v2/page';
-import { useNavigation } from 'expo-router/react-navigation';
+import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 
 import HeaderIconButton from '@/components/v2/HeaderIconButton';
 import SettingsContent from '@/components/SettingsContent';
@@ -294,6 +295,14 @@ export default function ReferenceScreen() {
     });
   }, [navigation]);
 
+  const loadedOnceRef = useRef(false);
+  // v2.1 P4 (review W8): a read that FAILED is still retried when the tab is
+  // shown again, like before -- only a clean load stays put.
+  useFocusEffect(
+    useCallback(() => {
+      if (loadedOnceRef.current && !readableRef.current) setDataTick(n => n + 1);
+    }, []),
+  );
   // v2.1 P4: load once on mount and again after a Restore (dataTick) -- NOT
   // on every focus. The focus reload flashed a spinner and remounted the
   // sub-tabs, so scroll, expanded cards and inner toggles reset on every
@@ -332,6 +341,7 @@ export default function ReferenceScreen() {
           latestData.current = DEFAULT_DATA;
         }
         setLoaded(true);
+        loadedOnceRef.current = true;
       })();
       return () => { active = false; };
     }, [dataTick]);
@@ -538,7 +548,14 @@ export default function ReferenceScreen() {
           <SegmentedControl
             segments={SUB_TABS}
             value={activeTab}
-            onChange={setActiveTab}
+            onChange={(t) => {
+              // v2.1 P1 (review W3): save a field that's about to unmount
+              if (Keyboard.isVisible()) {
+                save();
+                Keyboard.dismiss();
+              }
+              setActiveTab(t);
+            }}
             accessibilityLabel="Reference section"
           />
         </View>

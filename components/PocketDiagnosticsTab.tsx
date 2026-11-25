@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   View,
+  Keyboard,
   Text,
   ScrollView,
   TouchableOpacity,
@@ -191,7 +192,17 @@ export default function PocketDiagnosticsTab({
 
   // ---- Actions -------------------------------------------------------------
 
+  // v2.1 P1 (review W3): a tap that hides the focused field (collapse a card,
+  // switch views) now lands with the keyboard up. Save first -- the field's
+  // onBlur may never run once it unmounts.
+  function flushFocusedEdit() {
+    if (!Keyboard.isVisible()) return;
+    onSave();
+    Keyboard.dismiss();
+  }
+
   function toggleCard(originalIndex: number) {
+    flushFocusedEdit();
     animateNextLayout();
     setExpanded(prev => {
       const next = new Set(prev);
@@ -268,7 +279,10 @@ export default function PocketDiagnosticsTab({
         <SegmentedControl
           segments={MODES}
           value={mode}
-          onChange={setMode}
+          onChange={(m) => {
+            flushFocusedEdit();
+            setMode(m);
+          }}
           accessibilityLabel="Pocket Diagnostics view"
         />
       </View>
