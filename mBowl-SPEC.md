@@ -532,7 +532,7 @@ Native iOS modal sheet from gear icon on any tab.
 >
 > This appendix records where **shipped reality diverges from the locked text**. Where the two disagree, **shipped reality wins and this appendix is the tiebreaker** — the text above is preserved as the original intent, not as a description of the current app. Anything not listed here still stands as written.
 >
-> Current state of the build lives in the latest session brief (`mBowl-SessionBrief-REV34.md` as of Nov 24, 2026).
+> Current state of the build lives in the latest session brief (`mBowl-SessionBrief-REV35.md` as of Nov 24, 2026).
 
 | # | Spec says | Shipped reality | Where |
 |---|---|---|---|
@@ -552,6 +552,7 @@ Native iOS modal sheet from gear icon on any tab.
 | 14 | Settings Screen (:435–445): season start / end dates | **Settings restyle (Nov 24):** sentence-case headers, the legacy Season Start / End card is hidden (`seasonStart` / `seasonEnd` stay in data; seasons are managed in the Seasons list), one grouped Backup card (Export Backup, Export Games (CSV), Restore from Backup, Restore from File…), Ball care, a data health line. Goals save as you type | Phases 31A, 31B |
 | 15 | Session / game / ball data model (:120–180) | **New optional fields (Nov 24), all additive — old data reads unchanged:** frame `missTag` (`yank` / `fast` / `target`, on a non-strike first ball; no tag = good shot); game `speed` (mph), `feet` → `target` (line, boards from the right), `switchFrame` + `switchBall` (a mid-game ball switch saved like a note — scoring and stats keep one ball per game); session `house`, `condition` (`fresh` / `broken` / `pattern`), `drill` (Practice spare-drill makes / misses for 10 pin, 7 pin, other single, multi-pin); ball `resurfacedOn`, `oilExtractedOn`. Stats adds Misses, Ball speed, Lanes, Spare drill and Season recap (ended seasons) cards, only once there is data | Phase 31B |
 | 16 | "What Got Cut" / backlog: CSV export (:462) | **Built (Nov 24):** Settings → Export Games (CSV), one row per game | Phase 31B |
+| 17 | "iOS-Native Feel" haptics and controls (CLAUDE.md) | **v2.1 Batch 1 (Nov 24):** one haptics map (`src/haptics.ts`: select / tap / mark / success / warning; a strike or spare is stronger than a count; the ball that finishes a game gets a success tap). A tap with the keyboard up works the first time. Every control is at least 44pt (the Edit sheet and Stats leave sort use segmented controls; ball strength opens a 1–5 action sheet). Discard on the Resume sheet asks first. Primary buttons are capsules (D4). Strike/Spare stays two taps (D1). | v2.1 Batch 1 (`docs/V2.1-AUDIT.md`) |
 
 ### Notes on #1 and #3
 

@@ -1,11 +1,12 @@
 # mBowl — Claude Code Instructions
 
 **Full spec:** `mBowl-SPEC.md` in this project folder. Read it before writing any code.
-**Session state:** `mBowl-SessionBrief-REV34.md` — check this for current phase and notes (START HERE + NEXT).
-**Audit fix lists:** `docs/PHASE28-AUDIT.md` (Nov 11 — M / S / N IDs; pre-league batch M2, S17–S20 shipped `20bfa97`) + `docs/AUDIT-FABLE-NOV14.md` (Nov 14 independent re-audit — F IDs; new MUST F1 backup overwrite). **After-league batch (Nov 17):** Parts A–D built on branch `after-league` (CI green, 3 reviewer passes), **shipped Nov 18** (update group 766e68a8, confirmed good on the Duo Nov 20). Both audits are **closed** (Nov 24): Part E + the leftover NICE items shipped in Phase 31A.
+**Session state:** `mBowl-SessionBrief-REV35.md` — check this for current phase and notes (START HERE + NEXT).
+**v2.1 (Nov 24):** everything after the Nov 24 polish + performance audit is **v2.1** -- `docs/V2.1-AUDIT.md` (46 P items in 5 batches, D1-D5 decided). **Batch 1 (Feel) built on branch `v2.1-batch1`, not shipped yet** -- REV35 START HERE.
+**Audit fix lists (closed):** `docs/PHASE28-AUDIT.md` (Nov 11 — M / S / N IDs; pre-league batch M2, S17–S20 shipped `20bfa97`) + `docs/AUDIT-FABLE-NOV14.md` (Nov 14 independent re-audit — F IDs; new MUST F1 backup overwrite). **After-league batch (Nov 17):** Parts A–D built on branch `after-league` (CI green, 3 reviewer passes), **shipped Nov 18** (update group 766e68a8, confirmed good on the Duo Nov 20). Both audits are **closed** (Nov 24): Part E + the leftover NICE items shipped in Phase 31A.
 **Duo roadmap + design spec:** `docs/mBowl-DuoPlan.md` (v1.8) — Phases 25–28, **all complete** (Nov 24). Read the brief's START HERE section first.
 **Phase 28 (v2 redesign):** `docs/mBowl-Phase28-BuildSpec.md` — WP1–WP7 all built and shipped Nov 10 night; v2 tokens + layout/page/live-game helpers in `src/v2/`, shared controls in `components/v2/`, tab pages in `components/pages/`.
-**Phase 31A (Nov 24):** v2 close-out shipped (`684e8eb`, update group f6e4a8ef). **Phase 31B (Nov 24):** Tier 2 shipped (`72936ba`, update group 1c64459a) -- new optional fields (frame `missTag`; game `speed`/`feet`/`target`/`switchFrame`/`switchBall`; session `house`/`condition`/`drill`; ball `resurfacedOn`/`oilExtractedOn`), helpers in `src/extras.ts`, UI in `components/GameExtrasFields.tsx` -- REV34 START HERE. **Phase 30B (Nov 24):** Reference restyle + right-handed content v2 (`src/referenceContent.ts`) + one-time REFERENCE upgrade (`src/referenceUpgrade.ts`, stamp `referenceVersion`), update group 7ac39a2a. **Marcus is right-handed** -- Reference directions depend on it. **Phase 29 (Nov 21) + 30A (Nov 23):** Path to goal + Spare leak (`02db869`, e7cd0dff), then 190 recipe + Leave -> fix + Tilt cost (`492209a`, update group 814db029) on Stats -- REV34 START HERE. **Status (Nov 24):** `master` = **2.0.0 / SDK 58** @ `72936ba` (+ docs), live on the Duo as update group 1c64459a; every change since the v2 binary has shipped over the air (`ota.yml`, manual dispatch from `master`; history + rollback targets in `docs/ROLLBACK.md`). OTAs reach only 2.0.0 builds (runtime policy `appVersion`); the old phone stays on 1.0.0 as the fallback. Data baseline (export 2026-11-24 18:09Z): 46 sessions / 143 games. **Next:** REV34 → START HERE (first look at 31A + 31B); the next phase is TBD with Marcus. Run `npm run check` (CI runs it on every push) before calling anything done.
+**Phase 31A (Nov 24):** v2 close-out shipped (`684e8eb`, update group f6e4a8ef). **Phase 31B (Nov 24):** Tier 2 shipped (`72936ba`, update group 1c64459a) -- new optional fields (frame `missTag`; game `speed`/`feet`/`target`/`switchFrame`/`switchBall`; session `house`/`condition`/`drill`; ball `resurfacedOn`/`oilExtractedOn`), helpers in `src/extras.ts`, UI in `components/GameExtrasFields.tsx` -- REV35 START HERE. **Phase 30B (Nov 24):** Reference restyle + right-handed content v2 (`src/referenceContent.ts`) + one-time REFERENCE upgrade (`src/referenceUpgrade.ts`, stamp `referenceVersion`), update group 7ac39a2a. **Marcus is right-handed** -- Reference directions depend on it. **Phase 29 (Nov 21) + 30A (Nov 23):** Path to goal + Spare leak (`02db869`, e7cd0dff), then 190 recipe + Leave -> fix + Tilt cost (`492209a`, update group 814db029) on Stats -- REV35 START HERE. **Status (Nov 24):** `master` = **2.0.0 / SDK 58** @ `72936ba` (+ docs), live on the Duo as update group 1c64459a; every change since the v2 binary has shipped over the air (`ota.yml`, manual dispatch from `master`; history + rollback targets in `docs/ROLLBACK.md`). OTAs reach only 2.0.0 builds (runtime policy `appVersion`); the old phone stays on 1.0.0 as the fallback. Data baseline (export 2026-11-24 18:09Z): 46 sessions / 143 games. **Next:** REV35 → START HERE (ship v2.1 Batch 1 on "ship it", device checks, then v2.1 Batch 2). Run `npm run check` (CI runs it on every push) before calling anything done.
 
 ---
 
@@ -17,7 +18,7 @@ A personal iPhone bowling tracker and reference app built in React Native via Ex
 
 ## Current Phase
 
-**Check mBowl-SessionBrief-REV34.md for current phase before starting any session.**
+**Check mBowl-SessionBrief-REV35.md for current phase before starting any session.**
 
 At the top of each session Marcus will tell you which phase he's on. Read the Spec for full context on that phase before writing any code.
 
@@ -59,6 +60,8 @@ This is an **Expo Router** project — NOT bare React Navigation.
 - React Navigation is included via Expo Router — do NOT reinstall it separately.
 - **SDK 58 vendored-API rule (Nov 11):** Expo Router 58 vendors React Navigation and changed some APIs. Check the vendored source (`expo/expo` branch `sdk-58`, `packages/expo-router/src/react-navigation/...`), not React Navigation's docs. `usePreventRemove`: continue a blocked exit with the callback's `repeat()` (or the returned `disablePrevention()` then navigate) — **never** `navigation.dispatch(data.action)` (loops forever; the Nov 11 game-over hang).
 - **Every exit/guard path gets one on-device run before it counts as done.**
+- **Keyboard (v2.1 P1/P8, Nov 24):** a ScrollView with inputs sets `keyboardShouldPersistTaps="handled"` + `automaticallyAdjustKeyboardInsets` + `keyboardDismissMode="interactive"`. Don't use KeyboardAvoidingView with a hard-coded offset. A tap that opens a sheet / picker / screen or submits calls `Keyboard.dismiss()`. If closing the keyboard can raise a question (the score-override alerts), hold that tap first (`holdForScoreOverride()` in LogPage / EditSessionModal). A tap that unmounts a focused field saves it first (its onBlur may never run). Number pads keep `returnKeyType="done"`: RN draws the Done toolbar from it. Don't add an InputAccessoryView, which replaces that toolbar and only binds one field on Fabric. Name fields: `autoCorrect={false}`.
+- **Labelled text fields:** `components/v2/EditableField` -- the label and the text are one tap target (Reference).
 
 ### Windows Machine Constraints
 
@@ -142,7 +145,8 @@ bad:       #FF453A
 ```
 
 - Card border radius: 13px
-- Input/button border radius: 10px
+- Input border radius: 10px
+- **Primary (teal) buttons: capsule** -- the `primaryButton` token in `src/v2/theme.ts` (v2.1 D4, Nov 24)
 - Standard card padding: 16px
 - Tab content padding: 16px horizontal
 - Active tab: teal. Inactive: dimmed.
@@ -163,7 +167,7 @@ bad:       #FF453A
 
 - Navigation transitions slide horizontally
 - Modals sheet up from bottom — never pop from center
-- Haptics on: session submit, delete confirm, strike entry, pin tap, filter/toggle tap
+- Haptics on: session submit, delete confirm, strike entry, pin tap, filter/toggle tap -- **always through `src/haptics.ts`** (v2.1 P7): `select` pin / segment / frame / ball, `tap` a throw or a button that does a thing, `mark` strike / spare, `success` game over + saves (only after the write landed), `warning` destructive confirms. Never call expo-haptics directly in new code; never fire two for one tap
 - Buttons scale down on press (ScalePressable with withSpring)
 - Lists use momentum scrolling with rubber-band effect
 - Blur effects on modal overlays via expo-blur
@@ -190,7 +194,7 @@ mBowl/
 │   │   ├── LogPage.tsx          — Log page (session form + games + submit + draft + Live game answer)
 │   │   ├── StatsPage.tsx        — Stats page (metrics + CELL_BANDS + charts + leave stats); `embedded` prop
 │   │   └── HistoryPage.tsx      — History page (rows + filter + expand/edit/share/delete); `embedded` prop
-│   ├── v2/                      — Phase 28 controls: SegmentedControl, SeasonMenu, FilterHeader, Scorecard, Keypad, SplitPages, SwipeRow, LiveGameButton, LiveGameRailButton, HeaderIconButton
+│   ├── v2/                      — Phase 28 controls: SegmentedControl, SeasonMenu, FilterHeader, Scorecard, Keypad, SplitPages, SwipeRow, LiveGameButton, LiveGameRailButton, HeaderIconButton, EditableField (v2.1)
 │   ├── ScalePressable.tsx       — animated press-scale wrapper
 │   ├── SettingsContent.tsx      — Settings modal content (seasons + goals + ball roster + ball care + backup card)
 │   ├── GameExtrasFields.tsx     — Phase 31B: per-game Line · speed · switch rows + "Start here" (Log form + edit sheet)
@@ -222,6 +226,7 @@ mBowl/
 │   ├── extras.ts            — Phase 31B: miss tags, line/speed/switch, house/condition, drill, ball wear, recap, CSV
 │   ├── framesParam.ts       — N23: safe frames route param
 │   ├── pinLayout.ts         — N9: the one PIN_ROWS
+│   ├── haptics.ts           — v2.1 P7: the one haptics map (select / tap / mark / success / warning)
 │   ├── v2/                  — Phase 28: theme.ts (tokens), layout.ts (useLayoutClass), page.tsx (PageContext, usePageWidth, useSideInsets, usePageVisible, useBleed), motion.ts (animateNextLayout), liveGame.ts
 │   ├── notifications.ts     — SideStore cert reminder (6-day repeating, iOS only)
 │   ├── seeds.js             — 18 historical sessions (ids 1001–1018)
@@ -234,7 +239,7 @@ mBowl/
 │   ├── mac-build.sh         — Mac build helper: setup + open Xcode, then `package` → .ipa → iCloud/GitHub (signing stays in Xcode)
 │   └── ship-ota.mjs         — npm run ship:ota — the only hand-run OTA path
 ├── .claude/                 — hooks, skills (/feature /ship /audit /backup-check), reviewer agent
-└── .github/workflows/       — ci.yml (every push) + ota.yml (manual only)
+└── .github/workflows/       — ci.yml (every push: npm run check + report-only ESLint, v2.1 P39) + ota.yml (manual only) + rollback.yml
 ```
 
 `_archive/` was deleted in Phase 23 (S15). Real-data files (`mBowl-backup.json`, `docs/phase24-data.json`) are gitignored — never commit them.
