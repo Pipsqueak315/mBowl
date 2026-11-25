@@ -3,7 +3,7 @@
 // TextInputs under a label that did nothing when tapped, well under the 44pt
 // rule. Tapping the label (or anywhere in the block) now puts the cursor in
 // the field.
-import { useRef } from 'react';
+import { useRef, type ComponentRef } from 'react';
 import { Pressable, Text, TextInput } from 'react-native';
 import type { StyleProp, TextInputProps, TextStyle, ViewStyle } from 'react-native';
 
@@ -15,7 +15,7 @@ type Props = Omit<TextInputProps, 'style'> & {
 };
 
 export default function EditableField({ label, blockStyle, labelStyle, inputStyle, ...input }: Props) {
-  const ref = useRef<TextInput>(null);
+  const ref = useRef<ComponentRef<typeof TextInput>>(null);
   return (
     <Pressable style={blockStyle} onPress={() => ref.current?.focus()} accessible={false}>
       <Text style={labelStyle}>{label}</Text>
