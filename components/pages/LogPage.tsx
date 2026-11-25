@@ -386,6 +386,9 @@ export default function LogPage() {
   const [availableBalls, setAvailableBalls] = useState<Ball[]>([]);
   // Draft resume
   const [draftResumeVisible, setDraftResumeVisible] = useState(false);
+  // Scores Marcus already chose to keep over the calculated one, by game id
+  // (review pass 2: without this the hold stayed on after "Override").
+  const acceptedOverrideRef = useRef<Record<string, string>>({});
   // v2.1 P2: Resume sheet slide-up (the Modal itself fades).
   const resumeSheetY = useSharedValue(RESUME_SHEET_START);
   const resumeSheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: resumeSheetY.value }] }));
@@ -582,6 +585,10 @@ export default function LogPage() {
         }
         openTokenRef.current = null;
         void AsyncStorage.removeItem(KEYS.FRAME_RESULT);
+        // v2.1 (review pass 3): new frames = a new calculated score, so a kept
+        // override from before no longer counts.
+        const resultGameId = latestDraftRef.current?.games[result.gameIndex]?.id;
+        if (resultGameId) delete acceptedOverrideRef.current[resultGameId];
         const apply = (list: Game[]) =>
           list.map((g, i) =>
             i === result.gameIndex
@@ -667,9 +674,6 @@ export default function LogPage() {
   // ask "Override calculated score?". When that question is coming, the tap
   // only closes the keyboard (the old behaviour), so the answer lands before
   // anything is saved or opened.
-  // Scores Marcus already chose to keep over the calculated one, by game id
-  // (review pass 2: without this the hold stayed on after "Override").
-  const acceptedOverrideRef = useRef<Record<string, string>>({});
   function holdForScoreOverride(): boolean {
     if (!Keyboard.isVisible()) return false;
     const pending = games.some((g) => {
@@ -749,6 +753,8 @@ export default function LogPage() {
 
   function resetForm() {
     submitIdRef.current = null;
+    clearLiveGameRequest(); // v2.1 (review pass 3): a new form has no live game
+    acceptedOverrideRef.current = {};
     const now = new Date();
     dateUserSetRef.current = false;
     dateSetAtRef.current = now.getTime();
@@ -1026,6 +1032,9 @@ export default function LogPage() {
     const game = games[index];
     if (!game || openingFramesRef.current) return;
     openingFramesRef.current = true;
+    // v2.1 (review pass 3): any open of Log Frames answers a pending Live game
+    // request -- a held request must never re-fire on a later Log focus.
+    clearLiveGameRequest();
     const token = String(Date.now()) + Math.random().toString(36).slice(2, 8);
     openTokenRef.current = token;
     router.push({
