@@ -306,6 +306,9 @@ export default function EditSessionModal({
 
   function handleSave() {
     if (!session) return;
+    // v2.1 (review pass 2, pre-existing): with the score field focused, let
+    // "Override saved score?" be answered before saving.
+    if (holdForScoreOverride()) return;
     const hasScore = games.some(g => g.score !== '');
     if (!hasScore && !(sessionType === 'practice' && drillShots(normalizeDrill(session.drill)) > 0)) {
       Alert.alert('No scores entered', 'Enter at least one score before saving.');

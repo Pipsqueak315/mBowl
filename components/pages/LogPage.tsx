@@ -220,21 +220,25 @@ type GameRowProps = {
   onPickSwitchBall: () => void;
   history: Session[];
   onLogFrames: () => void;
+  /** v2.1 P1: true when Marcus already chose to keep this score over the calculated one (asked once). */
+  isOverrideAccepted: (score: string) => boolean;
+  onAcceptOverride: (score: string) => void;
   /** Edge-to-edge card background (Phase 28 polish): corner + padding styles. */
   cardStyle?: import('react-native').StyleProp<import('react-native').ViewStyle>;
 };
 
-function GameRow({ game, index, onChange, onPickBall, onPickSwitchBall, history, onLogFrames, cardStyle }: GameRowProps) {
+function GameRow({ game, index, onChange, onPickBall, onPickSwitchBall, history, onLogFrames, isOverrideAccepted, onAcceptOverride, cardStyle }: GameRowProps) {
   function handleScoreEndEditing() {
     if (game.calculatedScore === undefined) return;
     const entered = parseInt(game.score, 10);
     if (isNaN(entered) || entered === game.calculatedScore) return;
+    if (isOverrideAccepted(game.score)) return; // v2.1: asked once, like the Edit sheet
     Alert.alert(
       'Override calculated score?',
       `This game has a calculated score of ${game.calculatedScore} from frame data. Replace with ${entered}?`,
       [
         { text: 'Cancel', style: 'cancel', onPress: () => onChange('score', String(game.calculatedScore)) },
-        { text: 'Override', style: 'destructive' },
+        { text: 'Override', style: 'destructive', onPress: () => onAcceptOverride(game.score) },
       ]
     );
   }
@@ -663,10 +667,14 @@ export default function LogPage() {
   // ask "Override calculated score?". When that question is coming, the tap
   // only closes the keyboard (the old behaviour), so the answer lands before
   // anything is saved or opened.
+  // Scores Marcus already chose to keep over the calculated one, by game id
+  // (review pass 2: without this the hold stayed on after "Override").
+  const acceptedOverrideRef = useRef<Record<string, string>>({});
   function holdForScoreOverride(): boolean {
     if (!Keyboard.isVisible()) return false;
     const pending = games.some((g) => {
       if (g.calculatedScore === undefined || g.score === '') return false;
+      if (acceptedOverrideRef.current[g.id] === g.score) return false;
       const entered = parseInt(g.score, 10);
       return !isNaN(entered) && entered !== g.calculatedScore;
     });
@@ -1065,6 +1073,9 @@ export default function LogPage() {
 
   useEffect(() => {
     if (!isFocused || !ready || draftResumeVisible || !hasLiveGameRequest()) return;
+    // v2.1 (review pass 2): if the score-override hold stops the open, keep
+    // the request so the next tap (or focus) still opens the game.
+    if (holdForScoreOverride()) return;
     clearLiveGameRequest();
     const idx = firstUnscoredGame(games);
     if (idx >= 0) openLogFrames(idx);
@@ -1317,6 +1328,10 @@ export default function LogPage() {
                 onPickSwitchBall={() => openBallPicker(game.id, 'switchBall')}
                 history={history}
                 onLogFrames={() => openLogFrames(index)}
+                isOverrideAccepted={(score) => acceptedOverrideRef.current[game.id] === score}
+                onAcceptOverride={(score) => {
+                  acceptedOverrideRef.current[game.id] = score;
+                }}
               />
             </SwipeRow>
           ))}

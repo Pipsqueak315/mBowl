@@ -136,6 +136,12 @@ export default function SettingsContent({ onClose }: Props) {
   const [exporting, setExporting] = useState(false);
 
   const [balls, setBalls] = useState<Ball[]>([]);
+  // v2.1 (review pass 2): the latest roster for callbacks that outlive a
+  // render (the strength action sheet answers after a rename may have saved).
+  const ballsRef = useRef<Ball[]>([]);
+  useEffect(() => {
+    ballsRef.current = balls;
+  }, [balls]);
   const [editingBallId, setEditingBallId] = useState<string | null>(null);
   const [editingBallName, setEditingBallName] = useState('');
 
@@ -389,12 +395,13 @@ export default function SettingsContent({ onClose }: Props) {
     if (trimmed) {
       saveBallsData(balls.map(b => (b.id === id ? { ...b, name: trimmed } : b)));
     }
-    setEditingBallId(null);
+    // Only close this ball's field (a late blur must not close the next one).
+    setEditingBallId(cur => (cur === id ? null : cur));
   }
 
   function changeStrength(id: string, value: number) {
     haptic.select();
-    saveBallsData(balls.map(b => (b.id === id ? { ...b, strength: value } : b)));
+    saveBallsData(ballsRef.current.map(b => (b.id === id ? { ...b, strength: value } : b)));
   }
 
   function addBall() {
