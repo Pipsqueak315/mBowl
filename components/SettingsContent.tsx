@@ -8,9 +8,10 @@ import {
   SafeAreaView,
   TextInput,
   Switch,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Alert,
+  ActionSheetIOS,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
@@ -30,6 +31,8 @@ import { ballWear, sessionsToCsv } from '@/src/extras';
 import type { Session } from '@/src/types';
 import { notifyDataChanged } from '@/src/dataEvents';
 import ScalePressable from '@/components/ScalePressable';
+import SegmentedControl from '@/components/v2/SegmentedControl';
+import KeyboardDoneBar, { DONE_BAR } from '@/components/v2/KeyboardDoneBar';
 import type { Settings, Ball, Season } from '@/src/types';
 import { getSeasons, resolveSeasonRanges } from '@/src/seasons';
 
@@ -43,27 +46,58 @@ type Props = { onClose: () => void };
 // Sub-components: strength dots
 // ---------------------------------------------------------------------------
 
+// v2.1 P5: the five 8pt dots were separate ~24x16pt tap targets with
+// overlapping slop (easy to hit the wrong one). Now the dots are one 44pt
+// control that opens a 1-5 action sheet.
+const STRENGTH_OPTIONS = ['1 · Weakest', '2', '3', '4', '5 · Strongest'];
+
 function TappableStrengthDots({
   strength,
+  ballName,
   onPress,
 }: {
   strength: number;
+  ballName: string;
   onPress: (value: number) => void;
 }) {
+  function choose() {
+    Keyboard.dismiss();
+    if (Platform.OS !== 'ios') return;
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: `${ballName} strength`,
+        options: [...STRENGTH_OPTIONS, 'Cancel'],
+        cancelButtonIndex: STRENGTH_OPTIONS.length,
+      },
+      (i) => {
+        if (i < STRENGTH_OPTIONS.length && i + 1 !== strength) onPress(i + 1);
+      },
+    );
+  }
   return (
-    <View style={styles.dotsRow}>
-      {[1, 2, 3, 4, 5].map(i => (
-        <TouchableOpacity
-          key={i}
-          onPress={() => onPress(i)}
-          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-        >
-          <View style={[styles.dot, i <= strength ? styles.dotFilled : styles.dotEmpty]} />
-        </TouchableOpacity>
-      ))}
-    </View>
+    <TouchableOpacity
+      style={styles.dotsTap}
+      onPress={choose}
+      accessibilityRole="button"
+      accessibilityLabel={`Strength ${strength} of 5`}
+      accessibilityHint="Opens a list to change it"
+    >
+      <View style={styles.dotsRow}>
+        {[1, 2, 3, 4, 5].map(i => (
+          <View key={i} style={[styles.dot, i <= strength ? styles.dotFilled : styles.dotEmpty]} />
+        ))}
+      </View>
+    </TouchableOpacity>
   );
 }
+
+const STRENGTH_SEGMENTS = [
+  { key: '1', label: '1' },
+  { key: '2', label: '2' },
+  { key: '3', label: '3' },
+  { key: '4', label: '4' },
+  { key: '5', label: '5' },
+] as const;
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -476,6 +510,7 @@ export default function SettingsContent({ onClose }: Props) {
           placeholder="Season name"
           placeholderTextColor="#48484A"
           returnKeyType="done"
+          autoCorrect={false}
           autoFocus
         />
         <TextInput
@@ -485,11 +520,15 @@ export default function SettingsContent({ onClose }: Props) {
           placeholder="Short label (for pills, e.g. Winners 25)"
           placeholderTextColor="#48484A"
           returnKeyType="done"
+          autoCorrect={false}
           maxLength={16}
         />
         <TouchableOpacity
           style={styles.fieldRow}
-          onPress={() => setShowSeasonStartPicker(v => !v)}
+          onPress={() => {
+            Keyboard.dismiss(); // v2.1 P1
+            setShowSeasonStartPicker(v => !v);
+          }}
         >
           <Text style={styles.fieldLabel}>Start Date</Text>
           <Text style={seasonDraft.start ? styles.valueSet : styles.valueDim}>
@@ -533,7 +572,7 @@ export default function SettingsContent({ onClose }: Props) {
             placeholder="—"
             placeholderTextColor="#48484A"
             maxLength={2}
-            returnKeyType="done"
+            inputAccessoryViewID={DONE_BAR.settings}
             accessibilityLabel="League weeks in this season"
           />
         </View>
@@ -571,16 +610,16 @@ export default function SettingsContent({ onClose }: Props) {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.kavFlex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
-      >
+      {/* v2.1 P1 / P8: the ScrollView insets itself by the keyboard, and taps
+          on controls work the first time with the keyboard up. */}
+      <View style={styles.kavFlex}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         {/* Phase 31A: the legacy Season Start/End card is no longer shown --
             Seasons below replaced it (Phase 24). seasonStart / seasonEnd stay in
@@ -594,12 +633,14 @@ export default function SettingsContent({ onClose }: Props) {
         <View style={styles.sectionRow}>
           <Text style={styles.sectionLabel}>Seasons</Text>
           <TouchableOpacity
+            style={styles.addLinkTap}
+            hitSlop={{ left: 12, right: 12 }}
             onPress={() =>
               seasonDraft && seasonDraftIsNew ? closeSeasonEditor() : openAddSeason()
             }
           >
             <Text style={styles.addLink}>
-              {seasonDraft && seasonDraftIsNew ? 'Cancel' : '+ Add Season'}
+              {seasonDraft && seasonDraftIsNew ? 'Cancel' : 'Add season'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -649,7 +690,7 @@ export default function SettingsContent({ onClose }: Props) {
               placeholder="—"
               placeholderTextColor="#48484A"
               maxLength={3}
-              returnKeyType="done"
+              inputAccessoryViewID={DONE_BAR.settings}
             />
           </View>
           <View style={[styles.fieldRow, styles.fieldRowLast]}>
@@ -666,7 +707,7 @@ export default function SettingsContent({ onClose }: Props) {
               placeholder="—"
               placeholderTextColor="#48484A"
               maxLength={3}
-              returnKeyType="done"
+              inputAccessoryViewID={DONE_BAR.settings}
             />
           </View>
         </View>
@@ -676,8 +717,12 @@ export default function SettingsContent({ onClose }: Props) {
         ---------------------------------------------------------------- */}
         <View style={styles.sectionRow}>
           <Text style={styles.sectionLabel}>Ball roster</Text>
-          <TouchableOpacity onPress={() => setAddingBall(v => !v)}>
-            <Text style={styles.addLink}>{addingBall ? 'Cancel' : '+ Add Ball'}</Text>
+          <TouchableOpacity
+            style={styles.addLinkTap}
+            hitSlop={{ left: 12, right: 12 }}
+            onPress={() => setAddingBall(v => !v)}
+          >
+            <Text style={styles.addLink}>{addingBall ? 'Cancel' : 'Add ball'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -691,26 +736,17 @@ export default function SettingsContent({ onClose }: Props) {
               placeholder="Ball name"
               placeholderTextColor="#48484A"
               returnKeyType="done"
+              autoCorrect={false}
               autoFocus
             />
             <Text style={styles.strengthTitle}>Strength</Text>
             <View style={styles.strengthRow}>
-              {[1, 2, 3, 4, 5].map(n => (
-                <ScalePressable
-                  key={n}
-                  style={[styles.strengthBtn, newBallStrength === n && styles.strengthBtnActive]}
-                  onPress={() => setNewBallStrength(n)}
-                >
-                  <Text
-                    style={[
-                      styles.strengthBtnText,
-                      newBallStrength === n && styles.strengthBtnTextActive,
-                    ]}
-                  >
-                    {n}
-                  </Text>
-                </ScalePressable>
-              ))}
+              <SegmentedControl
+                segments={STRENGTH_SEGMENTS}
+                value={String(newBallStrength) as (typeof STRENGTH_SEGMENTS)[number]['key']}
+                onChange={(k) => setNewBallStrength(Number(k))}
+                accessibilityLabel="Ball strength"
+              />
             </View>
             <ScalePressable
               style={[styles.saveBtn, !newBallName.trim() && styles.saveBtnDisabled]}
@@ -735,6 +771,7 @@ export default function SettingsContent({ onClose }: Props) {
                 <View style={styles.ballRow}>
                   <TappableStrengthDots
                     strength={ball.strength}
+                    ballName={ball.name}
                     onPress={(v) => changeStrength(ball.id, v)}
                   />
 
@@ -747,6 +784,7 @@ export default function SettingsContent({ onClose }: Props) {
                       onSubmitEditing={() => commitRename(ball.id)}
                       autoFocus
                       returnKeyType="done"
+                      autoCorrect={false}
                     />
                   ) : (
                     <TouchableOpacity
@@ -962,7 +1000,8 @@ export default function SettingsContent({ onClose }: Props) {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
+      <KeyboardDoneBar id={DONE_BAR.settings} />
     </SafeAreaView>
   );
 }
@@ -1022,10 +1061,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   addLink: {
-    fontSize: 15,
+    fontSize: 17,
     color: '#00CEC9',
     fontWeight: '500',
   },
+  // v2.1 P5: a 44pt tap area for the text links
+  addLinkTap: { minHeight: 44, justifyContent: 'center' },
+  dotsTap: { minHeight: 44, minWidth: 44, justifyContent: 'center', paddingRight: 8 },
   // Card
   card: {
     backgroundColor: '#1C1C1E',
@@ -1090,27 +1132,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   strengthRow: {
-    flexDirection: 'row',
-    gap: 8,
     marginBottom: 16,
-  },
-  strengthBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    backgroundColor: '#2C2C2E',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  strengthBtnActive: {
-    backgroundColor: '#00CEC9',
-  },
-  strengthBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#8E8E93',
-  },
-  strengthBtnTextActive: {
-    color: '#000000',
   },
   saveBtn: {
     backgroundColor: '#00CEC9',
@@ -1131,7 +1153,7 @@ const styles = StyleSheet.create({
   ballRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 4, // v2.1 P5: the strength control is 44pt tall now
     gap: 12,
   },
   ballNameTap: {

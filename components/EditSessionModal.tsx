@@ -8,18 +8,17 @@ import {
   SafeAreaView,
   ScrollView,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
+  Keyboard,
   Alert,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import ScalePressable from '@/components/ScalePressable';
 import { readBalls } from '@/src/storage';
 import type { ThrowEntry, GameEntry, Ball, Session, LaneCondition } from '@/src/types';
 import GameExtrasFields from '@/components/GameExtrasFields';
 import SegmentedControl from '@/components/v2/SegmentedControl';
+import KeyboardDoneBar, { DONE_BAR } from '@/components/v2/KeyboardDoneBar';
 import { gameExtrasFromForm, gameExtrasToForm, gameExtrasInvalid, isCondition, DEFAULT_HOUSE, drillShots, normalizeDrill } from '@/src/extras';
 
 const CONDITION_SEGMENTS = [
@@ -59,12 +58,20 @@ type MadeCut = 'Yes' | 'No' | 'N/A';
 // Constants
 // ---------------------------------------------------------------------------
 
-const SESSION_TYPES: { key: SessionType; label: string }[] = [
+// v2.1 P5: the same segmented controls (and labels) as the Log form -- the
+// old teal pills here were ~32pt tall, under the 44pt rule.
+const SESSION_TYPES = [
   { key: 'league', label: 'League' },
   { key: 'makeup', label: 'Makeup' },
-  { key: 'tournament', label: 'Tournament' },
+  { key: 'tournament', label: 'Tourney' },
   { key: 'practice', label: 'Practice' },
-];
+] as const satisfies readonly { key: SessionType; label: string }[];
+
+const MADE_CUT_SEGMENTS = [
+  { key: 'Yes', label: 'Yes' },
+  { key: 'No', label: 'No' },
+  { key: 'N/A', label: 'N/A' },
+] as const satisfies readonly { key: MadeCut; label: string }[];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -255,6 +262,14 @@ export default function EditSessionModal({
   // F11 (Nov 15): typing a new score on a game that has frames used to save
   // silently, so the score (average) and the frames (strike %, leaves) then
   // disagreed. Same confirm the Log form uses: keep the frame score or override.
+  /** v2.1 P1: true when ending an edit would ask "Override Saved Score?". */
+  function overridePending(): boolean {
+    return games.some((g, i) => {
+      const saved = savedScoresRef.current[i] ?? '';
+      return !!g.frames && g.frames.length > 0 && g.score !== '' && g.score !== saved;
+    });
+  }
+
   function confirmScoreOverride(i: number) {
     const g = games[i];
     const saved = savedScoresRef.current[i] ?? '';
@@ -336,44 +351,38 @@ export default function EditSessionModal({
           </TouchableOpacity>
         </View>
 
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
+        {/* v2.1 P1 / P8: the ScrollView insets itself by the keyboard (a
+            KeyboardAvoidingView inside a pageSheet measured the wrong height),
+            and a tap on a control with the keyboard up works the first time. */}
           <ScrollView
             style={styles.flex}
             contentContainerStyle={styles.content}
             keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
             showsVerticalScrollIndicator={false}
           >
             {/* Session type */}
             <View style={styles.typeBar}>
-              {SESSION_TYPES.map(({ key, label }) => (
-                <ScalePressable
-                  key={key}
-                  style={[styles.typePill, sessionType === key && styles.typePillActive]}
-                  onPress={() => {
-                    setSessionType(key);
-                    markDirty();
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.typePillText,
-                      sessionType === key && styles.typePillTextActive,
-                    ]}
-                  >
-                    {label}
-                  </Text>
-                </ScalePressable>
-              ))}
+              <SegmentedControl
+                segments={SESSION_TYPES}
+                value={sessionType}
+                onChange={(k) => {
+                  setSessionType(k);
+                  markDirty();
+                }}
+                accessibilityLabel="Session type"
+              />
             </View>
 
             {/* Date */}
             <View style={styles.card}>
               <TouchableOpacity
                 style={styles.fieldRow}
-                onPress={() => setShowDatePicker(v => !v)}
+                onPress={() => {
+                  Keyboard.dismiss(); // v2.1 P1
+                  setShowDatePicker(v => !v);
+                }}
               >
                 <Text style={styles.fieldLabel}>Date</Text>
                 <Text style={styles.fieldValueTeal}>{formatDateDisplay(dateStr)}</Text>
@@ -418,7 +427,8 @@ export default function EditSessionModal({
                     keyboardType="number-pad"
                     placeholder="—"
                     placeholderTextColor="#48484A"
-                    returnKeyType="done"
+                    inputAccessoryViewID={DONE_BAR.edit}
+                    selectTextOnFocus
                   />
                 </View>
               </View>
@@ -439,6 +449,7 @@ export default function EditSessionModal({
                     placeholder="Optional"
                     placeholderTextColor="#48484A"
                     returnKeyType="done"
+                    autoCorrect={false}
                   />
                 </View>
               </View>
@@ -460,6 +471,7 @@ export default function EditSessionModal({
                       placeholder="Tournament name"
                       placeholderTextColor="#48484A"
                       returnKeyType="done"
+                      autoCorrect={false}
                     />
                   </View>
                 </View>
@@ -476,6 +488,7 @@ export default function EditSessionModal({
                       placeholder="e.g. Match Play"
                       placeholderTextColor="#48484A"
                       returnKeyType="done"
+                      autoCorrect={false}
                     />
                   </View>
                 </View>
@@ -492,35 +505,23 @@ export default function EditSessionModal({
                       placeholder="e.g. Chameleon 39'"
                       placeholderTextColor="#48484A"
                       returnKeyType="done"
+                      autoCorrect={false}
                     />
                   </View>
                 </View>
                 <View style={styles.card}>
                   <View style={styles.fieldRow}>
-                    <Text style={styles.fieldLabel}>Made Cut</Text>
-                    <View style={styles.madeCutOptions}>
-                      {(['Yes', 'No', 'N/A'] as const).map(opt => (
-                        <ScalePressable
-                          key={opt}
-                          style={[
-                            styles.madeCutBtn,
-                            madeCut === opt && styles.madeCutBtnActive,
-                          ]}
-                          onPress={() => {
-                            setMadeCut(opt);
-                            markDirty();
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.madeCutBtnText,
-                              madeCut === opt && styles.madeCutBtnTextActive,
-                            ]}
-                          >
-                            {opt}
-                          </Text>
-                        </ScalePressable>
-                      ))}
+                    <Text style={styles.fieldLabel}>Made cut</Text>
+                    <View style={styles.madeCutBar}>
+                      <SegmentedControl
+                        segments={MADE_CUT_SEGMENTS}
+                        value={madeCut}
+                        onChange={(k) => {
+                          setMadeCut(k);
+                          markDirty();
+                        }}
+                        accessibilityLabel="Made cut"
+                      />
                     </View>
                   </View>
                 </View>
@@ -537,6 +538,7 @@ export default function EditSessionModal({
                       placeholder="e.g. 3rd"
                       placeholderTextColor="#48484A"
                       returnKeyType="done"
+                      autoCorrect={false}
                     />
                   </View>
                 </View>
@@ -557,6 +559,7 @@ export default function EditSessionModal({
                   placeholder={DEFAULT_HOUSE}
                   placeholderTextColor="#48484A"
                   returnKeyType="done"
+                  autoCorrect={false}
                 />
               </View>
               <View style={styles.laneRow}>
@@ -576,7 +579,7 @@ export default function EditSessionModal({
             {/* Games */}
             {games.map((g, i) => (
               <View key={g.game} style={styles.gameCard}>
-                <Text style={styles.gameLabel}>GAME {g.game}</Text>
+                <Text style={styles.gameLabel}>Game {g.game}</Text>
 
                 {/* Score */}
                 <View style={styles.scoreRow}>
@@ -598,7 +601,8 @@ export default function EditSessionModal({
                     placeholder="—"
                     placeholderTextColor="#48484A"
                     maxLength={3}
-                    returnKeyType="done"
+                    inputAccessoryViewID={DONE_BAR.edit}
+                    selectTextOnFocus
                   />
                 </View>
 
@@ -606,6 +610,7 @@ export default function EditSessionModal({
                 <TouchableOpacity
                   style={styles.ballRow}
                   onPress={() => {
+                    Keyboard.dismiss(); // v2.1 P1
                     ballPickerFieldRef.current = 'ball';
                     setBallPickerForIndex(i);
                     setBallPickerOpen(true);
@@ -629,6 +634,7 @@ export default function EditSessionModal({
                     setBallPickerForIndex(i);
                     setBallPickerOpen(true);
                   }}
+                  doneBarId={DONE_BAR.edit}
                 />
 
                 {/* Frame data edit button */}
@@ -636,12 +642,21 @@ export default function EditSessionModal({
                   <TouchableOpacity
                     style={styles.editFramesButton}
                     onPress={() => {
+                      // v2.1 P1: with the keyboard up, closing it can run the
+                      // score field's "Override Saved Score?" check. When that
+                      // question is pending, this tap only closes the keyboard so
+                      // the answer lands before the sheet closes.
+                      if (Keyboard.isVisible() && overridePending()) {
+                        Keyboard.dismiss();
+                        return;
+                      }
+                      Keyboard.dismiss();
                       const live = buildSession();
                       if (live) onEditFrames(i, live, isDirty.current);
                     }}
                   >
                     <Text style={styles.editFramesText}>
-                      {g.frames && g.frames.length > 0 ? 'Edit Frames' : 'Log Frames'}
+                      {g.frames && g.frames.length > 0 ? 'Edit frames' : 'Log frames'}
                     </Text>
                     <IconSymbol name="chevron.right" size={14} color="#8E8E93" />
                   </TouchableOpacity>
@@ -681,7 +696,7 @@ export default function EditSessionModal({
 
             <View style={styles.bottomSpacer} />
           </ScrollView>
-        </KeyboardAvoidingView>
+          <KeyboardDoneBar id={DONE_BAR.edit} />
 
         {/* Ball picker modal */}
         <Modal
@@ -785,19 +800,7 @@ const styles = StyleSheet.create({
   bottomSpacer: { height: 40 },
 
   // Type bar
-  typeBar: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  typePill: {
-    flex: 1,
-    paddingVertical: 8,
-    backgroundColor: '#1C1C1E',
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#38383A',
-  },
-  typePillActive: { backgroundColor: '#00CEC9', borderColor: '#00CEC9' },
-  typePillText: { fontSize: 13, fontWeight: '600', color: '#8E8E93' },
-  typePillTextActive: { color: '#000000' },
+  typeBar: { marginBottom: 16 },
 
   // Card
   card: {
@@ -847,12 +850,11 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     marginBottom: 12,
   },
+  // v2.1 P11: sentence case like the Log form's game cards (no tiny all-caps)
   gameLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#8E8E93',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
     marginBottom: 8,
   },
   scoreRow: {
@@ -905,19 +907,8 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
 
-  // Tournament Made Cut
-  madeCutOptions: { flexDirection: 'row', gap: 8 },
-  madeCutBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: '#2C2C2E',
-    borderWidth: 1,
-    borderColor: '#38383A',
-  },
-  madeCutBtnActive: { backgroundColor: '#00CEC9', borderColor: '#00CEC9' },
-  madeCutBtnText: { fontSize: 14, fontWeight: '500', color: '#8E8E93' },
-  madeCutBtnTextActive: { color: '#000000' },
+  // Tournament Made Cut (v2.1 P5: segmented control, same width as the Log form)
+  madeCutBar: { width: 170 },
 
   // Ball picker
   ballPickerContainer: { flex: 1, backgroundColor: '#000000' },

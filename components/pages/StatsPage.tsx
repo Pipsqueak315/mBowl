@@ -12,6 +12,7 @@ import {
 import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 import SettingsContent from '@/components/SettingsContent';
 import FilterHeader from '@/components/v2/FilterHeader';
+import SegmentedControl from '@/components/v2/SegmentedControl';
 import { usePageWidth, useSideInsets, usePageVisible } from '@/src/v2/page';
 import { useLayoutClass } from '@/src/v2/layout';
 import { LineChart } from 'react-native-chart-kit';
@@ -1788,20 +1789,15 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
             ) : (
               <View style={styles.leavesCard}>
                 <Text style={styles.leavesTitle}>Leaves</Text>
+                {/* v2.1 P5: the app's segmented control (44pt + haptic); the old
+                    chips were ~27pt TouchableOpacity pills. */}
                 <View style={styles.sortRow}>
-                  {LEAVE_SORTS.map(s => (
-                    <TouchableOpacity
-                      key={s.key}
-                      style={[styles.sortChip, leaveSort === s.key && styles.sortChipActive]}
-                      onPress={() => setLeaveSort(s.key)}
-                    >
-                      <Text
-                        style={[styles.sortChipText, leaveSort === s.key && styles.sortChipTextActive]}
-                      >
-                        {s.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  <SegmentedControl
+                    segments={LEAVE_SORTS}
+                    value={leaveSort}
+                    onChange={setLeaveSort}
+                    accessibilityLabel="Sort leaves"
+                  />
                 </View>
                 {(showAllLeaves ? sortedLeaves : sortedLeaves.slice(0, 6)).map((leave, i) => (
                   <LeaveRow key={leave.pins.join('-')} leave={leave} showBorder={i > 0} />
@@ -1813,7 +1809,7 @@ export default function StatsPage({ embedded = false }: { embedded?: boolean }) 
                     style={styles.showAllRow}
                   >
                     <Text style={styles.allLeavesToggle}>
-                      {showAllLeaves ? 'Show Less' : `Show All (${sortedLeaves.length})`}
+                      {showAllLeaves ? 'Show less' : `Show all (${sortedLeaves.length})`}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -2307,8 +2303,8 @@ const styles = StyleSheet.create({
   },
   showAllRow: {
     alignItems: 'center',
-    paddingTop: 12,
-    paddingBottom: 4,
+    justifyContent: 'center',
+    minHeight: 44, // v2.1 P5
     borderTopWidth: 0.5,
     borderTopColor: '#38383A',
     marginTop: 2,
@@ -2316,29 +2312,7 @@ const styles = StyleSheet.create({
 
   // --- Leaves sort toggle ---
   sortRow: {
-    flexDirection: 'row',
-    backgroundColor: '#2C2C2E',
-    borderRadius: 8,
-    padding: 2,
     marginTop: 4,
-    marginBottom: 4,
-  },
-  sortChip: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  sortChipActive: {
-    backgroundColor: '#1C1C1E',
-  },
-  sortChipText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#8E8E93',
-  },
-  sortChipTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    marginBottom: 8,
   },
 });

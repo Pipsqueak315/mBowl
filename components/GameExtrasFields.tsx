@@ -2,7 +2,7 @@
 // edit sheet -- speed, line (feet -> target), and a mid-game ball switch.
 // Everything is optional; blank rows save nothing.
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard } from 'react-native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { GameExtrasForm, StartHere } from '@/src/extras';
 import * as Haptics from 'expo-haptics';
@@ -16,6 +16,7 @@ export default function GameExtrasFields({
   onPickSwitchBall,
   startHere,
   ballName,
+  doneBarId,
 }: {
   value: GameExtrasForm;
   onChange: (field: Field, v: string) => void;
@@ -24,6 +25,8 @@ export default function GameExtrasFields({
   /** Last logged line with this game's ball (shown until a line is typed). */
   startHere?: StartHere | null;
   ballName?: string;
+  /** v2.1 P8: the screen's KeyboardDoneBar id (number pads have no Return key). */
+  doneBarId?: string;
 }) {
   const digits = (v: string, max: number) => v.replace(/[^0-9]/g, '').slice(0, max);
   const lineEmpty = !value.feet && !value.target;
@@ -71,7 +74,7 @@ export default function GameExtrasFields({
             placeholder="feet"
             placeholderTextColor="#48484A"
             maxLength={2}
-            returnKeyType="done"
+            inputAccessoryViewID={doneBarId}
             accessibilityLabel="Feet board"
           />
           <Text style={styles.arrow}>→</Text>
@@ -83,7 +86,7 @@ export default function GameExtrasFields({
             placeholder="target"
             placeholderTextColor="#48484A"
             maxLength={2}
-            returnKeyType="done"
+            inputAccessoryViewID={doneBarId}
             accessibilityLabel="Target board"
           />
         </View>
@@ -100,7 +103,7 @@ export default function GameExtrasFields({
             placeholder="mph"
             placeholderTextColor="#48484A"
             maxLength={4}
-            returnKeyType="done"
+            inputAccessoryViewID={doneBarId}
             accessibilityLabel="Ball speed in miles per hour"
           />
         </View>
@@ -117,11 +120,17 @@ export default function GameExtrasFields({
             placeholder="—"
             placeholderTextColor="#48484A"
             maxLength={2}
-            returnKeyType="done"
+            inputAccessoryViewID={doneBarId}
             accessibilityLabel="Frame the ball switch happened"
           />
           {value.switchFrame ? (
-            <TouchableOpacity style={styles.ballBtn} onPress={onPickSwitchBall}>
+            <TouchableOpacity
+              style={styles.ballBtn}
+              onPress={() => {
+                Keyboard.dismiss(); // v2.1 P1
+                onPickSwitchBall();
+              }}
+            >
               <Text style={value.switchBall ? styles.ballSet : styles.ballDim} numberOfLines={1}>
                 {value.switchBall || 'to…'}
               </Text>

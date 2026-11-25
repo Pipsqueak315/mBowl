@@ -3,12 +3,12 @@ import {
   View,
   Text,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   Platform,
   UIManager,
 } from 'react-native';
+import EditableField from '@/components/v2/EditableField';
 import { animateNextLayout } from '@/src/v2/motion';
 import SegmentedControl from '@/components/v2/SegmentedControl';
 import { SWITCH_GUIDE_V2, LANE_READS_V2 } from '@/src/referenceContent';
@@ -208,6 +208,8 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         {data.switchGuide.map((row, i) => {
           const isOpen = expandedGuide.has(i);
@@ -237,10 +239,11 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
                 <View style={s.expandedBody}>
                   <View style={s.separator} />
 
-                  <View style={s.fieldBlock}>
-                    <Text style={s.fieldLabel}>WHAT YOU'RE SEEING</Text>
-                    <TextInput
-                      style={s.fieldInput}
+                  <EditableField
+                      label="What you're seeing"
+                      blockStyle={s.fieldBlock}
+                      labelStyle={s.fieldLabel}
+                      inputStyle={s.fieldInput}
                       value={row.whatYoureSeeing}
                       onChangeText={v => patchGuide(i, { whatYoureSeeing: v })}
                       onBlur={onSave}
@@ -249,12 +252,12 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
                       placeholder="Describe the reaction..."
                       placeholderTextColor="#48484A"
                     />
-                  </View>
 
-                  <View style={s.fieldBlock}>
-                    <Text style={s.fieldLabel}>CAUSE</Text>
-                    <TextInput
-                      style={s.fieldInput}
+                  <EditableField
+                      label="Cause"
+                      blockStyle={s.fieldBlock}
+                      labelStyle={s.fieldLabel}
+                      inputStyle={s.fieldInput}
                       value={row.cause}
                       onChangeText={v => patchGuide(i, { cause: v })}
                       onBlur={onSave}
@@ -263,12 +266,12 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
                       placeholder="Why is this happening..."
                       placeholderTextColor="#48484A"
                     />
-                  </View>
 
-                  <View style={s.fieldBlock}>
-                    <Text style={s.fieldLabel}>FEET ADJUSTMENT</Text>
-                    <TextInput
-                      style={s.fieldInput}
+                  <EditableField
+                      label="Feet adjustment"
+                      blockStyle={s.fieldBlock}
+                      labelStyle={s.fieldLabel}
+                      inputStyle={s.fieldInput}
                       value={row.feet}
                       onChangeText={v => patchGuide(i, { feet: v })}
                       onBlur={onSave}
@@ -277,12 +280,12 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
                       placeholder="Foot position..."
                       placeholderTextColor="#48484A"
                     />
-                  </View>
 
-                  <View style={[s.fieldBlock, s.lastFieldBlock]}>
-                    <Text style={s.fieldLabel}>DIRECTION</Text>
-                    <TextInput
-                      style={s.fieldInput}
+                  <EditableField
+                      label="Direction"
+                      blockStyle={[s.fieldBlock, s.lastFieldBlock]}
+                      labelStyle={s.fieldLabel}
+                      inputStyle={s.fieldInput}
                       value={row.direction}
                       onChangeText={v => patchGuide(i, { direction: v })}
                       onBlur={onSave}
@@ -290,7 +293,6 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
                       placeholder="🟢 Down / 🔴 Up / 🟡 Feet only"
                       placeholderTextColor="#48484A"
                     />
-                  </View>
                 </View>
               )}
             </View>
@@ -310,6 +312,8 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         {data.laneReads.map((read, i) => {
           const isOpen = expandedLane.has(i);
@@ -330,10 +334,11 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
                 <View style={s.expandedBody}>
                   <View style={s.separator} />
 
-                  <View style={s.fieldBlock}>
-                    <Text style={s.fieldLabel}>WHAT YOU'RE SEEING</Text>
-                    <TextInput
-                      style={s.fieldInput}
+                  <EditableField
+                      label="What you're seeing"
+                      blockStyle={s.fieldBlock}
+                      labelStyle={s.fieldLabel}
+                      inputStyle={s.fieldInput}
                       value={read.whatYoureSeeing}
                       onChangeText={v => patchLane(i, { whatYoureSeeing: v })}
                       onBlur={onSave}
@@ -342,12 +347,12 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
                       placeholder="Describe the reaction..."
                       placeholderTextColor="#48484A"
                     />
-                  </View>
 
-                  <View style={s.fieldBlock}>
-                    <Text style={s.fieldLabel}>WHAT IT MEANS</Text>
-                    <TextInput
-                      style={s.fieldInput}
+                  <EditableField
+                      label="What it means"
+                      blockStyle={s.fieldBlock}
+                      labelStyle={s.fieldLabel}
+                      inputStyle={s.fieldInput}
                       value={read.whatItMeans}
                       onChangeText={v => patchLane(i, { whatItMeans: v })}
                       onBlur={onSave}
@@ -356,12 +361,12 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
                       placeholder="Interpretation..."
                       placeholderTextColor="#48484A"
                     />
-                  </View>
 
-                  <View style={[s.fieldBlock, s.lastFieldBlock]}>
-                    <Text style={s.fieldLabel}>RECOMMENDATION</Text>
-                    <TextInput
-                      style={s.fieldInput}
+                  <EditableField
+                      label="Recommendation"
+                      blockStyle={[s.fieldBlock, s.lastFieldBlock]}
+                      labelStyle={s.fieldLabel}
+                      inputStyle={s.fieldInput}
                       value={read.recommendation}
                       onChangeText={v => patchLane(i, { recommendation: v })}
                       onBlur={onSave}
@@ -370,7 +375,6 @@ export default function SignalsTab({ data, onUpdate, onSave }: SignalsTabProps) 
                       placeholder="What to do..."
                       placeholderTextColor="#48484A"
                     />
-                  </View>
                 </View>
               )}
             </View>
@@ -509,12 +513,12 @@ const s = StyleSheet.create({
   lastFieldBlock: {
     marginBottom: 0,
   },
+  // v2.1 P11: sentence case 13pt (was 10pt all-caps -- theme.ts: no tiny all-caps labels)
   fieldLabel: {
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '500',
     color: '#8E8E93',
-    letterSpacing: 0.6,
-    marginBottom: 5,
+    marginBottom: 4,
   },
   fieldInput: {
     fontSize: 14,

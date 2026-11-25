@@ -44,8 +44,9 @@ export default function SeasonMenu({
       onPress={open}
       style={styles.button}
       accessibilityRole="button"
-      accessibilityLabel={`Season: ${current}. Double-tap to change.`}
-      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+      accessibilityLabel={`Season: ${current}`}
+      accessibilityHint="Opens the list of seasons"
+      hitSlop={{ left: 8, right: 8 }}
     >
       <Text style={styles.label} numberOfLines={1}>{current}</Text>
       <IconSymbol name="chevron.down" size={13} color={color.teal} />
@@ -54,6 +55,7 @@ export default function SeasonMenu({
 }
 
 const styles = StyleSheet.create({
-  button: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start' },
+  // v2.1 P5: 44pt tall tap area (was ~36pt with slop)
+  button: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', minHeight: 44 },
   label: { ...type.action, fontSize: 15 },
 });

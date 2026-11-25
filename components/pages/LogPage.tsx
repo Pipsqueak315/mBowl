@@ -10,14 +10,17 @@ import {
   SafeAreaView,
   ScrollView,
   TextInput,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Alert,
   AppState,
+  ActionSheetIOS,
 } from 'react-native';
 import { useSideInsets } from '@/src/v2/page';
 import SwipeRow from '@/components/v2/SwipeRow';
-import { color } from '@/src/v2/theme';
+import KeyboardDoneBar, { DONE_BAR } from '@/components/v2/KeyboardDoneBar';
+import { color, motion } from '@/src/v2/theme';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -257,7 +260,8 @@ function GameRow({ game, index, onChange, onPickBall, onPickSwitchBall, history,
           placeholder="—"
           placeholderTextColor="#48484A"
           maxLength={3}
-          returnKeyType="done"
+          inputAccessoryViewID={DONE_BAR.log}
+          selectTextOnFocus
         />
       </View>
 
@@ -276,6 +280,7 @@ function GameRow({ game, index, onChange, onPickBall, onPickSwitchBall, history,
         onPickSwitchBall={onPickSwitchBall}
         startHere={game.ball ? startHere(history, game.ball) : null}
         ballName={game.ball}
+        doneBarId={DONE_BAR.log}
       />
 
       {/* Inline mini scorecard — shown when frame data exists */}
@@ -320,6 +325,9 @@ const SESSION_TYPE_SEGMENTS = [
   { key: 'tournament', label: 'Tourney' },
   { key: 'practice', label: 'Practice' },
 ] as const satisfies readonly { key: SessionType; label: string }[];
+
+/** v2.1 P2: the Resume card starts this far below its resting place. */
+const RESUME_SHEET_START = 420;
 
 const MADE_CUT_SEGMENTS = [
   { key: 'Yes', label: 'Yes' },
@@ -376,6 +384,9 @@ export default function LogPage() {
   const [availableBalls, setAvailableBalls] = useState<Ball[]>([]);
   // Draft resume
   const [draftResumeVisible, setDraftResumeVisible] = useState(false);
+  // v2.1 P2: Resume sheet slide-up (the Modal itself fades).
+  const resumeSheetY = useSharedValue(RESUME_SHEET_START);
+  const resumeSheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: resumeSheetY.value }] }));
   const [pendingDraft, setPendingDraft] = useState<DraftData | null>(null);
   // Settings modal
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -659,6 +670,7 @@ export default function LogPage() {
     setGames((prev) => prev.map((g) => (g.id === id ? { ...g, [field]: value } : g)));
 
   const openBallPicker = (gameId: string, field: 'ball' | 'switchBall' = 'ball') => {
+    Keyboard.dismiss(); // v2.1 P1: taps reach buttons with the keyboard up, so close it here
     ballPickerFieldRef.current = field;
     setBallPickerForGameId(gameId);
     readBalls().then(b => {
@@ -760,6 +772,30 @@ export default function LogPage() {
     });
   }
 
+  // v2.1 P2: Discard on the Resume sheet deleted the draft and the game in
+  // progress in one tap, 12pt under Resume. Now it asks first, as an iOS
+  // action sheet with the destructive button in red.
+  function confirmDiscardDraft() {
+    const title = 'Discard this session?';
+    const message = 'The games, scores and frames in this unfinished session will be deleted.';
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { title, message, options: ['Discard session', 'Cancel'], destructiveButtonIndex: 0, cancelButtonIndex: 1 },
+        (i) => {
+          if (i === 0) {
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            void discardDraft();
+          }
+        },
+      );
+      return;
+    }
+    Alert.alert(title, message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Discard session', style: 'destructive', onPress: () => void discardDraft() },
+    ]);
+  }
+
   async function discardDraft() {
     // A Live game request was for the draft's game; the draft is gone.
     clearLiveGameRequest();
@@ -785,6 +821,7 @@ export default function LogPage() {
   // before React draws the cleared form, and that stale handler still holds
   // the old games. Early returns (alerts, refused read) release it at once.
   async function handleSubmit() {
+    Keyboard.dismiss(); // v2.1 P1
     if (submittingRef.current) return;
     submittingRef.current = true;
     let saved = false;
@@ -949,6 +986,7 @@ export default function LogPage() {
   // screens; cleared when this page is focused again.
   const openingFramesRef = useRef(false);
   function openLogFrames(index: number) {
+    Keyboard.dismiss(); // v2.1 P1
     const game = games[index];
     if (!game || openingFramesRef.current) return;
     openingFramesRef.current = true;
@@ -1015,11 +1053,11 @@ export default function LogPage() {
 
   return (
     <>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={88}
-      >
+      {/* v2.1 P1 / P8: no KeyboardAvoidingView with a hard-coded 88pt offset --
+          the ScrollView insets itself by the real keyboard height on every
+          screen and orientation, and a tap on a button with the keyboard up
+          now works the first time (keyboardShouldPersistTaps). */}
+      <View style={styles.flex}>
         <ScrollView
           style={styles.flex}
           contentContainerStyle={[
@@ -1027,6 +1065,8 @@ export default function LogPage() {
             { paddingLeft: 16 + sideInsets.left, paddingRight: 16 + sideInsets.right },
           ]}
           keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
           showsVerticalScrollIndicator={false}
         >
           <View style={wide ? styles.wideCols : undefined}>
@@ -1047,7 +1087,10 @@ export default function LogPage() {
           <View style={styles.groupRowFirst}>
             <TouchableOpacity
               style={styles.fieldRow}
-              onPress={() => setShowDatePicker((v) => !v)}
+              onPress={() => {
+                Keyboard.dismiss(); // v2.1 P1
+                setShowDatePicker((v) => !v);
+              }}
             >
               <Text style={styles.fieldLabel}>Date</Text>
               <Text style={styles.fieldValueTeal}>{formatDate(date)}</Text>
@@ -1084,7 +1127,8 @@ export default function LogPage() {
                   keyboardType="number-pad"
                   placeholder="—"
                   placeholderTextColor="#48484A"
-                  returnKeyType="done"
+                  inputAccessoryViewID={DONE_BAR.log}
+                  selectTextOnFocus
                 />
               </View>
             </View>
@@ -1105,6 +1149,7 @@ export default function LogPage() {
                   placeholder={sessionType === 'league' ? 'Required' : 'Optional'}
                   placeholderTextColor="#48484A"
                   returnKeyType="done"
+                  autoCorrect={false}
                 />
               </View>
             </View>
@@ -1123,6 +1168,7 @@ export default function LogPage() {
                     placeholder="Tournament name"
                     placeholderTextColor="#48484A"
                     returnKeyType="done"
+                    autoCorrect={false}
                   />
                 </View>
               </View>
@@ -1136,6 +1182,7 @@ export default function LogPage() {
                     placeholder="e.g. Match Play"
                     placeholderTextColor="#48484A"
                     returnKeyType="done"
+                    autoCorrect={false}
                   />
                 </View>
               </View>
@@ -1149,6 +1196,7 @@ export default function LogPage() {
                     placeholder="e.g. Chameleon 39'"
                     placeholderTextColor="#48484A"
                     returnKeyType="done"
+                    autoCorrect={false}
                   />
                 </View>
               </View>
@@ -1175,6 +1223,7 @@ export default function LogPage() {
                     placeholder="e.g. 3rd"
                     placeholderTextColor="#48484A"
                     returnKeyType="done"
+                    autoCorrect={false}
                   />
                 </View>
               </View>
@@ -1192,6 +1241,7 @@ export default function LogPage() {
                 placeholder={DEFAULT_HOUSE}
                 placeholderTextColor="#48484A"
                 returnKeyType="done"
+                autoCorrect={false}
               />
             </View>
           </View>
@@ -1310,7 +1360,8 @@ export default function LogPage() {
 
           <View style={styles.bottomSpacer} />
         </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
+      <KeyboardDoneBar id={DONE_BAR.log} />
 
       {/* ================================================================
           Ball Picker Modal
@@ -1377,15 +1428,21 @@ export default function LogPage() {
       {/* ================================================================
           Draft Resume Sheet
       ================================================================ */}
+      {/* v2.1 P2: the blurred backdrop fades in and only the card slides up
+          (the whole Modal used to slide, blur included). */}
       <Modal
         visible={draftResumeVisible}
         transparent
-        animationType="slide"
+        animationType="fade"
         supportedOrientations={['portrait', 'landscape']}
         onRequestClose={() => {}}
+        onShow={() => {
+          resumeSheetY.value = RESUME_SHEET_START;
+          resumeSheetY.value = withSpring(0, motion.spring);
+        }}
       >
         <BlurView intensity={60} tint="dark" style={styles.resumeOverlay}>
-          <View style={styles.resumeSheet}>
+          <Animated.View style={[styles.resumeSheet, resumeSheetStyle]}>
             <Text style={styles.resumeTitle}>Resume Session?</Text>
             <Text style={styles.resumeSubtitle}>
               You have an unfinished session in progress.
@@ -1393,10 +1450,10 @@ export default function LogPage() {
             <ScalePressable style={styles.resumeButton} onPress={resumeDraft}>
               <Text style={styles.resumeButtonText}>Resume</Text>
             </ScalePressable>
-            <ScalePressable style={styles.discardButton} onPress={discardDraft}>
+            <ScalePressable style={styles.discardButton} onPress={confirmDiscardDraft}>
               <Text style={styles.discardButtonText}>Discard</Text>
             </ScalePressable>
-          </View>
+          </Animated.View>
         </BlurView>
       </Modal>
 

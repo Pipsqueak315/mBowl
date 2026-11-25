@@ -940,6 +940,9 @@ function LogFramesBody() {
   // on the open screen or in History -> Edit Frames.
   const firstBall = frames[currentFrame].throws[0];
   const showMissTags = !compact && !isGameOver && firstBall !== undefined && firstBall !== 'X';
+  // v2.1 P3: space held for the rows that come and go inside a frame.
+  const reserveMissSlot = !compact && !isGameOver;
+  const reserveNoteSlot = mode === 'live' && inputMode === 'quick' && !isGameOver;
 
   // --- Pieces shared by every arrangement ---------------------------------
 
@@ -974,12 +977,22 @@ function LogFramesBody() {
     />
   );
 
+  const streak = showStreak ? (
+    <Animated.View style={[styles.streakBadge, streakAnimStyle]}>
+      <Text style={styles.streakText} numberOfLines={1}>🔥 {strikeStreak} in a row</Text>
+    </Animated.View>
+  ) : null;
+
+  // v2.1 P3: the strike-streak badge sits in the middle of the totals row
+  // (shorter than the row, so the row never changes height). It used to sit
+  // above the frame card and push the card down when a streak started.
   const totals = (
     <View style={styles.totalRow}>
-      <View>
+      <View style={styles.totalLeft}>
         <Text style={styles.totalLabel}>Running total</Text>
         {showSeries && <Text style={styles.seriesText}>Series {seriesTotal}</Text>}
       </View>
+      <View style={styles.totalCenter} pointerEvents="none">{streak}</View>
       <View style={styles.totalRight}>
         {maxScore !== null && <Text style={styles.maxLabel}>Max {maxScore}</Text>}
         <Text style={[styles.totalValue, allComplete && styles.totalValueFinal]}>
@@ -989,11 +1002,6 @@ function LogFramesBody() {
     </View>
   );
 
-  const streak = showStreak ? (
-    <Animated.View style={[styles.streakBadge, streakAnimStyle]}>
-      <Text style={styles.streakText}>🔥 {strikeStreak} in a row</Text>
-    </Animated.View>
-  ) : null;
 
   // The middle scrolls instead of overlapping when a short window can't fit
   // everything (Nov 10 Duo check F4: FRAME 1 / Running Total and Frame note /
@@ -1005,7 +1013,6 @@ function LogFramesBody() {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      {streak}
       {isGameOver ? (
         <View style={styles.completeCard}>
           <Text style={styles.completeTitle}>Final score</Text>
@@ -1037,6 +1044,10 @@ function LogFramesBody() {
         />
         </>
       )}
+      {/* v2.1 P3: the miss chips and the throw-note bar come and go within a
+          frame. Their space is held for the whole game (open screen / Live +
+          Quick), so the centred frame card above them stops jumping. */}
+      <View style={reserveMissSlot ? styles.missSlot : undefined}>
       {showMissTags && (
         <View style={styles.missRow} accessibilityLabel="Tag this first ball as a miss">
           <Text style={styles.missLabel}>Miss?</Text>
@@ -1058,6 +1069,8 @@ function LogFramesBody() {
           })}
         </View>
       )}
+      </View>
+      <View style={reserveNoteSlot ? styles.noteSlot : undefined}>
       {showThrowNoteBar && (
         <ThrowNoteBar
           key={`${currentFrame}-${frames[currentFrame].throws.length}`}
@@ -1065,6 +1078,7 @@ function LogFramesBody() {
           onThrowNoteChange={(ti, note) => updateThrowNote(currentFrame, ti, note)}
         />
       )}
+      </View>
     </ScrollView>
   );
 
@@ -1237,7 +1251,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#38383A',
   },
-  totalRight: { alignItems: 'flex-end' },
+  totalLeft: { flexShrink: 0 },
+  totalCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  totalRight: { alignItems: 'flex-end', flexShrink: 0 },
   totalLabel: { fontSize: 13, color: '#8E8E93', fontWeight: '500' },
   totalValue: { fontSize: 22, fontWeight: '300', color: '#FFFFFF' },
   totalValueFinal: { color: '#00CEC9' },
@@ -1251,8 +1267,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 20,
     backgroundColor: '#2C2C2E',
-    marginTop: 6,
-    marginBottom: 2,
   },
   streakText: { fontSize: 13, fontWeight: '600', color: '#FFD60A' },
 
@@ -1290,7 +1304,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    minHeight: 44, // v2.1 P5
   },
   frameNoteLabel: { fontSize: 13, color: '#8E8E93', fontWeight: '500' },
   frameNoteInput: {
@@ -1314,6 +1328,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 48,
   },
   doneButtonText: { fontSize: 17, fontWeight: '600', color: '#000000' },
+  missSlot: { minHeight: 52 },
+  noteSlot: { minHeight: 45 },
   missRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' },
   missLabel: { fontSize: 13, color: '#8E8E93', marginRight: 2 },
   missChip: {
@@ -1357,7 +1373,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    minHeight: 44, // v2.1 P5
   },
   throwNoteLabel: { fontSize: 13, color: '#8E8E93', fontWeight: '500' },
   throwNoteInput: {

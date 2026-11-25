@@ -3,13 +3,13 @@ import {
   View,
   Text,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   Platform,
   UIManager,
   ActivityIndicator,
 } from 'react-native';
+import EditableField from '@/components/v2/EditableField';
 import { animateNextLayout } from '@/src/v2/motion';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { readSessions } from '@/src/storage';
@@ -214,10 +214,11 @@ export default function PocketDiagnosticsTab({
       <View style={s.expandedBody}>
         <View style={s.separator} />
 
-        <View style={s.fieldBlock}>
-          <Text style={s.fieldLabel}>WHY IT HAPPENS</Text>
-          <TextInput
-            style={s.fieldInput}
+        <EditableField
+            label="Why it happens"
+            blockStyle={s.fieldBlock}
+            labelStyle={s.fieldLabel}
+            inputStyle={s.fieldInput}
             value={card.why}
             onChangeText={v => patchCard(originalIndex, { why: v })}
             onBlur={onSave}
@@ -226,12 +227,12 @@ export default function PocketDiagnosticsTab({
             placeholder="Root cause..."
             placeholderTextColor="#48484A"
           />
-        </View>
 
-        <View style={s.fieldBlock}>
-          <Text style={s.fieldLabel}>FIX</Text>
-          <TextInput
-            style={s.fieldInput}
+        <EditableField
+            label="Fix"
+            blockStyle={s.fieldBlock}
+            labelStyle={s.fieldLabel}
+            inputStyle={s.fieldInput}
             value={card.fix}
             onChangeText={v => patchCard(originalIndex, { fix: v })}
             onBlur={onSave}
@@ -240,12 +241,12 @@ export default function PocketDiagnosticsTab({
             placeholder="Adjustment to make..."
             placeholderTextColor="#48484A"
           />
-        </View>
 
-        <View style={[s.fieldBlock, s.lastFieldBlock]}>
-          <Text style={s.fieldLabel}>PATTERN TO WATCH</Text>
-          <TextInput
-            style={s.fieldInput}
+        <EditableField
+            label="Pattern to watch"
+            blockStyle={[s.fieldBlock, s.lastFieldBlock]}
+            labelStyle={s.fieldLabel}
+            inputStyle={s.fieldInput}
             value={card.pattern}
             onChangeText={v => patchCard(originalIndex, { pattern: v })}
             onBlur={onSave}
@@ -254,7 +255,6 @@ export default function PocketDiagnosticsTab({
             placeholder="What recurring instances mean..."
             placeholderTextColor="#48484A"
           />
-        </View>
       </View>
     );
   }
@@ -281,6 +281,8 @@ export default function PocketDiagnosticsTab({
           contentContainerStyle={s.content}
           showsVerticalScrollIndicator={false}
           keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
         >
           {visibleWithIndex.map(({ card, originalIndex }) => {
             const isOpen = expanded.has(originalIndex);
@@ -325,6 +327,8 @@ export default function PocketDiagnosticsTab({
               contentContainerStyle={s.content}
               showsVerticalScrollIndicator={false}
               keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
             >
               {myDataItems.map(({ card, originalIndex, leaveData }) => {
                 const isOpen = expanded.has(originalIndex);
@@ -477,12 +481,12 @@ const s = StyleSheet.create({
   lastFieldBlock: {
     marginBottom: 0,
   },
+  // v2.1 P11: sentence case 13pt (was 10pt all-caps -- theme.ts: no tiny all-caps labels)
   fieldLabel: {
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '500',
     color: '#8E8E93',
-    letterSpacing: 0.6,
-    marginBottom: 5,
+    marginBottom: 4,
   },
   fieldInput: {
     fontSize: 14,

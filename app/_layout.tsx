@@ -17,6 +17,7 @@ import {
   KEYS,
 } from '../src/storage';
 import { writeBackup, restoreForFirstLaunch } from '../src/backup';
+import { notifyDataChanged } from '../src/dataEvents';
 import { scheduleCertReminder } from '../src/notifications';
 import type { Session, Ball } from '../src/types';
 import { SEED_SESSIONS } from '../src/seeds';
@@ -37,6 +38,9 @@ import { INITIAL_BALLS } from '../src/balls';
 
 export default function RootLayout() {
   useEffect(() => {
+    // v2.1 P4: set when launch recovery wrote data (a first-launch restore or a
+    // shadow-key recovery), so pages that already loaded re-read it.
+    let recovered = false;
     async function initStorage(): Promise<boolean | void> {
       // Step 2: Seed flag — seeds run at most once, ever
       let seeded: string | null = null;
@@ -82,6 +86,7 @@ export default function RootLayout() {
             return true;
           }
           restoredSessions = first.restored;
+          if (restoredSessions > 0) recovered = true;
           if (restoredSessions === 0) {
             let shadowHolds = false;
             try {
@@ -134,7 +139,7 @@ export default function RootLayout() {
           if (raw) {
             const parsed = JSON.parse(raw);
             if (isValidSessionArray(parsed)) {
-              await writeSessions(parsed);
+              if (await writeSessions(parsed)) recovered = true;
               console.warn('[mBowl] sessions restored from backup');
             }
           }
@@ -151,7 +156,7 @@ export default function RootLayout() {
           if (raw) {
             const parsed = JSON.parse(raw);
             if (isBallArray(parsed) && parsed.length > 0) {
-              await writeBalls(parsed);
+              if (await writeBalls(parsed)) recovered = true;
               console.warn('[mBowl] balls restored from backup');
             }
           }
@@ -161,6 +166,7 @@ export default function RootLayout() {
       }
     }
     initStorage().then((skipBackup) => {
+      if (recovered) notifyDataChanged('restore');
       if (!skipBackup) void writeBackup();
       void scheduleCertReminder();
     });

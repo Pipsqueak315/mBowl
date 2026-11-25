@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useCallback, useRef, useEffect } from 'react';
+import { useState, useLayoutEffect, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,11 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   Alert,
 } from 'react-native';
 import { useSideInsets } from '@/src/v2/page';
-import { useNavigation, useFocusEffect } from 'expo-router/react-navigation';
+import { useNavigation } from 'expo-router/react-navigation';
 
 import HeaderIconButton from '@/components/v2/HeaderIconButton';
 import SettingsContent from '@/components/SettingsContent';
@@ -26,6 +24,7 @@ import { readReferenceResult, writeReference } from '@/src/storage';
 import { writeBackup } from '@/src/backup';
 import { onDataChanged, notifyDataChanged } from '@/src/dataEvents';
 import SegmentedControl from '@/components/v2/SegmentedControl';
+import EditableField from '@/components/v2/EditableField';
 import { upgradeReference, REFERENCE_VERSION } from '@/src/referenceUpgrade';
 import { YOUR_NUMBERS_KNOWN } from '@/src/referenceContent';
 
@@ -295,10 +294,13 @@ export default function ReferenceScreen() {
     });
   }, [navigation]);
 
-  useFocusEffect(
-    useCallback(() => {
+  // v2.1 P4: load once on mount and again after a Restore (dataTick) -- NOT
+  // on every focus. The focus reload flashed a spinner and remounted the
+  // sub-tabs, so scroll, expanded cards and inner toggles reset on every
+  // visit. Only this screen and Restore write REFERENCE (Restore bumps
+  // dataTick), so the copy in memory is always current.
+  useEffect(() => {
       let active = true;
-      setLoaded(false);
       (async () => {
         const read = await readReferenceResult();
         if (!active) return;
@@ -332,8 +334,7 @@ export default function ReferenceScreen() {
         setLoaded(true);
       })();
       return () => { active = false; };
-    }, [dataTick]),
-  );
+    }, [dataTick]);
 
   // Update state and ref atomically — prevents stale closure in save()
   function update(updater: (prev: ReferenceData) => ReferenceData) {
@@ -392,6 +393,8 @@ export default function ReferenceScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         {/* ---- Shot Clock (static) ---- */}
         <Text style={styles.sectionLabel}>Shot clock</Text>
@@ -441,6 +444,7 @@ export default function ReferenceScreen() {
                 }
                 onBlur={save}
                 returnKeyType="done"
+                autoCorrect={false}
                 placeholder="Cue title..."
                 placeholderTextColor="#48484A"
               />
@@ -471,27 +475,29 @@ export default function ReferenceScreen() {
           {YOUR_NUMBERS_ROWS.map((row, index) => (
             <View key={row.key}>
               {index > 0 && <View style={styles.separator} />}
-              <View style={styles.numbersRow}>
-                <Text style={styles.numbersLabel}>{row.label}</Text>
-                <TextInput
-                  style={styles.numbersInput}
-                  value={data.yourNumbers[row.key]}
-                  onChangeText={v =>
-                    update(prev => ({
-                      ...prev,
-                      yourNumbers: {
-                        ...prev.yourNumbers,
-                        [row.key]: v,
-                      } as YourNumbers,
-                    }))
-                  }
-                  onBlur={save}
-                  returnKeyType="done"
-                  placeholder={row.placeholder}
-                  placeholderTextColor="#48484A"
-                  textAlign="right"
-                />
-              </View>
+              {/* v2.1 P5: the whole row is the tap target */}
+              <EditableField
+                label={row.label}
+                blockStyle={styles.numbersRow}
+                labelStyle={styles.numbersLabel}
+                inputStyle={styles.numbersInput}
+                value={data.yourNumbers[row.key]}
+                onChangeText={v =>
+                  update(prev => ({
+                    ...prev,
+                    yourNumbers: {
+                      ...prev.yourNumbers,
+                      [row.key]: v,
+                    } as YourNumbers,
+                  }))
+                }
+                onBlur={save}
+                returnKeyType="done"
+                autoCorrect={false}
+                placeholder={row.placeholder}
+                placeholderTextColor="#48484A"
+                textAlign="right"
+              />
             </View>
           ))}
         </View>
@@ -524,11 +530,9 @@ export default function ReferenceScreen() {
 
   return (
     <>
-      <KeyboardAvoidingView
-        style={[styles.container, { paddingLeft: sideInsets.left, paddingRight: sideInsets.right }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={88}
-      >
+      {/* v2.1 P1 / P8: each sub-tab's ScrollView insets itself by the real
+          keyboard height (the fixed 88pt offset only fit one screen). */}
+      <View style={[styles.container, { paddingLeft: sideInsets.left, paddingRight: sideInsets.right }]}>
         {/* Sub-tabs -- sticky, inside the safe areas (like History's filter) */}
         <View style={styles.subTabBar}>
           <SegmentedControl
@@ -563,7 +567,7 @@ export default function ReferenceScreen() {
             {activeTab === 'Mental' && renderMentalTab()}
           </>
         )}
-      </KeyboardAvoidingView>
+      </View>
 
       {/* Settings Modal */}
       <Modal
